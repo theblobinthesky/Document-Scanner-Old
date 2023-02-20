@@ -134,7 +134,7 @@ class Model(nn.Module):
 
 
 def loss_function(uv_pred, uv_label):
-    return (uv_pred - uv_label).pow(2).mean()
+    return (uv_pred - uv_label).abs().mean()
 
 
 def load_model(path):

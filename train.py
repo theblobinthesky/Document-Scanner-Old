@@ -6,7 +6,7 @@ from torchinfo import summary
 import datetime
 from itertools import cycle
 
-lr = 1e-6
+lr = 1e-3
 epochs = 200
 steps_per_epoch = 20
 device = torch.device('cuda')
@@ -24,6 +24,7 @@ model.to(device)
 summary(model, input_size=(1, 3, 128, 128), device=device)
 
 optim = torch.optim.Adam(model.parameters(), lr=lr)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, factor=0.1, patience=5)
 
 start_time = datetime.datetime.now()
 
@@ -45,16 +46,18 @@ for epoch in range(epochs):
 
         train_loss += loss.item()
 
-        print(f"epoch {epoch}/{epochs} step {i + 1}/{steps_per_epoch}. training loss: {loss.item():.4}")
+        # print(f"epoch {epoch}/{epochs} step {i + 1}/{steps_per_epoch}. training loss: {loss.item():.4}")
 
     train_loss /= steps_per_epoch
     valid_loss = 0.0
     # valid_loss = model.eval_loss_on_ds(valid_ds)
 
+    scheduler.step(train_loss)
+
     now = datetime.datetime.now()
     hours_passed = (now - start_time).seconds / (60.0 * 60.0)
 
-    print(f"epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. training loss: {train_loss:.4}, validation loss: {valid_loss:.4}")
+    print(f"epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. training loss: {train_loss:.4}, validation loss: {valid_loss:.4}, learning rate: {optim.param_groups[-1]['lr']}")
 
     if hours_passed > time_in_hours:
         print(f"hour limit of {time_in_hours:.4f}h passed")
