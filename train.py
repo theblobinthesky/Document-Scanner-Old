@@ -10,7 +10,7 @@ lr = 1e-3
 epochs = 200
 steps_per_epoch = 20
 device = torch.device('cuda')
-time_in_hours = 1.5 / 60.0
+time_in_hours = 15.0 / 60.0
 
 train_ds, valid_ds, test_ds = prepare_datasets([
     ("/media/shared/Projekte/Scanner/datasets/Doc3d", "img", "uv_exr", "png", "exr", 5000)
@@ -18,12 +18,12 @@ train_ds, valid_ds, test_ds = prepare_datasets([
 
 trainds_iter = iter(cycle(train_ds))
 
-model = load_model("model tr.pth")
+model = Model() # load_model("model.pth")
 model.to(device)
 
 summary(model, input_size=(1, 3, 128, 128), device=device)
 
-optim = torch.optim.Adam(model.parameters(), lr=lr)
+optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, factor=0.1, patience=5)
 
 start_time = datetime.datetime.now()
@@ -68,4 +68,4 @@ test_loss = 0.0
 # test_loss = model.eval_loss_on_ds(test_ds)
 print(f"test loss: {test_loss:.4}")
 
-save_model(model, "model tr.pth")
+save_model(model, "model.pth")

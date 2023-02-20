@@ -64,53 +64,19 @@ class DownscaleBlock(nn.Module):
         return self.layers(x)
 
 
-# class DownscaleBlock(nn.Module):
-#     def __init__(self, inp, out):
-#         super().__init__()
-        
-#         self.conv = Conv(inp, out // 4)
-#         self.block = BlockStack(out, out)
-        
-
-#     def forward(self, x):
-#         x = self.conv(x)
-#         x = F.pixel_unshuffle(x, 2)
-#         x = self.block(x)
-
-#         return x
-        
-
 class UpscaleBlock(nn.Module):
     def __init__(self, inp, out):
         super().__init__()
 
-        self.conv_tr = nn.ConvTranspose2d(inp, out, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False)
-        self.norm_tr = nn.BatchNorm2d(out)
+        self.shuffle = Conv(inp, 4 * out)
         self.conv = Block(out)
 
     def forward(self, x):
-        x = self.conv_tr(x)
-        x = self.norm_tr(x)
+        x = self.shuffle(x)
+        x = F.pixel_shuffle(x, 2)
         x = self.conv(x)
 
         return x
-    
-
-# class UpscaleBlock(nn.Module):
-#     def __init__(self, inp, out):
-#         super().__init__()
-
-#         self.conv0 = Conv(inp, 4 * inp)
-#         self.conv1 = Conv(inp, out)
-#         self.conv = Block(out)
-
-#     def forward(self, x):
-#         x = self.conv0(x)
-#         x = F.pixel_shuffle(x, 2)
-#         x = self.conv1(x)
-#         x = self.conv(x)
-
-#         return x
 
 
 class UNet(nn.Module):
