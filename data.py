@@ -11,6 +11,7 @@ from pathlib import Path
 import os
 
 ndim = 3
+num_workers = 4
 
 def exr_loader(path):
     file = OpenEXR.InputFile(path)
@@ -63,7 +64,7 @@ def split_dataset(dataset, valid_perc, test_perc):
     return random_split(dataset, [train_perc, valid_perc, test_perc])
 
 def load_dataset(dataset, batch_size):
-    return DataLoader(dataset, batch_size=batch_size, pin_memory=True, shuffle=False)
+    return DataLoader(dataset, batch_size=batch_size, pin_memory=True, shuffle=False, num_workers=num_workers)
 
 def prepare_datasets(sets, valid_perc, test_perc, batch_size, device):
     pairs = []

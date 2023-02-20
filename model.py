@@ -31,6 +31,7 @@ class DoubleConv(nn.Module):
     def forward(self, x):
         return self.layers(x)
 
+
 class DownscaleBlock(nn.Module):
     def __init__(self, inp, out):
         super().__init__()
@@ -48,13 +49,14 @@ class UpscaleBlock(nn.Module):
     def __init__(self, inp, out):
         super().__init__()
 
-        self.conv0 = Conv(inp, 4 * inp)
-        self.conv1 = Conv(inp, out)
+        self.conv_tr = nn.ConvTranspose2d(inp, out, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False)
+        self.norm_tr = nn.BatchNorm2d(out)
+        self.conv = Conv(out, out)
 
     def forward(self, x):
-        x = self.conv0(x)
-        x = F.pixel_shuffle(x, 2)
-        x = self.conv1(x)
+        x = self.conv_tr(x)
+        x = self.norm_tr(x)
+        x = self.conv(x)
 
         return x
 

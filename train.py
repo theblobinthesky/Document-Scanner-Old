@@ -68,4 +68,4 @@ test_loss = 0.0
 # test_loss = model.eval_loss_on_ds(test_ds)
 print(f"test loss: {test_loss:.4}")
 
-save_model(model, "model.pth")
+save_model(model, "model 2.pth")
