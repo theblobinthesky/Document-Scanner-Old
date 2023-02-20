@@ -1,2 +1,2 @@
 # DocumentScanner
-The ultimate document scanner for your phone. We will replace your scanner.
+The ultimate document scanner for your phone with serious potential to help digitize many more documents than previously possible.

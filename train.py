@@ -10,7 +10,7 @@ lr = 1e-3
 epochs = 200
 steps_per_epoch = 20
 device = torch.device('cuda')
-time_in_hours = 45.0 / 60.0
+time_in_hours = 15.0 / 60.0
 
 train_ds, valid_ds, test_ds = prepare_datasets([
     ("/media/shared/Projekte/Scanner/datasets/Doc3d", "img", "uv_exr", "png", "exr", 5000)

@@ -23,13 +23,13 @@ class DoubleConv(nn.Module):
         super().__init__()
 
         self.layers = nn.Sequential(
-            Conv(inp, out),            
-            Conv(out, out),
+            Conv(inp, out),
+            Conv(out, out)
         )
+
 
     def forward(self, x):
         return self.layers(x)
-
 
 class DownscaleBlock(nn.Module):
     def __init__(self, inp, out):
@@ -102,7 +102,7 @@ class Model(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.unet0 = UNet(3, 3, blocks=4)
+        self.unet0 = UNet(3, 3, blocks=3)
 
         #self.unet1 = UNet(5, 3, blocks=2)
 
