@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchmetrics.functional import image_gradients
 
+lam = 0.2
 
 class Conv(nn.Module):
     def __init__(self, inp, out):
@@ -134,7 +136,12 @@ class Model(nn.Module):
 
 
 def loss_function(uv_pred, uv_label):
-    return (uv_pred - uv_label).abs().mean()
+    abs_loss = (uv_pred - uv_label).abs().mean()
+    
+    (pgrad_x, pgrad_y) = image_gradients(uv_pred)
+    (lgrad_x, lgrad_y) = image_gradients(uv_label)
+    grad_loss = 0.5 * (pgrad_x - lgrad_x).abs().mean() + 0.5 * (pgrad_y - lgrad_y).abs().mean()
+    return abs_loss + lam * grad_loss
 
 
 def load_model(path):

@@ -18,7 +18,7 @@ train_ds, valid_ds, test_ds = prepare_datasets([
 
 trainds_iter = iter(cycle(train_ds))
 
-model = load_model("model.pth")
+model = Model() # load_model("model.pth")
 model.to(device)
 
 summary(model, input_size=(1, 3, 128, 128), device=device)
