@@ -11,7 +11,7 @@ ds, _, _ = prepare_datasets([
     ("/media/shared/Projekte/Scanner/datasets/Doc3d", "img", "uv_exr", "png", "exr", 100)
 ], valid_perc=0.1, test_perc=0.1, batch_size=num_examples, device=device)
 
-model = load_model("model 2.pth")
+model = load_model("model tr.pth")
 model.eval()
 
 (img, uv_label) = next(iter(ds))

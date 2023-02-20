@@ -5,6 +5,7 @@ from torchmetrics.functional import image_gradients
 
 lam = 0.2
 
+
 class Conv(nn.Module):
     def __init__(self, inp, out):
         super().__init__()
@@ -18,13 +19,31 @@ class Conv(nn.Module):
         return self.layers(x)
 
 
-class DoubleConv(nn.Module):
+class Block(nn.Module):
+    def __init__(self, filters):
+        super().__init__()
+
+        self.conv0 = Conv(filters, filters)
+        self.conv1 = Conv(filters, filters)
+        
+        
+    def forward(self, inp):
+        x = self.conv0(inp)
+        x = self.conv1(x)
+        x = x + inp
+
+        return x
+
+
+class BlockStack(nn.Module):
     def __init__(self, inp, out):
         super().__init__()
 
         self.layers = nn.Sequential(
             Conv(inp, out),
-            Conv(out, out)
+            Block(out),
+            Block(out),
+            Block(out)
         )
 
 
@@ -38,12 +57,28 @@ class DownscaleBlock(nn.Module):
         
         self.layers = nn.Sequential(
             nn.MaxPool2d(2),
-            DoubleConv(inp, out)
+            BlockStack(inp, out)
         )
 
     def forward(self, x):
         return self.layers(x)
 
+
+# class DownscaleBlock(nn.Module):
+#     def __init__(self, inp, out):
+#         super().__init__()
+        
+#         self.conv = Conv(inp, out // 4)
+#         self.block = BlockStack(out, out)
+        
+
+#     def forward(self, x):
+#         x = self.conv(x)
+#         x = F.pixel_unshuffle(x, 2)
+#         x = self.block(x)
+
+#         return x
+        
 
 class UpscaleBlock(nn.Module):
     def __init__(self, inp, out):
@@ -51,7 +86,7 @@ class UpscaleBlock(nn.Module):
 
         self.conv_tr = nn.ConvTranspose2d(inp, out, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False)
         self.norm_tr = nn.BatchNorm2d(out)
-        self.conv = Conv(out, out)
+        self.conv = Block(out)
 
     def forward(self, x):
         x = self.conv_tr(x)
@@ -59,6 +94,23 @@ class UpscaleBlock(nn.Module):
         x = self.conv(x)
 
         return x
+    
+
+# class UpscaleBlock(nn.Module):
+#     def __init__(self, inp, out):
+#         super().__init__()
+
+#         self.conv0 = Conv(inp, 4 * inp)
+#         self.conv1 = Conv(inp, out)
+#         self.conv = Block(out)
+
+#     def forward(self, x):
+#         x = self.conv0(x)
+#         x = F.pixel_shuffle(x, 2)
+#         x = self.conv1(x)
+#         x = self.conv(x)
+
+#         return x
 
 
 class UNet(nn.Module):
