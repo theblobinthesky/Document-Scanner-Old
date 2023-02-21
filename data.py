@@ -2,8 +2,8 @@ from glob import glob
 import numpy as np
 import Imath
 import OpenEXR
+from torchvision.transforms import Resize, Compose
 from torchvision.transforms.functional import to_tensor
-from torchvision.transforms import Resize
 from torchvision.datasets.folder import default_loader
 from torch.utils.data import Dataset, random_split, DataLoader
 from torch import from_numpy
@@ -66,7 +66,7 @@ def split_dataset(dataset, valid_perc, test_perc):
 def load_dataset(dataset, batch_size):
     return DataLoader(dataset, batch_size=batch_size, pin_memory=True, shuffle=False, num_workers=num_workers)
 
-def prepare_datasets(sets, valid_perc, test_perc, batch_size, device):
+def prepare_datasets(sets, valid_perc, test_perc, batch_size, transform=None):
     pairs = []
 
     for (dir, inp_subdir, label_subdir, inp_ext, label_ext, count) in sets:
@@ -84,7 +84,16 @@ def prepare_datasets(sets, valid_perc, test_perc, batch_size, device):
 
     np.random.shuffle(pairs)
 
-    transform = Resize((128, 128))
+
+    if transform == None:
+        transform = Resize((128, 128))
+    else:
+        transform = Compose([
+            Resize((128, 128)),
+            transform
+        ])
+
+    
     ds = ImageDataSet(pairs, transform)
     train_ds, valid_ds, test_ds = split_dataset(ds, valid_perc, test_perc)
 

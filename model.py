@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchmetrics.functional import image_gradients
 
-lam = 0.2
+lam = 0.3
+binarize_threshold = 0.8
 
 
 class Conv(nn.Module):
@@ -118,50 +119,98 @@ class UNet(nn.Module):
         return x
 
 
-class Model(nn.Module):
+class MaskModel(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.unet0 = UNet(3, 3, blocks=3)
+        self.unet = UNet(3, 1, blocks=2)
+        self.bce = torch.nn.BCELoss()
 
-        #self.unet1 = UNet(5, 3, blocks=2)
 
-        self.dummy = nn.Parameter(torch.empty(0))
-    
-    def forward(self, inp):
-        x = self.unet0(inp)
+    def forward(self, x):
+        x = self.unet(x)
         x = torch.sigmoid(x)
-        
-        #x = torch.cat([inp, x], axis=1)
-
-        #x = self.unet1(x)
-        #x = torch.sigmoid(x)
 
         return x
+
+
+    def loss(self, pred, label):
+        loss = self.bce(pred, label)
+
+        return loss
+
+
+def binarize(x):
+    x = torch.gt(x, binarize_threshold).float()
+
+    return x
     
-    def eval_loss_on_ds(self, ds):
+
+class UVModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.unet = UNet(4, 2, blocks=3)
+        self.dummy = nn.Parameter(torch.empty(0))
+
+
+    def forward(self, x):
+        x = self.unet(x)
+        x = torch.sigmoid(x)
+
+        return x
+
+
+    def loss(self, pred, label):
+        abs_loss = (pred - label).abs().mean()
+        
+        (pgrad_x, pgrad_y) = image_gradients(pred)
+        (lgrad_x, lgrad_y) = image_gradients(label)
+        grad_loss = 0.5 * (pgrad_x - lgrad_x).abs().mean() + 0.5 * (pgrad_y - lgrad_y).abs().mean()
+        return abs_loss + lam * grad_loss
+
+
+    def eval_loss(self, ds):
+        training = self.training
+        self.train(False)
+
         dsiter = iter(ds)
         device = self.dummy.device
 
         loss, count = 0.0, 0
-        
+            
         for (img, uv_label) in dsiter:
             img, uv_label = img.to(device), uv_label.to(device)
             uv_pred = self(img)
-            
-            loss += loss_function(uv_pred, uv_label)
+                
+            loss += self.loss(uv_pred, uv_label)
             count += 1
+
+        self.train(training)
 
         return loss / float(count)
 
 
-def loss_function(uv_pred, uv_label):
-    abs_loss = (uv_pred - uv_label).abs().mean()
+class Model(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.mask_model = MaskModel()
+        self.uv_model = UVModel()
+
+        self.dummy = nn.Parameter(torch.empty(0))
     
-    (pgrad_x, pgrad_y) = image_gradients(uv_pred)
-    (lgrad_x, lgrad_y) = image_gradients(uv_label)
-    grad_loss = 0.5 * (pgrad_x - lgrad_x).abs().mean() + 0.5 * (pgrad_y - lgrad_y).abs().mean()
-    return abs_loss + lam * grad_loss
+
+    def forward(self, inp):
+        mask = self.mask_model(inp)
+        mask = torch.sigmoid(mask)
+
+        x = inp * mask
+        x = torch.cat([x, mask], axis=1)
+        
+        x = self.uv_model(x)
+        
+        return x
 
 
 def load_model(path):
