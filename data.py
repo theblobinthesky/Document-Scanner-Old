@@ -48,13 +48,16 @@ class ImageDataSet(Dataset):
         return len(self.pairs)
         
     def __getitem__(self, index):
-        (inp, label) = self.pairs[index]
+        (inputs, label) = self.pairs[index]
 
-        x, y = load(inp), load(label)
+        xs = [load(inp) for inp in inputs]
+        y = load(label)
 
         if self.transform != None:
-            x = self.transform(x)
+            xs = [self.transform(x) for x in xs]
             y = self.transform(y)
+
+        x = np.concatenate(xs, axis=0)
 
         return x, y
 
@@ -68,18 +71,30 @@ def load_dataset(dataset, batch_size):
 def prepare_datasets(sets, valid_perc, test_perc, batch_size, transform=None):
     pairs = []
 
-    for (dir, inp_subdir, label_subdir, inp_ext, label_ext, count) in sets:
+    for (dir, inp_sets, label_subdir, label_ext, count) in sets:
+        inp_subdir, inp_ext = inp_sets[0]
         inp_paths = glob(f"{dir}/{inp_subdir}/*.{inp_ext}")
 
         for inp in inp_paths[:count]:
             name = Path(inp).stem
             label = f"{dir}/{label_subdir}/{name}.{label_ext}"
-
             if not os.path.exists(label):
                 print("label is missing.")
                 exit()
 
-            pairs.append((inp, label))
+            inputs = [inp]
+            
+            for (inp_subdir, inp_ext) in inp_sets[1:]:   
+                input = f"{dir}/{inp_subdir}/{name}.{inp_ext}"
+                inputs.append(input)
+
+                if not os.path.exists(input):
+                    print("input is missing.")
+                    exit()
+
+             
+            pairs.append((inputs, label))
+
 
     np.random.shuffle(pairs)
 

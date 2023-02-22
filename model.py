@@ -119,11 +119,11 @@ class UNet(nn.Module):
         return x
 
 
-class MaskModel(nn.Module):
+class PreModel(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.unet = UNet(3, 1, blocks=2)
+        self.unet = UNet(3, 2, blocks=2)
         self.bce = torch.nn.BCELoss()
 
 
@@ -150,7 +150,7 @@ class WCModel(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.unet = UNet(3, 3, blocks=3)
+        self.unet = UNet(4, 3, blocks=3)
         self.dummy = nn.Parameter(torch.empty(0))
 
 
@@ -230,7 +230,7 @@ class Model(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.mask_model = MaskModel()
+        self.pre_model = PreModel()
         self.wc_model = WCModel()
         self.bm_model = BMModel()
 
@@ -238,10 +238,13 @@ class Model(nn.Module):
     
 
     def forward(self, inp):
-        mask = self.mask_model(inp)
-        mask = torch.sigmoid(mask)
+        pre = self.pre_model(inp)
+        pre = torch.sigmoid(pre)
+        mask = pre[:, 0, :, :].unsqueeze(axis=1)
+        lines = pre[:, 1, :, :].unsqueeze(axis=1)
 
         x = inp * mask
+        x = torch.cat([x, lines], axis=1)
         x = self.wc_model(x)
         
         x = self.bm_model(x)

@@ -16,9 +16,9 @@ mask_epochs = 200
 wc_epochs = 200
 bm_epochs = 200
 
-mask_time_in_hours = 1.0
-wc_time_in_hours = 2.0
-bm_time_in_hours = 2.0
+mask_time_in_hours = 0 # 1.0
+wc_time_in_hours = 3.0
+bm_time_in_hours = 0.5
 
 model = load_model("model.pth")
 model.to(device)
@@ -42,9 +42,12 @@ def train_model(mode, model, epochs, time_in_hours, trainds_iter):
             label = label.to(device)
 
             if mode == 0:
-                label = label[:, 2, :, :].unsqueeze(axis=1)
+                label = label[:, 2].unsqueeze(axis=1)
+            elif mode == 1:
+                img[:, 0:3] *= img[:, 5].unsqueeze(axis=1) # todo: this might be a bug
+                img = img[:, [0, 1, 2, 3]]
             elif mode == 2:
-                label = label[:, :2]
+                label = label[:, :2] / 448.0
 
             optim.zero_grad(set_to_none=True)
 
@@ -78,24 +81,24 @@ def train_model(mode, model, epochs, time_in_hours, trainds_iter):
 
 transform = Resize((128, 128))
 
-def train_mask_model():
+def train_pre_model():
     train_ds, valid_ds, test_ds = prepare_datasets([
-        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", "img/1", "wc/1", "png", "exr", 20000)
+        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img/1", "png")], "wc/1", "exr", 20000)
     ], valid_perc=0.1, test_perc=0.1, batch_size=16, transform=transform)
 
     trainds_iter = iter(cycle(train_ds))
 
     print("training mask model")
-    train_model(0, model.mask_model, mask_epochs, mask_time_in_hours, trainds_iter)
+    train_model(0, model.pre_model, mask_epochs, mask_time_in_hours, trainds_iter)
 
     save_model(model, "model.pth")
 
-# train_mask_model()
+# train_pre_model()
 
 
 def train_wc_model():
     train_ds, valid_ds, test_ds = prepare_datasets([
-        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", "img_masked/1", "wc/1", "png", "exr", 20000)
+        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img_masked/1", "png"), ("lines/1", "png")], "wc/1", "exr", 20000)
     ], valid_perc=0.1, test_perc=0.1, batch_size=16, transform=transform)
 
     trainds_iter = iter(cycle(train_ds))
@@ -106,12 +109,12 @@ def train_wc_model():
 
     save_model(model, "model.pth")
 
-train_wc_model()
+# train_wc_model()
 
 
 def train_bm_model():
     train_ds, valid_ds, test_ds = prepare_datasets([
-        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", "wc/1", "bm/1exr", "exr", "exr", 20000)
+        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("wc/1", "exr")], "bm/1exr", "exr", 20000)
     ], valid_perc=0.1, test_perc=0.1, batch_size=16, transform=transform)
 
     trainds_iter = iter(cycle(train_ds))
@@ -121,6 +124,7 @@ def train_bm_model():
     train_model(2, model.bm_model, bm_epochs, bm_time_in_hours, trainds_iter)
 
 train_bm_model()
+
 
 test_loss = 0.0
 # test_loss = model.eval_loss_on_ds(test_ds)
