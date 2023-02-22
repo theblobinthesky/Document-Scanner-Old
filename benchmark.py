@@ -52,13 +52,28 @@ def sample_from_bmap(img, bmap):
 
 
 ds, _, _ = prepare_datasets([
-    ("/media/shared/Projekte/Scanner/datasets/Doc3d", "img", "uv_exr", "png", "exr", 100)
+    ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", "img/1", "bm/1exr", "png", "exr", 20000)
 ], valid_perc=0.1, test_perc=0.1, batch_size=num_examples)
+
 
 model = load_model("model.pth")
 model.eval()
 
 (img, label) = next(iter(ds))
+
+# img = img.detach().cpu().numpy()
+# label = label.detach().cpu().numpy()
+
+# img = np.transpose(img[0], [1, 2, 0])
+# label = np.transpose(label[0], [1, 2, 0])[:,:,0:2]
+
+# print(img.shape, img.dtype, label.shape, label.dtype)
+# print(label.min(), label.max())
+
+# out = cv2.remap(img, label, None, interpolation=cv2.INTER_AREA)
+# cv2.imwrite("test.png", out * 255)
+
+# exit()
 
 mask_label = label[:, 2, :, :].unsqueeze(axis=1)
 mask_label = binarize(mask_label)
@@ -74,6 +89,7 @@ label = label.detach().cpu().numpy()
 mask_pred = mask_pred.detach().cpu().numpy()
 uv_pred = uv_pred.detach().cpu().numpy()
 full_pred = full_pred.detach().cpu().numpy()
+
 
 bmaps = [bmap_from_fmap(label[e,0:2,:,:], label[e,2,:,:]) for e in range(num_examples)]
 bmaps = [sample_from_bmap(np.transpose(img[e,:,:,:], [1, 2, 0]), bmap) for e, bmap in enumerate(bmaps)]

@@ -146,11 +146,11 @@ def binarize(x):
     return x
     
 
-class UVModel(nn.Module):
+class WCModel(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.unet = UNet(4, 2, blocks=3)
+        self.unet = UNet(3, 3, blocks=3)
         self.dummy = nn.Parameter(torch.empty(0))
 
 
@@ -162,12 +162,47 @@ class UVModel(nn.Module):
 
 
     def loss(self, pred, label):
-        abs_loss = (pred - label).abs().mean()
-        
-        (pgrad_x, pgrad_y) = image_gradients(pred)
-        (lgrad_x, lgrad_y) = image_gradients(label)
-        grad_loss = 0.5 * (pgrad_x - lgrad_x).abs().mean() + 0.5 * (pgrad_y - lgrad_y).abs().mean()
-        return abs_loss + lam * grad_loss
+        return loss_smooth(pred, label)
+
+
+    def eval_loss(self, ds):
+        training = self.training
+        self.train(False)
+
+        dsiter = iter(ds)
+        device = self.dummy.device
+
+        loss, count = 0.0, 0
+            
+        for (img, uv_label) in dsiter:
+            img, uv_label = img.to(device), uv_label.to(device)
+            uv_pred = self(img)
+                
+            loss += self.loss(uv_pred, uv_label)
+            count += 1
+
+        self.train(training)
+
+        return loss / float(count)
+
+
+class BMModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.unet = UNet(3, 2, blocks=3)
+        self.dummy = nn.Parameter(torch.empty(0))
+
+
+    def forward(self, x):
+        x = self.unet(x)
+        x = torch.sigmoid(x)
+
+        return x
+
+
+    def loss(self, pred, label):
+        return loss_smooth(pred, label)
 
 
     def eval_loss(self, ds):
@@ -196,7 +231,8 @@ class Model(nn.Module):
         super().__init__()
 
         self.mask_model = MaskModel()
-        self.uv_model = UVModel()
+        self.wc_model = WCModel()
+        self.bm_model = BMModel()
 
         self.dummy = nn.Parameter(torch.empty(0))
     
@@ -206,11 +242,25 @@ class Model(nn.Module):
         mask = torch.sigmoid(mask)
 
         x = inp * mask
-        x = torch.cat([x, mask], axis=1)
+        x = self.wc_model(x)
         
-        x = self.uv_model(x)
-        
+        x = self.bm_model(x)
+
         return x
+
+
+    def loss(self, pred, label):
+        return loss_smooth(pred, label)
+    
+
+
+def loss_smooth(pred, label):
+    abs_loss = (pred - label).abs().mean()
+        
+    (pgrad_x, pgrad_y) = image_gradients(pred)
+    (lgrad_x, lgrad_y) = image_gradients(label)
+    grad_loss = 0.5 * (pgrad_x - lgrad_x).abs().mean() + 0.5 * (pgrad_y - lgrad_y).abs().mean()
+    return abs_loss + lam * grad_loss
 
 
 def load_model(path):

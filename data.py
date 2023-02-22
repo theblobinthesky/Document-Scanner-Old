@@ -2,7 +2,6 @@ from glob import glob
 import numpy as np
 import Imath
 import OpenEXR
-from torchvision.transforms import Resize, Compose
 from torchvision.transforms.functional import to_tensor
 from torchvision.datasets.folder import default_loader
 from torch.utils.data import Dataset, random_split, DataLoader
@@ -84,16 +83,6 @@ def prepare_datasets(sets, valid_perc, test_perc, batch_size, transform=None):
 
     np.random.shuffle(pairs)
 
-
-    if transform == None:
-        transform = Resize((128, 128))
-    else:
-        transform = Compose([
-            Resize((128, 128)),
-            transform
-        ])
-
-    
     ds = ImageDataSet(pairs, transform)
     train_ds, valid_ds, test_ds = split_dataset(ds, valid_perc, test_perc)
 
