@@ -1,6 +1,7 @@
 #!/usr/bin/python3
-from model import Model, save_model, load_model, binarize
+from model import Model, BMModel, save_model, load_model, binarize
 from data import prepare_datasets
+from benchmark import benchmark_eval
 from torchvision.transforms import Resize
 import torch
 # from torch.utils.tensorboard import SummaryWriter
@@ -10,15 +11,16 @@ from itertools import cycle
 
 lr = 1e-3
 steps_per_epoch = 20
+batch_size = 8
 device = torch.device('cuda')
 
-mask_epochs = 200
-wc_epochs = 200
-bm_epochs = 200
+mask_epochs = 2000
+wc_epochs = 2000
+bm_epochs = 2000
 
-mask_time_in_hours = 0 # 1.0
-wc_time_in_hours = 3.0
-bm_time_in_hours = 0.5
+mask_time_in_hours = 0
+wc_time_in_hours = 2.5
+bm_time_in_hours = 1.0
 
 model = load_model("model.pth")
 model.to(device)
@@ -78,13 +80,23 @@ def train_model(mode, model, epochs, time_in_hours, trainds_iter):
         if hours_passed > time_in_hours:
             print(f"hour limit of {time_in_hours:.4f}h passed")
             break
+        # elif keyboard.is_pressed('v'):
+        #     model.train(False)
+        #     benchmark_eval(model)
+        #     save_model(model, "model.pth")
+        #     model.train(True)
+        # elif keyboard.is_pressed('q'):
+        #     save_model(model, "model.pth")
+
+        #     exit()
+
 
 transform = Resize((128, 128))
 
 def train_pre_model():
     train_ds, valid_ds, test_ds = prepare_datasets([
         ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img/1", "png")], "wc/1", "exr", 20000)
-    ], valid_perc=0.1, test_perc=0.1, batch_size=16, transform=transform)
+    ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
 
     trainds_iter = iter(cycle(train_ds))
 
@@ -93,13 +105,13 @@ def train_pre_model():
 
     save_model(model, "model.pth")
 
-# train_pre_model()
+#train_pre_model()
 
 
 def train_wc_model():
     train_ds, valid_ds, test_ds = prepare_datasets([
         ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img_masked/1", "png"), ("lines/1", "png")], "wc/1", "exr", 20000)
-    ], valid_perc=0.1, test_perc=0.1, batch_size=16, transform=transform)
+    ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
 
     trainds_iter = iter(cycle(train_ds))
 
@@ -109,13 +121,13 @@ def train_wc_model():
 
     save_model(model, "model.pth")
 
-# train_wc_model()
+train_wc_model()
 
 
 def train_bm_model():
     train_ds, valid_ds, test_ds = prepare_datasets([
         ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("wc/1", "exr")], "bm/1exr", "exr", 20000)
-    ], valid_perc=0.1, test_perc=0.1, batch_size=16, transform=transform)
+    ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
 
     trainds_iter = iter(cycle(train_ds))
 

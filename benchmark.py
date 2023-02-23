@@ -54,80 +54,84 @@ def sample_from_bmap(img, bmap):
 # bmaps = [bmap_from_fmap(label[e,0:2,:,:], label[e,2,:,:]) for e in range(num_examples)]
 # bmaps = [sample_from_bmap(np.transpose(img[e,:,:,:], [1, 2, 0]), bmap) for e, bmap in enumerate(bmaps)]
 
-model = load_model("model.pth")
-model.eval()
+def benchmark_eval(model):
+    transform = Resize((128, 128))
 
-transform = Resize((128, 128))
+    # ds, _, _ = prepare_datasets([
+    #     ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img/1", "png")], "wc/1", "exr", 20000)
+    # ], valid_perc=0.1, test_perc=0.1, batch_size=num_examples, transform=transform)
 
-# ds, _, _ = prepare_datasets([
-#     ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img/1", "png")], "wc/1", "exr", 20000)
-# ], valid_perc=0.1, test_perc=0.1, batch_size=num_examples, transform=transform)
-
-# x, y = next(iter(ds))
+    # x, y = next(iter(ds))
 
 
-ds, _, _ = prepare_datasets([
-    ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img_masked/1", "png"), ("lines/1", "png"), ("wc/1", "exr")], "bm/1exr", "exr", 20000)
-], valid_perc=0.1, test_perc=0.1, batch_size=num_examples, transform=transform)
+    ds, _, _ = prepare_datasets([
+        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img_masked/1", "png"), ("lines/1", "png"), ("wc/1", "exr")], "bm/1exr", "exr", 20000)
+    ], valid_perc=0.1, test_perc=0.1, batch_size=num_examples, transform=transform)
 
-x, bm_label = next(iter(ds))
-x[:, 0:3] *= x[:, 3].unsqueeze(axis=1)
-pre_label = x[:, :4]
-wc_label = x[:, 6:9]
-bm_label = bm_label[:, :2] / 448.0
+    x, bm_label = next(iter(ds))
+    x[:, 0:3] *= x[:, 3].unsqueeze(axis=1)
+    pre_label = x[:, :4]
+    wc_label = x[:, 6:9]
+    bm_label = bm_label[:, :2] / 448.0
 
-wc_pred = model.wc_model(pre_label)
-bm_pred = model.bm_model(wc_label)
-
-
-def cpu(ten):
-    return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1])
-
-pre_label = cpu(pre_label)
-wc_label, wc_pred = cpu(wc_label), cpu(wc_pred)
-bm_label, bm_pred = cpu(bm_label), cpu(bm_pred)
+    wc_pred = model.wc_model(pre_label)
+    bm_pred = model.bm_model(wc_label)
 
 
-def unwrap(e, ten):
-    return cv2.remap(pre_label[e, :, :, :3], ten * 128.0, None, interpolation=cv2.INTER_LINEAR)
+    def cpu(ten):
+        return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1])
 
-unwrapped_label = [unwrap(e, bm_label[e]) for e in range(num_examples)]
-unwrapped_pred = [unwrap(e, bm_pred[e]) for e in range(num_examples)]
-
-def pad(ten):
-    return np.pad(ten, ((0, 0), (0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)
-
-bm_label, bm_pred = pad(bm_label), pad(bm_pred)
+    pre_label = cpu(pre_label)
+    wc_label, wc_pred = cpu(wc_label), cpu(wc_pred)
+    bm_label, bm_pred = cpu(bm_label), cpu(bm_pred)
 
 
-title = ['image', 'wc label', 'wc prediction', 'bm label', 'bm prediction', 'unwrapped label', 'unwrapped prediction']
+    def unwrap(e, ten):
+        return cv2.remap(pre_label[e, :, :, :3], ten * 128.0, None, interpolation=cv2.INTER_LINEAR)
 
-plt.figure(figsize=(25, 25))
-i = 0
+    unwarped_label = [unwrap(e, bm_label[e]) for e in range(num_examples)]
+    unwarped_pred = [unwrap(e, bm_pred[e]) for e in range(num_examples)]
 
-for e in range(num_examples):
-    list = [pre_label[e,:,:,:3], wc_label[e], wc_pred[e], bm_label[e], bm_pred[e], unwrapped_label[e], unwrapped_pred[e]]
-    for t, arr in enumerate(list):
-        plt.subplot(num_examples, len(title), i + 1)
-        plt.title(title[t])
-        plt.imshow(arr)
+    def pad(ten):
+        return np.pad(ten, ((0, 0), (0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)
 
-        plt.axis('off')
-        i += 1
-
-plt.show()
+    bm_label, bm_pred = pad(bm_label), pad(bm_pred)
 
 
-# cer = 0.0
-# ed = 0.0
-# counter = 0
+    title = ['image', 'wc label', 'wc prediction', 'bm label', 'bm prediction', 'unwarped label', 'unwarped prediction']
 
-# char_error_rate = CharErrorRate()
-# edit_distance = ExtendedEditDistance()
+    plt.figure(figsize=(25, 25))
+    i = 0
 
-# text_label = str(pytesseract.image_to_string(unwrapped_label))
-# text_pred = str(pytesseract.image_to_string(unwrapped_pred))
+    for e in range(num_examples):
+        list = [pre_label[e,:,:,:3], wc_label[e], wc_pred[e], bm_label[e], bm_pred[e], unwarped_label[e], unwarped_pred[e]]
+        for t, arr in enumerate(list):
+            plt.subplot(num_examples, len(title), i + 1)
+            plt.title(title[t])
+            plt.imshow(arr)
 
-# cer += char_error_rate(text_pred, text_label).item()
-# ed += edit_distance(text_pred, text_label).item()
-# counter += 1
+            plt.axis('off')
+            i += 1
+
+    plt.show()
+
+
+    # cer = 0.0
+    # ed = 0.0
+    # counter = 0
+
+    # char_error_rate = CharErrorRate()
+    # edit_distance = ExtendedEditDistance()
+
+    # text_label = str(pytesseract.image_to_string(unwarped_label))
+    # text_pred = str(pytesseract.image_to_string(unwarped_pred))
+
+    # cer += char_error_rate(text_pred, text_label).item()
+    # ed += edit_distance(text_pred, text_label).item()
+    # counter += 1
+
+
+if __name__ == '__main__':
+    model = load_model("model.pth")
+    model.eval()
+    benchmark_eval(model)
