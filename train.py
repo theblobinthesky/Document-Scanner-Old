@@ -18,15 +18,15 @@ mask_epochs = 2000
 wc_epochs = 2000
 bm_epochs = 2000
 
-mask_time_in_hours = 0
+mask_time_in_hours = 2.0
 wc_time_in_hours = 2.5
 bm_time_in_hours = 1.0
 
-model = load_model("model.pth")
+model = Model()
 model.to(device)
 # writer = SummaryWriter()
 
-summary(model, input_size=(1, 3, 128, 128), device=device)
+summary(model.pre_model, input_size=(1, 3, 128, 128), device=device)
 
 
 def train_model(mode, model, epochs, time_in_hours, trainds_iter):
@@ -44,7 +44,7 @@ def train_model(mode, model, epochs, time_in_hours, trainds_iter):
             label = label.to(device)
 
             if mode == 0:
-                label = label[:, 2].unsqueeze(axis=1)
+                label = label[:, 1:]
             elif mode == 1:
                 img[:, 0:3] *= img[:, 5].unsqueeze(axis=1) # todo: this might be a bug
                 img = img[:, [0, 1, 2, 3]]
@@ -95,7 +95,9 @@ transform = Resize((128, 128))
 
 def train_pre_model():
     train_ds, valid_ds, test_ds = prepare_datasets([
-        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img/1", "png")], "wc/1", "exr", 20000)
+        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img/1", "png")], "lines/1", "png", 5000),
+        # ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img/2", "png")], "lines/2", "png", 5000),
+        # ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img/3", "png")], "lines/3", "png", 5000)
     ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
 
     trainds_iter = iter(cycle(train_ds))
@@ -103,10 +105,10 @@ def train_pre_model():
     print("training mask model")
     train_model(0, model.pre_model, mask_epochs, mask_time_in_hours, trainds_iter)
 
-    save_model(model, "model.pth")
+    save_model(model, "model unet transformer.pth")
 
-#train_pre_model()
-
+train_pre_model()
+exit()
 
 def train_wc_model():
     train_ds, valid_ds, test_ds = prepare_datasets([
@@ -120,7 +122,7 @@ def train_wc_model():
     train_model(1, model.wc_model, wc_epochs, wc_time_in_hours, trainds_iter)
 
     save_model(model, "model.pth")
-
+unsqueeze(axis=1)
 train_wc_model()
 
 

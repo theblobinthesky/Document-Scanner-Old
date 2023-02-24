@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchmetrics.functional import image_gradients
+from seg_model import UNetTransformer
 
 lam = 0.3
 binarize_threshold = 0.8
@@ -57,7 +58,7 @@ class DownscaleBlock(nn.Module):
         self.layers = nn.Sequential(
             nn.MaxPool2d(2),
             Conv(inp, out),
-            BlockStack(out, 4)
+            BlockStack(out, 8)
         )
 
 
@@ -70,7 +71,7 @@ class UpscaleBlock(nn.Module):
         super().__init__()
 
         self.conv = Conv(inp, 4 * out)
-        self.stack = BlockStack(out, 4)
+        self.stack = BlockStack(out, 8)
 
 
     def forward(self, x):
@@ -120,57 +121,12 @@ class UNet(nn.Module):
         return x
 
 
-class ResBlock(nn.Module):
-    def __init__(self, filters):
-        super().__init__()
-
-        self.conv0 = Conv(filters, filters)
-        self.conv1 = Conv(filters, filters)
-
-    def forward(self, inp):
-        x = self.conv0(inp)
-        x = self.conv1(x)
-        x = x + inp
-        return x
-
-
-class ResNet(nn.Module):
-    def __init__(self, inp, out, depth_steps, blocks_per_depth):
-        super().__init__()
-
-        depth = [ 32, 64, 128, 256, 512, 1024 ]
-
-        self.cvt_in = Conv(inp, depth[0])
-
-        layers = []
-
-        for d in range(depth_steps):
-            for b in range(blocks_per_depth):
-                layers.append(ResBlock(depth[d]))
-
-            if d != depth_steps - 1:
-                layers.append(Conv(depth[d], depth[d + 1]))
-
-        self.layers = nn.ModuleList(layers)
-
-        self.cvt_out = Conv(depth[depth_steps - 1], out)
-
-
-    def forward(self, x):
-        x = self.cvt_in(x)
-
-        for layer in self.layers:
-            x = layer(x)
-
-        x = self.cvt_out(x)
-        return x
-
-
 class PreModel(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.unet = UNet(3, 2, blocks=2)
+        # self.unet = UNet(3, 2, blocks=2)
+        self.unet = UNetTransformer(3, 2)
         self.bce = torch.nn.BCELoss()
 
 

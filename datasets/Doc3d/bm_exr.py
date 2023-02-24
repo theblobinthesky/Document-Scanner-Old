@@ -7,8 +7,8 @@ import numpy as np
 from tqdm import tqdm
 import concurrent.futures
 
-src_dir = 'bm/1'
-dst_dir = 'bm/1exr'
+src_dir = 'bm/3'
+dst_dir = 'bm/3exr'
 
 paths = glob(f"{src_dir}/*.mat")
 
@@ -17,7 +17,6 @@ def task(paths):
         mat = h5py.File(path)
         mat = mat['bm']
         mat = mat[:,:,:].astype('float32')
-        print(mat)
         
         name = Path(path).stem
         file = OpenEXR.OutputFile(f"{dst_dir}/{name}.exr", OpenEXR.Header(mat.shape[2], mat.shape[1]))

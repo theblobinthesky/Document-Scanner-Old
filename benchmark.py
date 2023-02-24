@@ -65,7 +65,7 @@ def benchmark_eval(model):
 
 
     ds, _, _ = prepare_datasets([
-        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img_masked/1", "png"), ("lines/1", "png"), ("wc/1", "exr")], "bm/1exr", "exr", 20000)
+        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img_masked/1", "png"), ("lines/1", "png"), ("wc/1", "exr"), ("img/1", "png")], "bm/1exr", "exr", 20000)
     ], valid_perc=0.1, test_perc=0.1, batch_size=num_examples, transform=transform)
 
     x, bm_label = next(iter(ds))
@@ -73,38 +73,44 @@ def benchmark_eval(model):
     pre_label = x[:, :4]
     wc_label = x[:, 6:9]
     bm_label = bm_label[:, :2] / 448.0
+    img_label = x[:, 9:12]
 
-    wc_pred = model.wc_model(pre_label)
-    bm_pred = model.bm_model(wc_label)
+    pre_pred = model.pre_model(img_label)
+    # wc_pred = model.wc_model(pre_label)
+    # bm_pred = model.bm_model(wc_label)
 
 
     def cpu(ten):
         return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1])
 
-    pre_label = cpu(pre_label)
-    wc_label, wc_pred = cpu(wc_label), cpu(wc_pred)
-    bm_label, bm_pred = cpu(bm_label), cpu(bm_pred)
+    # pre_label, pre_pred = cpu(pre_label), cpu(pre_pred)
+    pre_pred = cpu(pre_pred)
+    # wc_label, wc_pred = cpu(wc_label), cpu(wc_pred)
+    # bm_label, bm_pred = cpu(bm_label), cpu(bm_pred)
 
 
-    def unwrap(e, ten):
-        return cv2.remap(pre_label[e, :, :, :3], ten * 128.0, None, interpolation=cv2.INTER_LINEAR)
+    # def unwrap(e, ten):
+    #     return cv2.remap(pre_label[e, :, :, :3], ten * 128.0, None, interpolation=cv2.INTER_LINEAR)
 
-    unwarped_label = [unwrap(e, bm_label[e]) for e in range(num_examples)]
-    unwarped_pred = [unwrap(e, bm_pred[e]) for e in range(num_examples)]
+    # unwarped_label = [unwrap(e, bm_label[e]) for e in range(num_examples)]
+    # unwarped_pred = [unwrap(e, bm_pred[e]) for e in range(num_examples)]
 
-    def pad(ten):
-        return np.pad(ten, ((0, 0), (0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)
+    # def pad(ten):
+    #     return np.pad(ten, ((0, 0), (0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)
 
-    bm_label, bm_pred = pad(bm_label), pad(bm_pred)
+    # bm_label, bm_pred = pad(bm_label), pad(bm_pred)
 
 
-    title = ['image', 'wc label', 'wc prediction', 'bm label', 'bm prediction', 'unwarped label', 'unwarped prediction']
+    # title = ['pre pred', 'wc label', 'wc prediction', 'bm label', 'bm prediction', 'unwarped label', 'unwarped prediction']
+    title = ['pre pred']
 
     plt.figure(figsize=(25, 25))
     i = 0
 
+    pre_label = cpu(pre_label)
     for e in range(num_examples):
-        list = [pre_label[e,:,:,:3], wc_label[e], wc_pred[e], bm_label[e], bm_pred[e], unwarped_label[e], unwarped_pred[e]]
+        list = [np.pad(pre_pred[e], ((0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)]
+        # list = [pre_pred[e,:,:,:3], wc_label[e], wc_pred[e], bm_label[e], bm_pred[e], unwarped_label[e], unwarped_pred[e]]
         for t, arr in enumerate(list):
             plt.subplot(num_examples, len(title), i + 1)
             plt.title(title[t])
