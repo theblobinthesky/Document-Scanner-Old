@@ -100,6 +100,7 @@ class UNet(nn.Module):
 
         self.cvt_out = Conv(2 * depth[0], out)
          
+         
     def forward(self, x):
         x = self.cvt_in(x)
 
@@ -122,8 +123,7 @@ class UNet(nn.Module):
     
 
     def loss(self, pred, label):
-        bce = torch.nn.BCELoss()
-        loss = bce(pred, label)
+        loss = F.binary_cross_entropy(pred, label)
 
         return loss
 
@@ -135,7 +135,6 @@ class PreModel(nn.Module):
 
         # self.unet = UNet(3, 2, blocks=2)
         self.unet = UNetTransformer(3, 2)
-        self.bce = torch.nn.BCELoss()
 
 
     def forward(self, x):
@@ -146,7 +145,7 @@ class PreModel(nn.Module):
 
 
     def loss(self, pred, label):
-        loss = self.bce(pred, label)
+        loss = F.binary_cross_entropy(pred, label)
 
         return loss
 

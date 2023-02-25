@@ -257,8 +257,7 @@ class UNetTransformer(nn.Module):
     
 
     def loss(self, pred, label):
-        bce = torch.nn.BCELoss()
-        loss = bce(pred, label)
+        loss = F.binary_cross_entropy(pred, label)
 
         return loss
     
@@ -345,7 +344,6 @@ class UNetDilatedConv(nn.Module):
     
 
     def loss(self, pred, label):
-        bce = torch.nn.BCELoss()
-        loss = bce(pred, label)
+        loss = F.binary_cross_entropy(pred, label)
 
         return loss

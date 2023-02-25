@@ -61,6 +61,8 @@ class ImageDataSet(Dataset):
 
         return out
 
+from torchvision.datasets import ImageFolder
+
 def split_dataset(dataset, valid_perc, test_perc):
     train_perc = 1.0 - test_perc - valid_perc
     return random_split(dataset, [train_perc, valid_perc, test_perc])

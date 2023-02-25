@@ -13,7 +13,7 @@ steps_per_epoch = 20
 batch_size = 8
 device = torch.device('cuda')
 
-mask_epochs = 400
+mask_epochs = 800
 wc_epochs = 2000
 bm_epochs = 2000
 
@@ -21,8 +21,15 @@ mask_time_in_hours = 2.0
 wc_time_in_hours = 0 # 2.5
 bm_time_in_hours = 0 # 1.0
 
+def cycle(iterable):
+    while True:
+        for x in iterable:
+            yield x
+        
+
 def model_to_device(model):
     return model.to(device)
+
 
 def train_model(mode, model, epochs, time_in_hours, trainds_iter, summary_writer):
     optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
@@ -59,7 +66,7 @@ def train_model(mode, model, epochs, time_in_hours, trainds_iter, summary_writer
 
             optim.step()
 
-            train_loss += loss.detach().item()
+            train_loss += loss.detach().cpu().item()
 
             # print(f"epoch {epoch}/{epochs} step {i + 1}/{steps_per_epoch}. training loss: {loss.item():.4}")
 
@@ -83,6 +90,7 @@ def train_model(mode, model, epochs, time_in_hours, trainds_iter, summary_writer
             break
 
     pbar.close()
+
 
 transform = Resize((128, 128))
 
