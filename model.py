@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchmetrics.functional import image_gradients
+import torchmetrics.functional as MF 
 from torchvision.ops.focal_loss import sigmoid_focal_loss
 from seg_model import UNetDilatedConv
+from tqdm import tqdm
 
 lam = 0.3
 binarize_threshold = 0.8
@@ -128,6 +129,32 @@ class UNet(nn.Module):
         return loss
 
 
+def metric_dice_coefficient_f(pred, label):
+    pred, label = pred.detach(), label.detach()
+    
+    # todo: account for resizing. the label isnt quite right now
+    return MF.dice(pred, label.int(), threshold=binarize_threshold).item()
+
+
+def metric_specificity_f(pred, label):
+    pred, label = pred.detach(), label.detach()
+    
+    # todo: account for resizing. the label isnt quite right now
+    return MF.specificity(pred, label.int(), task="binary", threshold=binarize_threshold).item()
+
+
+def metric_sensitivity_f(pred, label):
+    pred, label = pred.detach(), label.detach()
+    
+    thresh = (pred > binarize_threshold).float()
+    tp = (thresh * label).sum()
+    fp = (thresh * (1.0 - label)).sum()
+
+    return tp / (tp + fp).item()
+
+metric_dice_coefficient = ("dice", metric_dice_coefficient_f)
+metric_sensitivity = ("sensitivity", metric_specificity_f)
+metric_specificity = ("specificity", metric_specificity_f)
 
 class PreModel(nn.Module):
     def __init__(self, focal_loss):
@@ -155,6 +182,10 @@ class PreModel(nn.Module):
         x = dict["img"]
         y = dict["lines"][:, [0, 2]]
         return x, y
+    
+
+    def eval_metrics(self):
+        return [metric_dice_coefficient, metric_sensitivity, metric_specificity]
 
 
 def binarize(x):
@@ -244,16 +275,45 @@ def eval_loss_on_batches(model, iter, batch_count, device):
 
             x, y = model.x_and_y_from_dict(dict)
             pred = model(x)
-            loss += model.loss(pred, y).detach().cpu().item()
+    
+            loss += model.loss(pred, y).item()
 
-    return loss / float(batch_count)
+    loss /= float(batch_count)
+
+    return loss
+
+
+def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
+    loss = 0.0
+    count = 0
+    eval_metrics = model.eval_metrics()
+    metrics = [0.0 for _ in eval_metrics]
+
+    with torch.no_grad():
+        for dict in tqdm(iter, desc="Evaluating test loss and metrics"):
+            for key in dict.keys():
+                dict[key] = dict[key].to(device)
+
+            x, y = model.x_and_y_from_dict(dict)
+            pred = model(x)
+    
+            loss += model.loss(pred, y).item()
+            count += 1
+
+            for i, (_, func) in enumerate(eval_metrics):
+                metrics[i] += func(pred, y)
+
+    loss /= float(count)
+    metrics = [(name, metrics[i] / float(count)) for i, (name, _) in enumerate(eval_metrics)]
+
+    return loss, metrics
 
 
 def loss_smooth(pred, label):
     abs_loss = (pred - label).abs().mean()
         
-    (pgrad_x, pgrad_y) = image_gradients(pred)
-    (lgrad_x, lgrad_y) = image_gradients(label)
+    (pgrad_x, pgrad_y) = MF.image_gradients(pred)
+    (lgrad_x, lgrad_y) = MF.image_gradients(label)
     grad_loss = 0.5 * (pgrad_x - lgrad_x).abs().mean() + 0.5 * (pgrad_y - lgrad_y).abs().mean()
     return abs_loss + lam * grad_loss
 

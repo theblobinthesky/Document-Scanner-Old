@@ -8,12 +8,13 @@ import numpy as np
 import scipy
 import cv2
 import matplotlib.pyplot as plt
-import pytesseract
+import io
 
 bmap_padding = 1e-2
 num_examples = 8
 device = torch.device('cpu')
 
+dpi = 50
 
 def bmap_from_fmap(fmap, mask):
     indices = np.indices(fmap.shape[1:]).transpose([2, 1, 0]).reshape((-1, 2))
@@ -54,7 +55,7 @@ def sample_from_bmap(img, bmap):
 # bmaps = [bmap_from_fmap(label[e,0:2,:,:], label[e,2,:,:]) for e in range(num_examples)]
 # bmaps = [sample_from_bmap(np.transpose(img[e,:,:,:], [1, 2, 0]), bmap) for e, bmap in enumerate(bmaps)]
 
-def benchmark_eval(model, model_image_output):
+def benchmark_eval(model):
     transform = Resize((128, 128))
 
     # ds, _, _ = prepare_datasets([
@@ -109,7 +110,7 @@ def benchmark_eval(model, model_image_output):
     # title = ['pre pred', 'wc label', 'wc prediction', 'bm label', 'bm prediction', 'unwarped label', 'unwarped prediction']
     title = ["img", "pre pred", "pre label"]
 
-    plt.figure(figsize=(25, 25))
+    fig = plt.figure(figsize=(25, 25), dpi=dpi)
     i = 0
 
     for e in range(num_examples):
@@ -123,35 +124,4 @@ def benchmark_eval(model, model_image_output):
             plt.axis('off')
             i += 1
 
-    plt.savefig(model_image_output)
-
-
-    # cer = 0.0
-    # ed = 0.0
-    # counter = 0
-
-    # char_error_rate = CharErrorRate()
-    # edit_distance = ExtendedEditDistance()
-
-    # text_label = str(pytesseract.image_to_string(unwarped_label))
-    # text_pred = str(pytesseract.image_to_string(unwarped_pred))
-
-    # cer += char_error_rate(text_pred, text_label).item()
-    # ed += edit_distance(text_pred, text_label).item()
-    # counter += 1
-
-
-from test import SigmoidOutputTestModule
-from model import UNet
-from seg_model import UNetTransformer, UNetDilatedConv
-
-def load_model(path):
-    model = SigmoidOutputTestModule(UNetDilatedConv(3, 2))
-    model.load_state_dict(torch.load(path))
-
-    return model
-
-if __name__ == '__main__':
-    model = load_model("models/pre_model_unet_dilated_convs.pth").to('cuda')
-    model.eval()
-    benchmark_eval(model, "models/pre_model_unet_dilated_convs.png")
+    return fig

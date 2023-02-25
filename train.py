@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-from model import Model, save_model, load_model, eval_loss_on_batches
+from model import Model, save_model, load_model, eval_loss_on_batches, eval_loss_and_metrics_on_batches
 from data import prepare_datasets
 from torchvision.transforms import Resize
 import torch
@@ -7,6 +7,7 @@ from torchinfo import summary
 import datetime
 from itertools import cycle
 from tqdm import tqdm
+from benchmark import benchmark_eval
 
 lr = 1e-3
 steps_per_epoch = 40
@@ -35,7 +36,7 @@ def model_to_device(model):
     return model.to(device)
 
 
-def train_model(model, epochs, time_in_hours, trainds_iter, valid_iter, summary_writer):
+def train_model(model, epochs, time_in_hours, trainds_iter, valid_iter, test_iter, summary_writer):
     optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, factor=0.1, patience=lr_plateau_patience)
 
@@ -44,7 +45,7 @@ def train_model(model, epochs, time_in_hours, trainds_iter, valid_iter, summary_
     pbar = tqdm(total=epochs)
     pbar.set_description("initializing training and running first epoch")
     
-    for epoch in range(epochs):
+    for epoch in range(0):
         train_loss = 0.0
 
         for _ in range(steps_per_epoch):
@@ -85,7 +86,7 @@ def train_model(model, epochs, time_in_hours, trainds_iter, valid_iter, summary_
         summary_writer.add_scalar("Loss/train", train_loss, epoch)
 
         pbar.update(1)
-        pbar.set_description(f"epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. training loss: {train_loss:.4f}, validation loss: {valid_loss:.4f}, learning rate: {learning_rate:.4f}")
+        pbar.set_description(f"epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. training loss: {train_loss:.4f}, validation loss: {valid_loss:.4f}, learning rate: {learning_rate}")
 
         if hours_passed > time_in_hours:
             pbar.close()
@@ -94,10 +95,22 @@ def train_model(model, epochs, time_in_hours, trainds_iter, valid_iter, summary_
 
         if learning_rate < min_learning_rate_before_early_termination:
             pbar.close()
-            print(f"learning rate {learning_rate:.4f} is smaller than {min_learning_rate_before_early_termination:.4f}. no further learning progress can be made")
+            print(f"learning rate {learning_rate} is smaller than {min_learning_rate_before_early_termination}. no further learning progress can be made")
             break
 
     pbar.close()
+
+    test_loss, metrics = eval_loss_and_metrics_on_batches(model, test_iter, batch_size, device)
+    
+    summary_writer.add_scalar("Loss/test", test_loss)
+    
+    for (name, item) in metrics:
+        summary_writer.add_scalar(name, item)
+
+    benchmark_plt = benchmark_eval(model)
+    summary_writer.add_figure("benchmark", benchmark_plt)
+
+    print(f"test loss: {test_loss:.4f}")
 
 
 transform = Resize((128, 128))
@@ -111,8 +124,9 @@ def train_pre_model(model, model_path, summary_writer):
 
     trainds_iter = iter(cycle(train_ds))
     valid_iter = iter(cycle(valid_ds))
+    test_iter = iter(test_ds)
 
-    train_model(model, mask_epochs, mask_time_in_hours, trainds_iter, valid_iter, summary_writer)
+    train_model(model, mask_epochs, mask_time_in_hours, trainds_iter, valid_iter, test_iter, summary_writer)
 
     save_model(model, model_path)
 
@@ -124,8 +138,9 @@ def train_wc_model(model, model_path, summary_writer):
 
     trainds_iter = iter(cycle(train_ds))
     valid_iter = iter(cycle(valid_ds))
+    test_iter = iter(test_ds)
 
-    train_model(model, wc_epochs, wc_time_in_hours, trainds_iter, valid_iter, summary_writer)
+    train_model(model, wc_epochs, wc_time_in_hours, trainds_iter, valid_iter, test_iter, summary_writer)
 
     save_model(model, model_path)
 
@@ -137,8 +152,9 @@ def train_bm_model(model, model_path, summary_writer):
 
     trainds_iter = iter(cycle(train_ds))
     valid_iter = iter(cycle(valid_ds))
+    test_iter = iter(test_ds)
 
-    train_model(model, bm_epochs, bm_time_in_hours, trainds_iter, valid_iter, summary_writer)
+    train_model(model, bm_epochs, bm_time_in_hours, trainds_iter, valid_iter, test_iter, summary_writer)
 
     save_model(model, model_path)
 

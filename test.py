@@ -25,19 +25,23 @@ class SigmoidOutputTestModule(nn.Module):
 
 print("running all tests")
 
+
 print()
 print("running pre_model_baseline")
-
 writer = SummaryWriter("runs/pre_model_baseline")
-unet = model_to_device(PreModel(focal_loss=False))
+model = PreModel(focal_loss=False)
+model.load_state_dict(torch.load("models/pre_model_baseline.pth"))
+unet = model_to_device(model)
 train_pre_model(unet, "models/pre_model_baseline.pth", summary_writer=writer)
 writer.flush()
 
 
+
 print()
 print("running pre_model_focal_loss")
-
 writer = SummaryWriter("runs/pre_model_focal_loss")
+model = PreModel(focal_loss=True)
+model.load_state_dict(torch.load("models/pre_model_focal_loss.pth"))
 unet = model_to_device(PreModel(focal_loss=True))
 train_pre_model(unet, "models/pre_model_focal_loss.pth", summary_writer=writer)
 writer.flush()
