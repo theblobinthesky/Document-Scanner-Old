@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import pytesseract
 
 bmap_padding = 1e-2
-num_examples = 3
+num_examples = 8
 device = torch.device('cpu')
 
 
@@ -54,7 +54,7 @@ def sample_from_bmap(img, bmap):
 # bmaps = [bmap_from_fmap(label[e,0:2,:,:], label[e,2,:,:]) for e in range(num_examples)]
 # bmaps = [sample_from_bmap(np.transpose(img[e,:,:,:], [1, 2, 0]), bmap) for e, bmap in enumerate(bmaps)]
 
-def benchmark_eval(model):
+def benchmark_eval(model, model_image_output):
     transform = Resize((128, 128))
 
     # ds, _, _ = prepare_datasets([
@@ -64,18 +64,24 @@ def benchmark_eval(model):
     # x, y = next(iter(ds))
 
 
-    ds, _, _ = prepare_datasets([
-        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img_masked/1", "png"), ("lines/1", "png"), ("wc/1", "exr"), ("img/1", "png")], "bm/1exr", "exr", 20000)
+    ds, _, _ = prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", 
+        {"img": "png", "lines": "png"}, [
+        ([("img", "img/1"), ("lines", "lines/1")], 100)
     ], valid_perc=0.1, test_perc=0.1, batch_size=num_examples, transform=transform)
 
-    x, bm_label = next(iter(ds))
-    x[:, 0:3] *= x[:, 3].unsqueeze(axis=1)
-    pre_label = x[:, :4]
-    wc_label = x[:, 6:9]
-    bm_label = bm_label[:, :2] / 448.0
-    img_label = x[:, 9:12]
+    dict = next(iter(ds))
 
-    pre_pred = model.pre_model(img_label.to('cuda'))
+    # x, bm_label = next(iter(ds))
+    # x[:, 0:3] *= x[:, 3].unsqueeze(axis=1)
+    # pre_label = x[:, :4]
+    # wc_label = x[:, 6:9]
+    # bm_label = bm_label[:, :2] / 448.0
+    # img_label = x[:, 9:12]
+
+    img_label = dict["img"]
+    pre_label = dict["lines"][:, [0, 2]]
+
+    pre_pred = model(img_label.to('cuda'))
     # wc_pred = model.wc_model(pre_label)
     # bm_pred = model.bm_model(wc_label)
 
@@ -83,8 +89,8 @@ def benchmark_eval(model):
     def cpu(ten):
         return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1])
 
-    # pre_label, pre_pred = cpu(pre_label), cpu(pre_pred)
-    pre_pred = cpu(pre_pred)
+    img_label = cpu(img_label)
+    pre_pred, pre_label = cpu(pre_pred), cpu(pre_label)
     # wc_label, wc_pred = cpu(wc_label), cpu(wc_pred)
     # bm_label, bm_pred = cpu(bm_label), cpu(bm_pred)
 
@@ -95,31 +101,29 @@ def benchmark_eval(model):
     # unwarped_label = [unwrap(e, bm_label[e]) for e in range(num_examples)]
     # unwarped_pred = [unwrap(e, bm_pred[e]) for e in range(num_examples)]
 
-    # def pad(ten):
-    #     return np.pad(ten, ((0, 0), (0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)
+    def pad(ten):
+        return np.pad(ten, ((0, 0), (0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)
 
-    # bm_label, bm_pred = pad(bm_label), pad(bm_pred)
-
+    pre_pred, pre_label = pad(pre_pred), pad(pre_label)
 
     # title = ['pre pred', 'wc label', 'wc prediction', 'bm label', 'bm prediction', 'unwarped label', 'unwarped prediction']
-    title = ['pre pred']
+    title = ["img", "pre pred", "pre label"]
 
     plt.figure(figsize=(25, 25))
     i = 0
 
-    pre_label = cpu(pre_label)
     for e in range(num_examples):
-        list = [np.pad(pre_pred[e], ((0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)]
+        list = [img_label[e], pre_pred[e], pre_label[e]]
         # list = [pre_pred[e,:,:,:3], wc_label[e], wc_pred[e], bm_label[e], bm_pred[e], unwarped_label[e], unwarped_pred[e]]
         for t, arr in enumerate(list):
-            plt.subplot(num_examples, len(title), i + 1)
+            plt.subplot(num_examples // 2, len(title) * 2, i + 1)
             plt.title(title[t])
             plt.imshow(arr)
 
             plt.axis('off')
             i += 1
 
-    plt.show()
+    plt.savefig(model_image_output)
 
 
     # cer = 0.0
@@ -137,7 +141,17 @@ def benchmark_eval(model):
     # counter += 1
 
 
+from test import SigmoidOutputTestModule
+from model import UNet
+from seg_model import UNetTransformer, UNetDilatedConv
+
+def load_model(path):
+    model = SigmoidOutputTestModule(UNetDilatedConv(3, 2))
+    model.load_state_dict(torch.load(path))
+
+    return model
+
 if __name__ == '__main__':
-    model = load_model("model unet transformer.pth").to('cuda')
+    model = load_model("models/pre_model_unet_dilated_convs.pth").to('cuda')
     model.eval()
-    benchmark_eval(model)
+    benchmark_eval(model, "models/pre_model_unet_dilated_convs.png")

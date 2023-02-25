@@ -219,7 +219,7 @@ class Up(nn.Module):
 
 
 class UNetTransformer(nn.Module):
-    def __init__(self, inp, out):
+    def __init__(self, inp, out, use_self_attention=False):
         super().__init__()
 
         depth = [32, 64, 128, 256]
@@ -231,8 +231,10 @@ class UNetTransformer(nn.Module):
         self.down1 = Down(depth[1], depth[2])
         # self.down2 = Down(depth[2], depth[3])
         
-        # self.mhsa = MultiHeadSelfAttention(depth[3])
-        self.bottle = Conv(128, 128)
+        if use_self_attention:
+            self.bottle = MultiHeadSelfAttention(depth[2])
+        else:
+            self.bottle = Conv(depth[2], depth[2])
         
         # self.up2 = Up(depth[3], depth[2])
         self.up1 = Up(depth[2], depth[1])
@@ -282,6 +284,9 @@ class DilatedBlock(nn.Module):
 
         return torch.cat([c0, c1, c2, c3, c4], axis=1)
 
+
+# Dilated Conv UNet based on:
+# https://arxiv.org/pdf/2004.03466.pdf
 
 class DownDilatedConv(nn.Module):
     def __init__(self, inp, out):
@@ -341,9 +346,3 @@ class UNetDilatedConv(nn.Module):
 
         y = self.cvt_out(y)
         return y
-    
-
-    def loss(self, pred, label):
-        loss = F.binary_cross_entropy(pred, label)
-
-        return loss

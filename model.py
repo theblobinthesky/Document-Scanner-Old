@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchmetrics.functional import image_gradients
-from seg_model import UNetTransformer
+from torchvision.ops.focal_loss import sigmoid_focal_loss
+from seg_model import UNetDilatedConv
 
 lam = 0.3
 binarize_threshold = 0.8
-
 
 class Conv(nn.Module):
     def __init__(self, inp, out):
@@ -100,7 +100,7 @@ class UNet(nn.Module):
 
         self.cvt_out = Conv(2 * depth[0], out)
          
-         
+
     def forward(self, x):
         x = self.cvt_in(x)
 
@@ -130,11 +130,11 @@ class UNet(nn.Module):
 
 
 class PreModel(nn.Module):
-    def __init__(self):
+    def __init__(self, focal_loss):
         super().__init__()
 
-        # self.unet = UNet(3, 2, blocks=2)
-        self.unet = UNetTransformer(3, 2)
+        self.focal_loss = focal_loss
+        self.unet = UNetDilatedConv(3, 2)
 
 
     def forward(self, x):
@@ -142,12 +142,19 @@ class PreModel(nn.Module):
         x = torch.sigmoid(x)
 
         return x
-
+    
 
     def loss(self, pred, label):
-        loss = F.binary_cross_entropy(pred, label)
+        if self.focal_loss:
+            return sigmoid_focal_loss(pred, label, reduction="mean")
+        else:
+            return F.binary_cross_entropy(pred, label)
 
-        return loss
+
+    def x_and_y_from_dict(self, dict):
+        x = dict["img"]
+        y = dict["lines"][:, [0, 2]]
+        return x, y
 
 
 def binarize(x):
@@ -175,27 +182,6 @@ class WCModel(nn.Module):
         return loss_smooth(pred, label)
 
 
-    def eval_loss(self, ds):
-        training = self.training
-        self.train(False)
-
-        dsiter = iter(ds)
-        device = self.dummy.device
-
-        loss, count = 0.0, 0
-            
-        for (img, uv_label) in dsiter:
-            img, uv_label = img.to(device), uv_label.to(device)
-            uv_pred = self(img)
-                
-            loss += self.loss(uv_pred, uv_label)
-            count += 1
-
-        self.train(training)
-
-        return loss / float(count)
-
-
 class BMModel(nn.Module):
     def __init__(self):
         super().__init__()
@@ -214,27 +200,6 @@ class BMModel(nn.Module):
 
     def loss(self, pred, label):
         return loss_smooth(pred, label)
-
-
-    def eval_loss(self, ds):
-        training = self.training
-        self.train(False)
-
-        dsiter = iter(ds)
-        device = self.dummy.device
-
-        loss, count = 0.0, 0
-            
-        for (img, uv_label) in dsiter:
-            img, uv_label = img.to(device), uv_label.to(device)
-            uv_pred = self(img)
-                
-            loss += self.loss(uv_pred, uv_label)
-            count += 1
-
-        self.train(training)
-
-        return loss / float(count)
 
 
 class Model(nn.Module):
@@ -265,7 +230,23 @@ class Model(nn.Module):
 
     def loss(self, pred, label):
         return loss_smooth(pred, label)
-    
+
+
+def eval_loss_on_batches(model, iter, batch_count, device):
+    loss = 0.0
+
+    with torch.no_grad():
+        for _ in range(batch_count):
+            dict = next(iter)
+
+            for key in dict.keys():
+                dict[key] = dict[key].to(device)
+
+            x, y = model.x_and_y_from_dict(dict)
+            pred = model(x)
+            loss += model.loss(pred, y).detach().cpu().item()
+
+    return loss / float(batch_count)
 
 
 def loss_smooth(pred, label):

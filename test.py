@@ -5,8 +5,7 @@ from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
 import torch
 from train import train_pre_model, model_to_device
-from model import UNet
-from seg_model import UNetTransformer, UNetDilatedConv
+from model import PreModel
 
 class SigmoidOutputTestModule(nn.Module):
     def __init__(self, model):
@@ -19,32 +18,26 @@ class SigmoidOutputTestModule(nn.Module):
     
     def loss(self, pred, label):
         return self.model.loss(pred, label)
+    
+    def x_and_y_from_dict(self, dict):
+        return self.model.x_and_y_from_dict(dict)
 
 
 print("running all tests")
 
 print()
-print("running unet baseline model")
+print("running pre_model_baseline")
 
-writer = SummaryWriter("runs/pre_model_unet_baseline")
-unet = model_to_device(SigmoidOutputTestModule(UNet(3, 2, blocks=2)))
-train_pre_model(unet, "models/pre_model_unet_baseline.pth", summary_writer=writer)
+writer = SummaryWriter("runs/pre_model_baseline")
+unet = model_to_device(PreModel(focal_loss=False))
+train_pre_model(unet, "models/pre_model_baseline.pth", summary_writer=writer)
 writer.flush()
 
 
 print()
-print("running unet transformer model")
+print("running pre_model_focal_loss")
 
-writer = SummaryWriter("runs/pre_model_unet_transformer")
-unet = model_to_device(SigmoidOutputTestModule(UNetTransformer(3, 2)))
-train_pre_model(unet, "models/pre_model_unet_transformer.pth", summary_writer=writer)
-writer.flush()
-
-
-print()
-print("running unet dilated convolution model")
-
-writer = SummaryWriter("runs/pre_model_unet_dilated_convs")
-unet = model_to_device(SigmoidOutputTestModule(UNetDilatedConv(3, 2)))
-train_pre_model(unet, "models/pre_model_unet_dilated_convs.pth", summary_writer=writer)
+writer = SummaryWriter("runs/pre_model_focal_loss")
+unet = model_to_device(PreModel(focal_loss=True))
+train_pre_model(unet, "models/pre_model_focal_loss.pth", summary_writer=writer)
 writer.flush()
