@@ -40,26 +40,26 @@ def load(path):
         return from_numpy(exr_loader(path))
 
 class ImageDataSet(Dataset):
-    def __init__(self, pairs, transform):
-        self.pairs = pairs
+    def __init__(self, items, names, transform):
+        self.items = items
+        self.names = names
         self.transform = transform
 
     def __len__(self):
-        return len(self.pairs)
+        return len(self.items)
         
     def __getitem__(self, index):
-        (inputs, label) = self.pairs[index]
-
-        xs = [load(inp) for inp in inputs]
-        y = load(label)
+        item = self.items[index]
+        item = [load(path) for path in item]
 
         if self.transform != None:
-            xs = [self.transform(x) for x in xs]
-            y = self.transform(y)
+            item = [self.transform(x) for x in item]
 
-        x = np.concatenate(xs, axis=0)
+        out = {}
+        for i, name in enumerate(self.names):
+            out[name] = item[i]
 
-        return x, y
+        return out
 
 def split_dataset(dataset, valid_perc, test_perc):
     train_perc = 1.0 - test_perc - valid_perc
@@ -68,37 +68,50 @@ def split_dataset(dataset, valid_perc, test_perc):
 def load_dataset(dataset, batch_size):
     return DataLoader(dataset, batch_size=batch_size, pin_memory=True, shuffle=False, num_workers=num_workers)
 
-def prepare_datasets(sets, valid_perc, test_perc, batch_size, transform=None):
-    pairs = []
+def prepare_datasets(dir, exts, datasets, valid_perc, test_perc, batch_size, transform=None):
+    for (instances, count) in datasets:
+        for (name, subdir) in instances:
+            if not exts.__contains__(name):
+                print("name is unknown.")
+                exit()
+    
+    for name in exts:
+        for (instances, count) in datasets:
+            found = False
 
-    for (dir, inp_sets, label_subdir, label_ext, count) in sets:
-        inp_subdir, inp_ext = inp_sets[0]
-        inp_paths = glob(f"{dir}/{inp_subdir}/*.{inp_ext}")
+            for (inst_name, subdir) in instances:
+                if name == inst_name:
+                    found = True
+                    break
 
-        for inp in inp_paths[:count]:
-            name = Path(inp).stem
-            label = f"{dir}/{label_subdir}/{name}.{label_ext}"
-            if not os.path.exists(label):
-                print("label is missing.")
+            if not found:
+                print("instance name is missing")
                 exit()
 
-            inputs = [inp]
-            
-            for (inp_subdir, inp_ext) in inp_sets[1:]:   
-                input = f"{dir}/{inp_subdir}/{name}.{inp_ext}"
-                inputs.append(input)
+    items = []
+    names = exts.keys()
 
-                if not os.path.exists(input):
-                    print("input is missing.")
+    for (instances, count) in datasets:
+        (name, subdir) = instances[0]
+        paths = glob(f"{dir}/{subdir}/*.{exts[name]}")
+
+        for path in paths[:count]:        
+            filename = Path(path).stem
+            item = [path]
+
+            for (name, subdir) in instances[1:]:
+                path = f"{dir}/{subdir}/{filename}.{exts[name]}"
+                item.append(path)
+
+                if not os.path.exists(path):
+                    print("path is missing.")
                     exit()
 
-             
-            pairs.append((inputs, label))
+            items.append(item)
 
+    np.random.shuffle(items)
 
-    np.random.shuffle(pairs)
-
-    ds = ImageDataSet(pairs, transform)
+    ds = ImageDataSet(items, names, transform)
     train_ds, valid_ds, test_ds = split_dataset(ds, valid_perc, test_perc)
 
     return load_dataset(train_ds, batch_size), \

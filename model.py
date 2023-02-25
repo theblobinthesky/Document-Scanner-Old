@@ -119,6 +119,14 @@ class UNet(nn.Module):
         x = self.cvt_out(x)
 
         return x
+    
+
+    def loss(self, pred, label):
+        bce = torch.nn.BCELoss()
+        loss = bce(pred, label)
+
+        return loss
+
 
 
 class PreModel(nn.Module):

@@ -1,50 +1,50 @@
 #!/usr/bin/python3
-from model import Model, BMModel, save_model, load_model, binarize
+from model import Model, BMModel, save_model, load_model
 from data import prepare_datasets
-from benchmark import benchmark_eval
 from torchvision.transforms import Resize
 import torch
-# from torch.utils.tensorboard import SummaryWriter
 from torchinfo import summary
 import datetime
 from itertools import cycle
+from tqdm import tqdm
 
 lr = 1e-3
 steps_per_epoch = 20
 batch_size = 8
 device = torch.device('cuda')
 
-mask_epochs = 2000
+mask_epochs = 400
 wc_epochs = 2000
 bm_epochs = 2000
 
 mask_time_in_hours = 2.0
-wc_time_in_hours = 2.5
-bm_time_in_hours = 1.0
+wc_time_in_hours = 0 # 2.5
+bm_time_in_hours = 0 # 1.0
 
-model = Model()
-model.to(device)
-# writer = SummaryWriter()
+def model_to_device(model):
+    return model.to(device)
 
-summary(model.pre_model, input_size=(1, 3, 128, 128), device=device)
-
-
-def train_model(mode, model, epochs, time_in_hours, trainds_iter):
+def train_model(mode, model, epochs, time_in_hours, trainds_iter, summary_writer):
     optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, factor=0.1, patience=5)
 
     start_time = datetime.datetime.now()
 
+    pbar = tqdm(total=epochs)
+    pbar.set_description("initializing training and running first epoch")
+    
     for epoch in range(epochs):
         train_loss = 0.0
 
         for i in range(steps_per_epoch):
-            img, label = next(trainds_iter)
-            img = img.to(device)
-            label = label.to(device)
+            dict = next(trainds_iter)
 
+            for key in dict.keys():
+                dict[key] = dict[key].to(device)
+                
             if mode == 0:
-                label = label[:, 1:]
+                img = dict["img"]
+                label = dict["lines"][:, [0, 2]]
             elif mode == 1:
                 img[:, 0:3] *= img[:, 5].unsqueeze(axis=1) # todo: this might be a bug
                 img = img[:, [0, 1, 2, 3]]
@@ -59,7 +59,7 @@ def train_model(mode, model, epochs, time_in_hours, trainds_iter):
 
             optim.step()
 
-            train_loss += loss.item()
+            train_loss += loss.detach().item()
 
             # print(f"epoch {epoch}/{epochs} step {i + 1}/{steps_per_epoch}. training loss: {loss.item():.4}")
 
@@ -72,76 +72,59 @@ def train_model(mode, model, epochs, time_in_hours, trainds_iter):
         now = datetime.datetime.now()
         hours_passed = (now - start_time).seconds / (60.0 * 60.0)
 
-        # writer.add_scalar("Loss/train", train_loss, epoch)
-        # writer.add_scalar("Loss/validation", valid_loss, epoch)
+        summary_writer.add_scalar("Loss/train", train_loss, epoch)
 
-        print(f"epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. training loss: {train_loss:.4}, validation loss: {valid_loss:.4}, learning rate: {optim.param_groups[-1]['lr']}")
+        pbar.update(1)
+        pbar.set_description(f"epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. training loss: {train_loss:.4}, validation loss: {valid_loss:.4}, learning rate: {optim.param_groups[-1]['lr']}")
 
         if hours_passed > time_in_hours:
+            pbar.close()
             print(f"hour limit of {time_in_hours:.4f}h passed")
             break
-        # elif keyboard.is_pressed('v'):
-        #     model.train(False)
-        #     benchmark_eval(model)
-        #     save_model(model, "model.pth")
-        #     model.train(True)
-        # elif keyboard.is_pressed('q'):
-        #     save_model(model, "model.pth")
 
-        #     exit()
-
+    pbar.close()
 
 transform = Resize((128, 128))
 
-def train_pre_model():
-    train_ds, valid_ds, test_ds = prepare_datasets([
-        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img/1", "png")], "lines/1", "png", 5000),
-        # ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img/2", "png")], "lines/2", "png", 5000),
-        # ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img/3", "png")], "lines/3", "png", 5000)
+def train_pre_model(model, model_path, summary_writer):
+    train_ds, valid_ds, test_ds = prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img": "png", "lines": "png"}, [
+        ([("img", "img/1"), ("lines", "lines/1")], 5000),
+        ([("img", "img/2"), ("lines", "lines/2")], 5000),
+        #([("img", "img/3"), ("lines", "lines/3")], 5000)
     ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
 
     trainds_iter = iter(cycle(train_ds))
 
-    print("training mask model")
-    train_model(0, model.pre_model, mask_epochs, mask_time_in_hours, trainds_iter)
+    train_model(0, model, mask_epochs, mask_time_in_hours, trainds_iter, summary_writer)
 
-    save_model(model, "model unet transformer.pth")
+    save_model(model, model_path)
 
-train_pre_model()
-exit()
 
-def train_wc_model():
+def train_wc_model(model, model_path, summary_writer):
     train_ds, valid_ds, test_ds = prepare_datasets([
         ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img_masked/1", "png"), ("lines/1", "png")], "wc/1", "exr", 20000)
     ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
 
     trainds_iter = iter(cycle(train_ds))
 
-    print()
-    print("training wc model")
-    train_model(1, model.wc_model, wc_epochs, wc_time_in_hours, trainds_iter)
+    train_model(1, model, wc_epochs, wc_time_in_hours, trainds_iter, summary_writer)
 
-    save_model(model, "model.pth")
-unsqueeze(axis=1)
-train_wc_model()
+    save_model(model, model_path)
 
 
-def train_bm_model():
+def train_bm_model(model, model_path, summary_writer):
     train_ds, valid_ds, test_ds = prepare_datasets([
         ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("wc/1", "exr")], "bm/1exr", "exr", 20000)
     ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
 
     trainds_iter = iter(cycle(train_ds))
 
-    print()
-    print("training bm model")
-    train_model(2, model.bm_model, bm_epochs, bm_time_in_hours, trainds_iter)
+    train_model(2, model, bm_epochs, bm_time_in_hours, trainds_iter, summary_writer)
 
-train_bm_model()
+    save_model(model, model_path)
 
 
-test_loss = 0.0
-# test_loss = model.eval_loss_on_ds(test_ds)
-print(f"test loss: {test_loss:.4}")
-
-save_model(model, "model.pth")
+if __name__ == "__main__":
+    model = load_model("model unet transformer.pth")
+    model.to(device)
+    summary(model.pre_model, input_size=(1, 3, 128, 128), device=device)

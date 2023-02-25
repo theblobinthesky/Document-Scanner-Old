@@ -12,7 +12,7 @@ import pytesseract
 
 bmap_padding = 1e-2
 num_examples = 3
-device = 'cuda'
+device = torch.device('cpu')
 
 
 def bmap_from_fmap(fmap, mask):
@@ -75,7 +75,7 @@ def benchmark_eval(model):
     bm_label = bm_label[:, :2] / 448.0
     img_label = x[:, 9:12]
 
-    pre_pred = model.pre_model(img_label)
+    pre_pred = model.pre_model(img_label.to('cuda'))
     # wc_pred = model.wc_model(pre_label)
     # bm_pred = model.bm_model(wc_label)
 
@@ -138,6 +138,6 @@ def benchmark_eval(model):
 
 
 if __name__ == '__main__':
-    model = load_model("model.pth")
+    model = load_model("model unet transformer.pth").to('cuda')
     model.eval()
     benchmark_eval(model)
