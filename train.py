@@ -1,30 +1,30 @@
 #!/usr/bin/python3
-from model import Model, save_model, load_model, eval_loss_on_batches, eval_loss_and_metrics_on_batches
-from data import prepare_datasets
+from model import Model, save_model, load_model, eval_loss_on_batches, eval_loss_and_metrics_on_batches, count_params
+from data import prepare_datasets, load_datasets
 from torchvision.transforms import Resize
 import torch
 from torchinfo import summary
 import datetime
 from itertools import cycle
 from tqdm import tqdm
-from benchmark import benchmark_eval
+from benchmark import benchmark_plt
 
 lr = 1e-3
 steps_per_epoch = 40
 batch_size = 8
 device = torch.device('cuda')
 
-mask_epochs = 200
+mask_epochs = 400
 wc_epochs = 2000
-bm_epochs = 2000
-min_learning_rate_before_early_termination = 1e-6
+bm_epochs = 1000
+min_learning_rate_before_early_termination = 1e-7
 lr_plateau_patience = 3
 valid_batch_count = 16
 valid_eval_every = 4
 
 mask_time_in_hours = 2.0
 wc_time_in_hours = 0 # 2.5
-bm_time_in_hours = 0 # 1.0
+bm_time_in_hours = 2.0
 
 def cycle(iterable):
     while True:
@@ -36,16 +36,21 @@ def model_to_device(model):
     return model.to(device)
 
 
-def train_model(model, epochs, time_in_hours, trainds_iter, valid_iter, test_iter, summary_writer):
+def train_model(model, model_path, epochs, time_in_hours, ds, summary_writer):
     optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, factor=0.1, patience=lr_plateau_patience)
 
     start_time = datetime.datetime.now()
 
+    train_ds, valid_ds, test_ds = load_datasets(*ds, batch_size)
+    trainds_iter = iter(cycle(train_ds))
+    valid_iter = iter(cycle(valid_ds))
+    test_iter = iter(test_ds)
+
     pbar = tqdm(total=epochs)
     pbar.set_description("initializing training and running first epoch")
     
-    for epoch in range(0):
+    for epoch in range(epochs):
         train_loss = 0.0
 
         for _ in range(steps_per_epoch):
@@ -55,11 +60,6 @@ def train_model(model, epochs, time_in_hours, trainds_iter, valid_iter, test_ite
                 dict[key] = dict[key].to(device)
                 
             x, y = model.x_and_y_from_dict(dict)
-            # elif mode == 1:
-            #     img[:, 0:3] *= img[:, 5].unsqueeze(axis=1) # todo: this might be a bug
-            #     img = img[:, [0, 1, 2, 3]]
-            # elif mode == 2:
-            #     label = label[:, :2] / 448.0
 
             optim.zero_grad(set_to_none=True)
 
@@ -98,37 +98,45 @@ def train_model(model, epochs, time_in_hours, trainds_iter, valid_iter, test_ite
             print(f"learning rate {learning_rate} is smaller than {min_learning_rate_before_early_termination}. no further learning progress can be made")
             break
 
+    save_model(model, model_path)
+
     pbar.close()
 
     test_loss, metrics = eval_loss_and_metrics_on_batches(model, test_iter, batch_size, device)
-    
-    summary_writer.add_scalar("Loss/test", test_loss)
-    
+
+    hparams = {"parameter_count": count_params(model)}
+
+    metric_dict = {"Loss/test": test_loss}
     for (name, item) in metrics:
-        summary_writer.add_scalar(name, item)
+        metric_dict[name] = item
 
-    benchmark_plt = benchmark_eval(model)
-    summary_writer.add_figure("benchmark", benchmark_plt)
+    summary_writer.add_hparams(hparams, metric_dict)
 
+    plt = benchmark_plt(model, ds)
+    summary_writer.add_figure("benchmark", plt)
+    
     print(f"test loss: {test_loss:.4f}")
 
 
 transform = Resize((128, 128))
 
-def train_pre_model(model, model_path, summary_writer):
-    train_ds, valid_ds, test_ds = prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img": "png", "lines": "png"}, [
+def prepare_pre_dataset():
+    return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img": "png", "lines": "png"}, [
         ([("img", "img/1"), ("lines", "lines/1")], 5000),
         ([("img", "img/2"), ("lines", "lines/2")], 5000),
-        #([("img", "img/3"), ("lines", "lines/3")], 5000)
+        ([("img", "img/3"), ("lines", "lines/3")], 5000)
     ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
 
-    trainds_iter = iter(cycle(train_ds))
-    valid_iter = iter(cycle(valid_ds))
-    test_iter = iter(test_ds)
+def prepare_bm_dataset():
+    return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img_masked": "png", "bm": "exr"}, [
+        ([("img_masked", "img_masked/1"), ("bm", "bm/1exr")], 5000),
+        ([("img_masked", "img_masked/2"), ("bm", "bm/2exr")], 5000),
+        ([("img_masked", "img_masked/3"), ("bm", "bm/3exr")], 5000)
+    ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
 
-    train_model(model, mask_epochs, mask_time_in_hours, trainds_iter, valid_iter, test_iter, summary_writer)
-
-    save_model(model, model_path)
+def train_pre_model(model, model_path, summary_writer):
+    ds = prepare_pre_dataset()
+    train_model(model, model_path, mask_epochs, mask_time_in_hours, ds, summary_writer)
 
 
 def train_wc_model(model, model_path, summary_writer):
@@ -136,27 +144,12 @@ def train_wc_model(model, model_path, summary_writer):
         ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img_masked/1", "png"), ("lines/1", "png")], "wc/1", "exr", 20000)
     ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
 
-    trainds_iter = iter(cycle(train_ds))
-    valid_iter = iter(cycle(valid_ds))
-    test_iter = iter(test_ds)
-
-    train_model(model, wc_epochs, wc_time_in_hours, trainds_iter, valid_iter, test_iter, summary_writer)
-
-    save_model(model, model_path)
+    train_model(model, model_path, wc_epochs, wc_time_in_hours, trainds_iter, valid_iter, test_iter, summary_writer)
 
 
 def train_bm_model(model, model_path, summary_writer):
-    train_ds, valid_ds, test_ds = prepare_datasets([
-        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("wc/1", "exr")], "bm/1exr", "exr", 20000)
-    ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
-
-    trainds_iter = iter(cycle(train_ds))
-    valid_iter = iter(cycle(valid_ds))
-    test_iter = iter(test_ds)
-
-    train_model(model, bm_epochs, bm_time_in_hours, trainds_iter, valid_iter, test_iter, summary_writer)
-
-    save_model(model, model_path)
+    ds = prepare_bm_dataset()
+    train_model(model, model_path, bm_epochs, bm_time_in_hours, ds, summary_writer)
 
 
 if __name__ == "__main__":

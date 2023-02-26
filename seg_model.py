@@ -316,8 +316,36 @@ class UpDilatedConv(nn.Module):
         return O
 
 
+class OneArg(nn.Module):
+    def __init__(self, layer, out):
+        super().__init__()
+
+        self.layer = layer
+        self.conv = Conv(out, out)
+    
+    def forward(self, x):
+        y = self.layer(x)
+        y = self.conv(y)
+
+        return y
+    
+
+class TwoArgs(nn.Module):
+    def __init__(self, layer, out):
+        super().__init__()
+
+        self.layer = layer
+        self.conv = Conv(out, out)
+    
+    def forward(self, y1, y2):
+        y = self.layer(y1, y2)
+        y = self.conv(y)
+
+        return y
+
+
 class UNetDilatedConv(nn.Module):
-    def __init__(self, inp, out):
+    def __init__(self, inp, out, large, think):
         super().__init__()
 
         depth = [32, 64, 128, 256]
@@ -325,24 +353,51 @@ class UNetDilatedConv(nn.Module):
         self.cvt_in = DoubleConv(inp, depth[0])
         self.cvt_out = DoubleConv(depth[0], out)
 
-        self.down0 = DownDilatedConv(depth[0], depth[1])
-        self.down1 = DownDilatedConv(depth[1], depth[2])
+        if think:
+            self.down0 = OneArg(DownDilatedConv(depth[0], depth[1]), depth[1])
+            self.down1 = OneArg(DownDilatedConv(depth[1], depth[2]), depth[2])
+        else:
+            self.down0 = DownDilatedConv(depth[0], depth[1])
+            self.down1 = DownDilatedConv(depth[1], depth[2])
         
-        self.bottle = DilatedBlock(depth[2], depth[2])
-        
-        self.up1 = UpDilatedConv(depth[2], depth[1])
-        self.up0 = UpDilatedConv(depth[1], depth[0])
+        if large:
+            self.down2 = DownDilatedConv(depth[2], depth[3])
+            self.bottle = DilatedBlock(depth[3], depth[3])
+            self.up2 = UpDilatedConv(depth[3], depth[2])
+        else:
+            self.bottle = DilatedBlock(depth[2], depth[2])
+
+        self.large = large
+
+        if think:
+            self.up1 = TwoArgs(UpDilatedConv(depth[2], depth[1]), depth[1])
+            self.up0 = TwoArgs(UpDilatedConv(depth[1], depth[0]), depth[0])
+        else:
+            self.up1 = UpDilatedConv(depth[2], depth[1])
+            self.up0 = UpDilatedConv(depth[1], depth[0])
+    
 
     def forward(self, x):
         x = self.cvt_in(x)
 
-        d0 = self.down0(x)
-        d1 = self.down1(d0)
+        if self.large:
+            d0 = self.down0(x)
+            d1 = self.down1(d0)
+            d2 = self.down2(d1)
 
-        bn = self.bottle(d1)
+            bn = self.bottle(d2)
 
-        u0 = self.up1(bn, d0)
-        y = self.up0(u0, x)
+            u1 = self.up2(bn, d1)
+            u0 = self.up1(u1, d0)
+            y = self.up0(u0, x)
+        else:
+            d0 = self.down0(x)
+            d1 = self.down1(d0)
+
+            bn = self.bottle(d1)
+
+            u0 = self.up1(bn, d0)
+            y = self.up0(u0, x)
 
         y = self.cvt_out(y)
         return y

@@ -61,7 +61,6 @@ class ImageDataSet(Dataset):
 
         return out
 
-from torchvision.datasets import ImageFolder
 
 def split_dataset(dataset, valid_perc, test_perc):
     train_perc = 1.0 - test_perc - valid_perc
@@ -116,6 +115,10 @@ def prepare_datasets(dir, exts, datasets, valid_perc, test_perc, batch_size, tra
     ds = ImageDataSet(items, names, transform)
     train_ds, valid_ds, test_ds = split_dataset(ds, valid_perc, test_perc)
 
+    return train_ds, valid_ds, test_ds
+
+
+def load_datasets(train_ds, valid_ds, test_ds, batch_size):
     return load_dataset(train_ds, batch_size), \
            load_dataset(valid_ds, batch_size), \
            load_dataset(test_ds, batch_size)

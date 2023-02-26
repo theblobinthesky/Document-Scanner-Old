@@ -4,8 +4,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
 import torch
-from train import train_pre_model, model_to_device
-from model import PreModel
+from train import train_bm_model, model_to_device
+from model import BMModel
 
 class SigmoidOutputTestModule(nn.Module):
     def __init__(self, model):
@@ -25,23 +25,19 @@ class SigmoidOutputTestModule(nn.Module):
 
 print("running all tests")
 
+# print()
+# print("running bm_model_dilated")
+# writer = SummaryWriter("runs/bm_model_dilated")
+# model = BMModel(dilated_convs=True, large=False, think=False)
+# model.load_state_dict(torch.load("models/bm_model_dilated.pth"))
+# model = model_to_device(model)
+# train_bm_model(model, "models/bm_model_dilated.pth", summary_writer=writer)
+# writer.flush()
 
 print()
-print("running pre_model_baseline")
-writer = SummaryWriter("runs/pre_model_baseline")
-model = PreModel(focal_loss=False)
-model.load_state_dict(torch.load("models/pre_model_baseline.pth"))
-unet = model_to_device(model)
-train_pre_model(unet, "models/pre_model_baseline.pth", summary_writer=writer)
-writer.flush()
-
-
-
-print()
-print("running pre_model_focal_loss")
-writer = SummaryWriter("runs/pre_model_focal_loss")
-model = PreModel(focal_loss=True)
-model.load_state_dict(torch.load("models/pre_model_focal_loss.pth"))
-unet = model_to_device(PreModel(focal_loss=True))
-train_pre_model(unet, "models/pre_model_focal_loss.pth", summary_writer=writer)
+print("running bm_model_dilated_think")
+writer = SummaryWriter("runs/bm_model_dilated_think")
+model = BMModel(dilated_convs=True, large=False, think=True)
+model = model_to_device(model)
+train_bm_model(model, "models/bm_model_dilated_think.pth", summary_writer=writer)
 writer.flush()

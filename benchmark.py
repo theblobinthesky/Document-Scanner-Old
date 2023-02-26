@@ -1,18 +1,16 @@
 #!/usr/bin/python3
 from model import load_model, binarize
-from data import prepare_datasets
+from data import load_datasets
+import data
 from torchvision.transforms import Resize
-from torchmetrics import CharErrorRate, ExtendedEditDistance 
 import torch
 import numpy as np
 import scipy
 import cv2
 import matplotlib.pyplot as plt
-import io
 
 bmap_padding = 1e-2
-num_examples = 8
-device = torch.device('cpu')
+num_examples = 16
 
 dpi = 50
 
@@ -44,7 +42,7 @@ def bmap_from_fmap(fmap, mask):
 
 
 def sample_from_bmap(img, bmap):
-    bmap = 1.0 - bmap
+    bmap = np.copy(bmap)
     bmap[:, :, 0] *= (img.shape[1] - 1)
     bmap[:, :, 1] *= (img.shape[0] - 1)
     bmap = cv2.resize(bmap, (128, 128))
@@ -55,67 +53,45 @@ def sample_from_bmap(img, bmap):
 # bmaps = [bmap_from_fmap(label[e,0:2,:,:], label[e,2,:,:]) for e in range(num_examples)]
 # bmaps = [sample_from_bmap(np.transpose(img[e,:,:,:], [1, 2, 0]), bmap) for e, bmap in enumerate(bmaps)]
 
-def benchmark_eval(model):
-    transform = Resize((128, 128))
+transform = Resize((128, 128))
 
-    # ds, _, _ = prepare_datasets([
-    #     ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img/1", "png")], "wc/1", "exr", 20000)
-    # ], valid_perc=0.1, test_perc=0.1, batch_size=num_examples, transform=transform)
-
-    # x, y = next(iter(ds))
-
-
-    ds, _, _ = prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", 
-        {"img": "png", "lines": "png"}, [
-        ([("img", "img/1"), ("lines", "lines/1")], 100)
-    ], valid_perc=0.1, test_perc=0.1, batch_size=num_examples, transform=transform)
+def benchmark_plt(model, ds):
+    _, _, ds = load_datasets(*ds, num_examples)
 
     dict = next(iter(ds))
+    for key in dict.keys():
+        dict[key] = dict[key].to("cuda")
 
-    # x, bm_label = next(iter(ds))
-    # x[:, 0:3] *= x[:, 3].unsqueeze(axis=1)
-    # pre_label = x[:, :4]
-    # wc_label = x[:, 6:9]
-    # bm_label = bm_label[:, :2] / 448.0
-    # img_label = x[:, 9:12]
+    x, y = model.x_and_y_from_dict(dict)
 
-    img_label = dict["img"]
-    pre_label = dict["lines"][:, [0, 2]]
-
-    pre_pred = model(img_label.to('cuda'))
-    # wc_pred = model.wc_model(pre_label)
-    # bm_pred = model.bm_model(wc_label)
-
+    pred = model(x)
 
     def cpu(ten):
         return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1])
 
-    img_label = cpu(img_label)
-    pre_pred, pre_label = cpu(pre_pred), cpu(pre_label)
-    # wc_label, wc_pred = cpu(wc_label), cpu(wc_pred)
-    # bm_label, bm_pred = cpu(bm_label), cpu(bm_pred)
+    x, y, pred = cpu(x), cpu(y), cpu(pred)
+    
+    sampled = [sample_from_bmap(x[e], pred[e]) for e in range(num_examples)]
 
+    def pad_if_necessary(ten):
+        channels = ten.shape[-1]
+        if channels == 3 or channels == 1:
+            return ten
+        elif channels == 2:
+            return np.pad(ten, ((0, 0), (0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)
+        else:
+            print("error invalid channel number")
+            exit()
 
-    # def unwrap(e, ten):
-    #     return cv2.remap(pre_label[e, :, :, :3], ten * 128.0, None, interpolation=cv2.INTER_LINEAR)
+    x, y, pred = pad_if_necessary(x), pad_if_necessary(y), pad_if_necessary(pred)
 
-    # unwarped_label = [unwrap(e, bm_label[e]) for e in range(num_examples)]
-    # unwarped_pred = [unwrap(e, bm_pred[e]) for e in range(num_examples)]
-
-    def pad(ten):
-        return np.pad(ten, ((0, 0), (0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)
-
-    pre_pred, pre_label = pad(pre_pred), pad(pre_label)
-
-    # title = ['pre pred', 'wc label', 'wc prediction', 'bm label', 'bm prediction', 'unwarped label', 'unwarped prediction']
-    title = ["img", "pre pred", "pre label"]
+    title = ["x", "y", "pred", "sampled"]
 
     fig = plt.figure(figsize=(25, 25), dpi=dpi)
     i = 0
 
     for e in range(num_examples):
-        list = [img_label[e], pre_pred[e], pre_label[e]]
-        # list = [pre_pred[e,:,:,:3], wc_label[e], wc_pred[e], bm_label[e], bm_pred[e], unwarped_label[e], unwarped_pred[e]]
+        list = [x[e], y[e], pred[e], sampled[e]]
         for t, arr in enumerate(list):
             plt.subplot(num_examples // 2, len(title) * 2, i + 1)
             plt.title(title[t])

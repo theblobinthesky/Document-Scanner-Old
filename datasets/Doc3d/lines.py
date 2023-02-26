@@ -10,10 +10,10 @@ import cv2
 from tqdm import tqdm
 import concurrent.futures
 
-img_dir = 'img/2'
-uv_dir = 'uv/2'
-bm_dir = 'bm/2exr'
-dst_dir = 'lines/2'
+img_dir = 'img/3'
+uv_dir = 'uv/3'
+bm_dir = 'bm/3exr'
+dst_dir = 'lines/3'
 padding = 5
 
 paths = glob(f"{img_dir}/*.png")

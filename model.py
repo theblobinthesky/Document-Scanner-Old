@@ -157,11 +157,10 @@ metric_sensitivity = ("sensitivity", metric_specificity_f)
 metric_specificity = ("specificity", metric_specificity_f)
 
 class PreModel(nn.Module):
-    def __init__(self, focal_loss):
+    def __init__(self, large=False):
         super().__init__()
 
-        self.focal_loss = focal_loss
-        self.unet = UNetDilatedConv(3, 2)
+        self.unet = UNetDilatedConv(3, 2, large)
 
 
     def forward(self, x):
@@ -172,10 +171,7 @@ class PreModel(nn.Module):
     
 
     def loss(self, pred, label):
-        if self.focal_loss:
-            return sigmoid_focal_loss(pred, label, reduction="mean")
-        else:
-            return F.binary_cross_entropy(pred, label)
+        return F.binary_cross_entropy(pred, label)
 
 
     def x_and_y_from_dict(self, dict):
@@ -214,11 +210,17 @@ class WCModel(nn.Module):
 
 
 class BMModel(nn.Module):
-    def __init__(self):
+    def __init__(self, dilated_convs, large, think):
         super().__init__()
 
-        # self.net = ResNet(3, 2, 3, 4)
-        self.net = UNet(3, 2, blocks=3)
+        if dilated_convs:
+            self.net = UNetDilatedConv(3, 2, large, think)
+        else:
+            if large:
+                self.net = UNet(3, 2, blocks=3)
+            else:
+                self.net = UNet(3, 2, blocks=2)
+
         self.dummy = nn.Parameter(torch.empty(0))
 
 
@@ -231,6 +233,16 @@ class BMModel(nn.Module):
 
     def loss(self, pred, label):
         return loss_smooth(pred, label)
+    
+
+    def x_and_y_from_dict(self, dict):
+        x = dict["img_masked"]
+        y = dict["bm"][:, :2]
+        return x, y
+    
+
+    def eval_metrics(self):
+        return []
 
 
 class Model(nn.Module):
@@ -316,6 +328,10 @@ def loss_smooth(pred, label):
     (lgrad_x, lgrad_y) = MF.image_gradients(label)
     grad_loss = 0.5 * (pgrad_x - lgrad_x).abs().mean() + 0.5 * (pgrad_y - lgrad_y).abs().mean()
     return abs_loss + lam * grad_loss
+
+
+def count_params(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
 def load_model(path):
