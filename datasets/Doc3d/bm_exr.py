@@ -7,13 +7,15 @@ import numpy as np
 from tqdm import tqdm
 import concurrent.futures
 
-dir_pairs = [("bm/1", "bm/1exr"), ("bm/2", "bm/2exr")]
+dir_pairs = [("bm/1", "bm/1exr"), ("bm/2", "bm/2exr"), ("bm/3", "bm/3exr")]
 
 def task(pairs):
     for (src, dst) in pairs:    
         mat = h5py.File(src)
         mat = mat['bm']
         mat = mat[:,:,:].astype('float32') / 448.0
+        mat = np.transpose(mat, [0, 2, 1])
+        mat = np.ascontiguousarray(mat)
         
         file = OpenEXR.OutputFile(dst, OpenEXR.Header(mat.shape[2], mat.shape[1]))
         file.writePixels({'R': mat[0], 'G': mat[1]})

@@ -14,7 +14,7 @@ steps_per_epoch = 40
 batch_size = 8
 device = torch.device('cuda')
 
-mask_epochs = 400
+mask_epochs = 300
 wc_epochs = 2000
 bm_epochs = 1000
 min_learning_rate_before_early_termination = 1e-7

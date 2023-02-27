@@ -10,13 +10,8 @@ import cv2
 from tqdm import tqdm
 import concurrent.futures
 
-img_dir = 'img/3'
-uv_dir = 'uv/3'
-bm_dir = 'bm/3exr'
-dst_dir = 'lines/3'
+dir_items = [("img/1", "uv/1", "bm/1exr", "lines/1"), ("img/2", "uv/2", "bm/2exr", "lines/2"), ("img/3", "uv/3", "bm/3exr", "lines/3")]
 padding = 5
-
-paths = glob(f"{img_dir}/*.png")
 
 def exr_loader(path, ndim=3):
     file = OpenEXR.InputFile(path)
@@ -40,15 +35,13 @@ def exr_loader(path, ndim=3):
         exit()
 
 
-def task(paths):
-    for path in paths:    
-        name = Path(path).stem
-
+def task(items):
+    for (img_path, uv_path, bm_path, out_path) in items:    
         img = cv2.imread(path)
-        uv = exr_loader(f"{uv_dir}/{name}.exr")
+        uv = exr_loader(uv_path)
         mask = (uv[:, :, 2] * 255).astype("uint8")[:,:,np.newaxis]
         uv = uv[:, :, 0:2]
-        bm = exr_loader(f"{bm_dir}/{name}.exr")[:, :, 0:2]
+        bm = exr_loader(bm_path)[:, :, 0:2]
 
         out = cv2.remap(img, bm, None, interpolation=cv2.INTER_CUBIC)
         out = cv2.cvtColor(out, cv2.COLOR_RGB2GRAY)
@@ -75,7 +68,7 @@ def task(paths):
         
         out = np.concatenate([lines, lines, mask], axis=-1)
         
-        cv2.imwrite(f"{dst_dir}/{name}.png", out)
+        cv2.imwrite(out_path, out)
 
 
 def chunk(list, chunk_size):
@@ -83,10 +76,19 @@ def chunk(list, chunk_size):
 
 
 with concurrent.futures.ThreadPoolExecutor(8) as executor:
-    chunkedPaths = chunk(paths, 32)
+    items = []
+    for (img_dir, uv_dir, bm_dir, out_dir) in dir_items:
+        paths = glob(f"{img_dir}/*.png")
+
+        for path in paths:
+            name = Path(path).stem
+            items.append((path, f"{uv_dir}/{name}.exr", f"{bm_dir}/{name}.exr", f"{out_dir}/{name}.png"))
+
+
+    chunkedItems = chunk(items, 32)
     futures = []
-    for paths in chunkedPaths:
-        futures.append(executor.submit(task, paths))
+    for itemChunk in chunkedItems:
+        futures.append(executor.submit(task, itemChunk))
 
     for future in tqdm(futures):
         future.result()

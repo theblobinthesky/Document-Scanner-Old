@@ -11,7 +11,7 @@ class Conv(nn.Module):
         super().__init__()
 
         self.layers = nn.Sequential(
-            nn.Conv2d(inp, out, kernel_size=kernel_size, padding=padding, dilation=dilation),
+            nn.Conv2d(inp, out, kernel_size=kernel_size, padding=padding, dilation=dilation, bias=False),
             nn.ReLU(True),
             nn.BatchNorm2d(out)
         )
@@ -274,6 +274,8 @@ class DilatedBlock(nn.Module):
         self.conv3 = Conv(out // 8, out // 16, kernel_size=3, padding=2, dilation=2)
         self.conv4 = Conv(out // 16, out // 16, kernel_size=3, padding=2, dilation=2)
         
+        self.skip = conv1x1(inp, out)
+
 
     def forward(self, x):
         c0 = self.conv0(x)
@@ -282,7 +284,9 @@ class DilatedBlock(nn.Module):
         c3 = self.conv3(c2)
         c4 = self.conv4(c3)
 
-        return torch.cat([c0, c1, c2, c3, c4], axis=1)
+        skip = self.skip(x)
+
+        return torch.cat([c0, c1, c2, c3, c4], axis=1) + skip
 
 
 # Dilated Conv UNet based on:

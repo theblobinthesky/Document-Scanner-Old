@@ -25,19 +25,10 @@ class SigmoidOutputTestModule(nn.Module):
 
 print("running all tests")
 
-# print()
-# print("running bm_model_dilated")
-# writer = SummaryWriter("runs/bm_model_dilated")
-# model = BMModel(dilated_convs=True, large=False, think=False)
-# model.load_state_dict(torch.load("models/bm_model_dilated.pth"))
-# model = model_to_device(model)
-# train_bm_model(model, "models/bm_model_dilated.pth", summary_writer=writer)
-# writer.flush()
-
 print()
-print("running bm_model_dilated_think")
-writer = SummaryWriter("runs/bm_model_dilated_think")
-model = BMModel(dilated_convs=True, large=False, think=True)
+print("running bm_model_dilated_skip_conv")
+writer = SummaryWriter("runs/bm_model_dilated_skip_conv")
+model = BMModel(dilated_convs=True, large=False, think=False)
 model = model_to_device(model)
-train_bm_model(model, "models/bm_model_dilated_think.pth", summary_writer=writer)
+train_bm_model(model, "models/bm_model_dilated_skip_conv.pth", summary_writer=writer)
 writer.flush()
