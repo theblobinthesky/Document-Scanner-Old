@@ -209,24 +209,24 @@ class WCModel(nn.Module):
         return loss_smooth(pred, label)
 
 
+from bm_model import ProgressiveModel
+
 class BMModel(nn.Module):
-    def __init__(self, dilated_convs, large, think):
+    def __init__(self, train, learn_up, t1):
         super().__init__()
 
-        if dilated_convs:
-            self.net = UNetDilatedConv(3, 2, large, think)
-        else:
-            if large:
-                self.net = UNet(3, 2, blocks=3)
-            else:
-                self.net = UNet(3, 2, blocks=2)
+        self.net = ProgressiveModel(learn_up, t1)
+        self.net.set_train(train)
 
         self.dummy = nn.Parameter(torch.empty(0))
 
 
+    def set_train(self, train):
+        self.net.set_train(train)
+
+
     def forward(self, x):
         x = self.net(x)
-        x = torch.sigmoid(x)
 
         return x
 

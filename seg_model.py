@@ -28,10 +28,10 @@ class DoubleConv(nn.Module):
             mid = out
         
         self.layers = nn.Sequential(
-            nn.Conv2d(inp, mid, kernel_size=3, padding=1),
+            nn.Conv2d(inp, mid, kernel_size=3, padding=1, bias=False),
             nn.ReLU(True),
             nn.BatchNorm2d(mid),
-            nn.Conv2d(mid, out, kernel_size=3, padding=1),
+            nn.Conv2d(mid, out, kernel_size=3, padding=1, bias=False),
             nn.ReLU(True),
             nn.BatchNorm2d(out)
         )
@@ -268,7 +268,7 @@ class DilatedBlock(nn.Module):
     def __init__(self, inp, out):
         super().__init__()
 
-        self.conv0 = Conv(inp, out // 2, kernel_size=3, padding=1)
+        self.conv0 = DoubleConv(inp, out // 2)
         self.conv1 = Conv(out // 2, out // 4, kernel_size=3, padding=2, dilation=2)
         self.conv2 = Conv(out // 4, out // 8, kernel_size=3, padding=2, dilation=2)
         self.conv3 = Conv(out // 8, out // 16, kernel_size=3, padding=2, dilation=2)

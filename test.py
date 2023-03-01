@@ -26,9 +26,27 @@ class SigmoidOutputTestModule(nn.Module):
 print("running all tests")
 
 print()
-print("running bm_model_dilated_skip_conv")
-writer = SummaryWriter("runs/bm_model_dilated_skip_conv")
-model = BMModel(dilated_convs=True, large=False, think=False)
+print("running bm_progressive_large_baseline")
+writer = SummaryWriter("runs/bm_progressive_large_baseline")
+model = BMModel(True, False, False)
 model = model_to_device(model)
-train_bm_model(model, "models/bm_model_dilated_skip_conv.pth", summary_writer=writer)
+train_bm_model(model, "models/bm_progressive_large_baseline.pth", summary_writer=writer)
+writer.flush()
+
+
+print()
+print("running bm_progressive_large_learned_up_baseline")
+writer = SummaryWriter("runs/bm_progressive_large_learned_up_baseline")
+model = BMModel(True, True, False)
+model = model_to_device(model)
+train_bm_model(model, "models/bm_progressive_large_learned_up_baseline.pth", summary_writer=writer)
+writer.flush()
+
+
+print()
+print("running bm_progressive_large_learned_up_c1x1_baseline")
+writer = SummaryWriter("runs/bm_progressive_large_learned_up_c1x1_baseline")
+model = BMModel(True, True, True)
+model = model_to_device(model)
+train_bm_model(model, "models/bm_progressive_large_learned_up_c1x1_baseline.pth", summary_writer=writer)
 writer.flush()

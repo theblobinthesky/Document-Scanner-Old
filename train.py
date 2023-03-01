@@ -12,11 +12,11 @@ from benchmark import benchmark_plt
 lr = 1e-3
 steps_per_epoch = 40
 batch_size = 8
-device = torch.device('cuda')
+device = torch.device("cuda")
 
 mask_epochs = 300
 wc_epochs = 2000
-bm_epochs = 1000
+bm_epochs = 300
 min_learning_rate_before_early_termination = 1e-7
 lr_plateau_patience = 3
 valid_batch_count = 16
@@ -24,7 +24,7 @@ valid_eval_every = 4
 
 mask_time_in_hours = 2.0
 wc_time_in_hours = 0 # 2.5
-bm_time_in_hours = 2.0
+bm_time_in_hours = 3.0
 
 def cycle(iterable):
     while True:
@@ -102,6 +102,8 @@ def train_model(model, model_path, epochs, time_in_hours, ds, summary_writer):
 
     pbar.close()
 
+    model.set_train(False)
+
     test_loss, metrics = eval_loss_and_metrics_on_batches(model, test_iter, batch_size, device)
 
     hparams = {"parameter_count": count_params(model)}
@@ -118,7 +120,7 @@ def train_model(model, model_path, epochs, time_in_hours, ds, summary_writer):
     print(f"test loss: {test_loss:.4f}")
 
 
-transform = Resize((128, 128))
+transform = Resize((256, 256))
 
 def prepare_pre_dataset():
     return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img": "png", "lines": "png"}, [
@@ -155,4 +157,4 @@ def train_bm_model(model, model_path, summary_writer):
 if __name__ == "__main__":
     model = load_model("model unet transformer.pth")
     model.to(device)
-    summary(model.pre_model, input_size=(1, 3, 128, 128), device=device)
+    summary(model.pre_model, input_size=(1, 3, 256, 256), device=device)

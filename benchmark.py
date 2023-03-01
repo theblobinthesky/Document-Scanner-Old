@@ -42,48 +42,54 @@ def bmap_from_fmap(fmap, mask):
 
 
 def sample_from_bmap(img, bmap):
-    bmap = np.copy(bmap)
-    bmap[:, :, 0] *= (img.shape[1] - 1)
-    bmap[:, :, 1] *= (img.shape[0] - 1)
-    bmap = cv2.resize(bmap, (128, 128))
+    bmap = bmap.clone().permute(0, 2, 3, 1)
+    bmap = bmap * 2 - 1
 
-    out = cv2.remap(img, bmap, None, interpolation=cv2.INTER_AREA)
+    out = torch.nn.functional.grid_sample(img, bmap, align_corners=False)                
     return out
 
 # bmaps = [bmap_from_fmap(label[e,0:2,:,:], label[e,2,:,:]) for e in range(num_examples)]
 # bmaps = [sample_from_bmap(np.transpose(img[e,:,:,:], [1, 2, 0]), bmap) for e, bmap in enumerate(bmaps)]
 
-transform = Resize((128, 128))
+transform = Resize((256, 256))
 
 def benchmark_plt(model, ds):
-    _, _, ds = load_datasets(*ds, num_examples)
+    _, _, ds = load_datasets(*ds, 1)
 
-    dict = next(iter(ds))
-    for key in dict.keys():
-        dict[key] = dict[key].to("cuda")
+    iterator = iter(ds)
+    xs, ys, preds, sampleds = [], [], [], []
+    for i in range(num_examples):
+        dict = next(iterator)
+        for key in dict.keys():
+            dict[key] = dict[key].to("cuda")
 
-    x, y = model.x_and_y_from_dict(dict)
+        x, y = model.x_and_y_from_dict(dict)
 
-    pred = model(x)
+        pred = model(x)
+        sampled = sample_from_bmap(x, pred)
 
-    def cpu(ten):
-        return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1])
+        def cpu(ten):
+            return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1]).squeeze(axis=0)
 
-    x, y, pred = cpu(x), cpu(y), cpu(pred)
-    
-    sampled = [sample_from_bmap(x[e], pred[e]) for e in range(num_examples)]
+        x, y, pred, sampled = cpu(x), cpu(y), cpu(pred), cpu(sampled)
 
-    def pad_if_necessary(ten):
-        channels = ten.shape[-1]
-        if channels == 3 or channels == 1:
-            return ten
-        elif channels == 2:
-            return np.pad(ten, ((0, 0), (0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)
-        else:
-            print("error invalid channel number")
-            exit()
+        def pad_if_necessary(ten):
+            channels = ten.shape[-1]
+            if channels == 3 or channels == 1:
+                return ten
+            elif channels == 2:
+                return np.pad(ten, ((0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)
+            else:
+                print("error invalid channel number")
+                exit()
 
-    x, y, pred = pad_if_necessary(x), pad_if_necessary(y), pad_if_necessary(pred)
+        x, y, pred, sampled = pad_if_necessary(x), pad_if_necessary(y), pad_if_necessary(pred), pad_if_necessary(sampled)
+
+        xs.append(x)
+        ys.append(y)
+        preds.append(pred)
+        sampleds.append(sampled)
+
 
     title = ["x", "y", "pred", "sampled"]
 
@@ -91,7 +97,7 @@ def benchmark_plt(model, ds):
     i = 0
 
     for e in range(num_examples):
-        list = [x[e], y[e], pred[e], sampled[e]]
+        list = [xs[e], ys[e], preds[e], sampleds[e]]
         for t, arr in enumerate(list):
             plt.subplot(num_examples // 2, len(title) * 2, i + 1)
             plt.title(title[t])
