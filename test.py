@@ -16,37 +16,33 @@ class SigmoidOutputTestModule(nn.Module):
         x = self.model(x)
         return torch.sigmoid(x)
     
-    def loss(self, pred, label):
-        return self.model.loss(pred, label)
+    def loss(self, pred, dict):
+        return self.model.loss(pred, dict)
     
     def x_and_y_from_dict(self, dict):
         return self.model.x_and_y_from_dict(dict)
 
+import bm_model
 
 print("running all tests")
 
+bm_model.max_iters = 1
+
 print()
-print("running bm_progressive_large_baseline")
-writer = SummaryWriter("runs/bm_progressive_large_baseline")
+print("running bm_progressive")
+writer = SummaryWriter("runs/bm_progressive")
 model = BMModel(True, False, False)
 model = model_to_device(model)
-train_bm_model(model, "models/bm_progressive_large_baseline.pth", summary_writer=writer)
+train_bm_model(model, "models/bm_progressive.pth", summary_writer=writer)
 writer.flush()
 
 
-print()
-print("running bm_progressive_large_learned_up_baseline")
-writer = SummaryWriter("runs/bm_progressive_large_learned_up_baseline")
-model = BMModel(True, True, False)
-model = model_to_device(model)
-train_bm_model(model, "models/bm_progressive_large_learned_up_baseline.pth", summary_writer=writer)
-writer.flush()
-
+bm_model.max_iters = 4
 
 print()
-print("running bm_progressive_large_learned_up_c1x1_baseline")
-writer = SummaryWriter("runs/bm_progressive_large_learned_up_c1x1_baseline")
-model = BMModel(True, True, True)
+print("running bm_progressive_iters")
+writer = SummaryWriter("runs/bm_progressive_iters")
+model = BMModel(True, False, False)
 model = model_to_device(model)
-train_bm_model(model, "models/bm_progressive_large_learned_up_c1x1_baseline.pth", summary_writer=writer)
+train_bm_model(model, "models/bm_progressive_iters.pth", summary_writer=writer)
 writer.flush()

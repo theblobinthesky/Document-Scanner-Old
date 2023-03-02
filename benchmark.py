@@ -51,7 +51,7 @@ def sample_from_bmap(img, bmap):
 # bmaps = [bmap_from_fmap(label[e,0:2,:,:], label[e,2,:,:]) for e in range(num_examples)]
 # bmaps = [sample_from_bmap(np.transpose(img[e,:,:,:], [1, 2, 0]), bmap) for e, bmap in enumerate(bmaps)]
 
-transform = Resize((256, 256))
+transform = Resize((128, 128))
 
 def benchmark_plt(model, ds):
     _, _, ds = load_datasets(*ds, 1)

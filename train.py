@@ -11,7 +11,7 @@ from benchmark import benchmark_plt
 
 lr = 1e-3
 steps_per_epoch = 40
-batch_size = 8
+batch_size = 12
 device = torch.device("cuda")
 
 mask_epochs = 300
@@ -59,12 +59,12 @@ def train_model(model, model_path, epochs, time_in_hours, ds, summary_writer):
             for key in dict.keys():
                 dict[key] = dict[key].to(device)
                 
-            x, y = model.x_and_y_from_dict(dict)
+            x, _ = model.x_and_y_from_dict(dict)
 
             optim.zero_grad(set_to_none=True)
 
             pred = model(x)
-            loss = model.loss(pred, y)
+            loss = model.loss(pred, dict)
             loss.backward()
 
             optim.step()
@@ -120,7 +120,7 @@ def train_model(model, model_path, epochs, time_in_hours, ds, summary_writer):
     print(f"test loss: {test_loss:.4f}")
 
 
-transform = Resize((256, 256))
+transform = Resize((128, 128))
 
 def prepare_pre_dataset():
     return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img": "png", "lines": "png"}, [
@@ -157,4 +157,4 @@ def train_bm_model(model, model_path, summary_writer):
 if __name__ == "__main__":
     model = load_model("model unet transformer.pth")
     model.to(device)
-    summary(model.pre_model, input_size=(1, 3, 256, 256), device=device)
+    summary(model.pre_model, input_size=(1, 3, 128, 128), device=device)

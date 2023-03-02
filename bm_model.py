@@ -11,7 +11,7 @@ h_chs = 128
 max_iters = 1
 
 class Conv(nn.Module):
-    def __init__(self, inp, out, kernel_size=3, padding=1, dilation=1, activation="none"):
+    def __init__(self, inp, out, kernel_size=3, padding=1, dilation=1, stride=1, activation="none"):
         super().__init__()
 
         if activation == "relu":
@@ -27,7 +27,7 @@ class Conv(nn.Module):
             exit()
 
         self.layers = nn.Sequential(
-            nn.Conv2d(inp, out, kernel_size=kernel_size, padding=padding, dilation=dilation, bias=False),
+            nn.Conv2d(inp, out, kernel_size=kernel_size, padding=padding, dilation=dilation, stride=stride, bias=False),
             activation,
             nn.BatchNorm2d(out)
         )
@@ -93,6 +93,73 @@ class ConvGru(nn.Module):
 from random import randrange
 from seg_model import DilatedBlock, UpDilatedConv
 
+class ResNetBlockConst(nn.Module):
+    def __init__(self, channels, dilated=False):
+        super().__init__()
+
+        dilation = 2 if dilated else 1
+        padding = 2 if dilated else 1
+
+        self.conv = nn.Sequential(
+            Conv(channels, channels, dilation=dilation, padding=padding, activation="relu"),
+            Conv(channels, channels, dilation=dilation, padding=padding, activation="relu")
+        )
+
+    def forward(self, x):
+        residual = x
+        x = self.conv(x)
+        x = x + residual
+
+        return x
+
+
+class ResNetBlockChange(nn.Module):
+    def __init__(self, inp, out, downscale):
+        super().__init__()
+
+        stride = 2 if downscale else 1
+
+        self.conv = nn.Sequential(
+            Conv(inp, inp, activation="relu"),
+            Conv(inp, out, stride=stride, activation="relu")
+        )
+
+        self.skip = Conv(inp, out, kernel_size=1, padding=0, stride=stride)
+
+    def forward(self, x):
+        residual = x
+        x = self.conv(x)
+        x = x + self.skip(residual)
+
+        return x
+
+
+class ResNetEncoder(nn.Module):
+    def __init__(self, inp, out):
+        super().__init__()
+
+        self.layers = nn.Sequential(
+            DilatedBlock(3, 64),
+
+            nn.MaxPool2d(2),
+
+            DilatedBlock(64, 64),
+            # DilatedBlock(64, 64),
+            
+            nn.MaxPool2d(2),
+
+            DilatedBlock(64, 96),
+            # DilatedBlock(96, 96),
+
+            DilatedBlock(96, 128),
+            # DilatedBlock(128, 128),
+            
+            Conv(128, 256, kernel_size=1, padding=0, activation="relu")
+        )
+
+    def forward(self, x):
+        return self.layers(x)
+
     
 class ProgressiveModel(nn.Module):
     def __init__(self, learn_up, t1):
@@ -100,23 +167,12 @@ class ProgressiveModel(nn.Module):
 
         self.is_train = False
 
-        dc_enc_chs = 128
+        dc_enc_chs = 256
         enc_all_inp_chs, enc_all_out_chs = 128, 128
         bm_enc_chs = 48
         dc_sampled_chs = enc_all_inp_chs - bm_enc_chs
 
-        depth = [32, 64, 128, 256]
-
-        self.dc_enc = nn.Sequential(
-            DilatedBlock(3, depth[0]),
-            nn.MaxPool2d(2),
-            DilatedBlock(depth[0], depth[1]),
-            nn.MaxPool2d(2),
-            DilatedBlock(depth[1], depth[2]),
-            nn.MaxPool2d(2),
-            DilatedBlock(depth[2], depth[2]),
-            DoubleConv(depth[2], dc_enc_chs)
-        )
+        self.dc_enc = ResNetEncoder(3, dc_enc_chs)
         
         self.bm_enc = DoubleConv(2, bm_enc_chs)
         self.dc_sampled = DoubleConv(dc_enc_chs, dc_sampled_chs)
@@ -132,7 +188,7 @@ class ProgressiveModel(nn.Module):
             )
         else:
             self.upscaler = nn.Sequential(
-                nn.UpsamplingBilinear2d((256, 256))
+                nn.UpsamplingBilinear2d((128, 128))
             )
 
 
@@ -149,8 +205,14 @@ class ProgressiveModel(nn.Module):
         dc_enc = self.dc_enc(x)
 
         b, _, h, w = x.size()
-        Lhs = [torch.zeros((b, h_chs, 32, 32), device="cuda", requires_grad=True)]
-        bms = [torch.zeros((b, 2, h, w), device="cuda", requires_grad=True)]
+
+        bm = torch.cartesian_prod(
+            torch.linspace(0.0, 1.0, h, device="cuda"), 
+            torch.linspace(0.0, 1.0, w, device="cuda")
+        ).reshape(h, w, 2).permute(2, 0, 1).reshape(1, 2, h, w).repeat(b, 1, 1, 1)
+
+        Lhs = [torch.zeros((b, h_chs, 32, 32), device="cuda")]
+        bms = [bm]
 
         for _ in range(iters):
             Lh, bm_large = Lhs[-1], bms[-1]

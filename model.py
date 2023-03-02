@@ -123,10 +123,10 @@ class UNet(nn.Module):
         return x
     
 
-    def loss(self, pred, label):
-        loss = F.binary_cross_entropy(pred, label)
+    # def loss(self, pred, dict):
+    #     loss = F.binary_cross_entropy(pred, label)
 
-        return loss
+    #     return loss
 
 
 def metric_dice_coefficient_f(pred, label):
@@ -151,6 +151,25 @@ def metric_sensitivity_f(pred, label):
     fp = (thresh * (1.0 - label)).sum()
 
     return tp / (tp + fp).item()
+
+
+def metric_local_distortion(pred, label):
+    pred, label = pred.detach(), label.detach()
+
+    return (pred - label).abs().mean()
+
+
+def metric_line_distortion(pred, label):
+    pred, label = pred.detach(), label.detach()
+
+    local_distortion = (pred - label).abs()
+    dx, dy = local_distortion[:, 0, :, :], local_distortion[:, 1, :, :]
+
+    stdx = torch.std(dx, dim=2, unbiased=False)
+    stdy = torch.std(dy, dim=1, unbiased=False)
+
+    return stdx.mean() + stdy.mean()
+
 
 metric_dice_coefficient = ("dice", metric_dice_coefficient_f)
 metric_sensitivity = ("sensitivity", metric_specificity_f)
@@ -188,25 +207,6 @@ def binarize(x):
     x = torch.gt(x, binarize_threshold).float()
 
     return x
-    
-
-class WCModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-        self.unet = UNet(4, 3, blocks=3)
-        self.dummy = nn.Parameter(torch.empty(0))
-
-
-    def forward(self, x):
-        x = self.unet(x)
-        x = torch.sigmoid(x)
-
-        return x
-
-
-    def loss(self, pred, label):
-        return loss_smooth(pred, label)
 
 
 from bm_model import ProgressiveModel
@@ -231,7 +231,8 @@ class BMModel(nn.Module):
         return x
 
 
-    def loss(self, pred, label):
+    def loss(self, pred, dict):
+        label = dict["bm"][:, :2]
         return loss_smooth(pred, label)
     
 
@@ -242,37 +243,7 @@ class BMModel(nn.Module):
     
 
     def eval_metrics(self):
-        return []
-
-
-class Model(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-        self.pre_model = PreModel()
-        self.wc_model = WCModel()
-        self.bm_model = BMModel()
-
-        self.dummy = nn.Parameter(torch.empty(0))
-    
-
-    def forward(self, inp):
-        pre = self.pre_model(inp)
-        pre = torch.sigmoid(pre)
-        mask = pre[:, 0, :, :].unsqueeze(axis=1)
-        lines = pre[:, 1, :, :].unsqueeze(axis=1)
-
-        x = inp * mask
-        x = torch.cat([x, lines], axis=1)
-        x = self.wc_model(x)
-        
-        x = self.bm_model(x)
-
-        return x
-
-
-    def loss(self, pred, label):
-        return loss_smooth(pred, label)
+        return [metric_local_distortion]
 
 
 def eval_loss_on_batches(model, iter, batch_count, device):
@@ -285,10 +256,10 @@ def eval_loss_on_batches(model, iter, batch_count, device):
             for key in dict.keys():
                 dict[key] = dict[key].to(device)
 
-            x, y = model.x_and_y_from_dict(dict)
+            x, _ = model.x_and_y_from_dict(dict)
             pred = model(x)
     
-            loss += model.loss(pred, y).item()
+            loss += model.loss(pred, dict).item()
 
     loss /= float(batch_count)
 
@@ -309,7 +280,7 @@ def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
             x, y = model.x_and_y_from_dict(dict)
             pred = model(x)
     
-            loss += model.loss(pred, y).item()
+            loss += model.loss(pred, dict).item()
             count += 1
 
             for i, (_, func) in enumerate(eval_metrics):
@@ -324,10 +295,23 @@ def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
 def loss_smooth(pred, label):
     abs_loss = (pred - label).abs().mean()
         
-    (pgrad_x, pgrad_y) = MF.image_gradients(pred)
-    (lgrad_x, lgrad_y) = MF.image_gradients(label)
-    grad_loss = 0.5 * (pgrad_x - lgrad_x).abs().mean() + 0.5 * (pgrad_y - lgrad_y).abs().mean()
-    return abs_loss + lam * grad_loss
+    # (pgrad_x, pgrad_y) = MF.image_gradients(pred)
+    # (lgrad_x, lgrad_y) = MF.image_gradients(label)
+    # grad_loss = 0.5 * (pgrad_x - lgrad_x).abs().mean() + 0.5 * (pgrad_y - lgrad_y).abs().mean()
+    return abs_loss # + lam * grad_loss
+
+
+# def loss_circle_consistency(pred, dict):
+#     b, c, h, w = pred.size()
+
+#     id = torch.cartesian_prod(
+#         torch.linspace(-1.0, 1.0, h, device="cuda"), 
+#         torch.linspace(-1.0, 1.0, w, device="cuda")
+#     ).reshape(h, w, 2).permute(2, 0, 1)
+
+#     dict[]
+    
+#     out = F.grid_sample(id, bmap, align_corners=False)  
 
 
 def count_params(model):
