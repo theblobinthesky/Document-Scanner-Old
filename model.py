@@ -210,6 +210,11 @@ def binarize(x):
 
 
 from bm_model import ProgressiveModel
+from bm_model import iters
+
+cc_loss_enabled = False
+alpha = 0.5
+lam = 0.85
 
 class BMModel(nn.Module):
     def __init__(self, train, learn_up, t1):
@@ -226,15 +231,33 @@ class BMModel(nn.Module):
 
 
     def forward(self, x):
-        x = self.net(x)
+        y = self.net(x)
 
-        return x
+        return y
 
 
-    def loss(self, pred, dict):
-        label = dict["bm"][:, :2]
-        return loss_smooth(pred, label)
-    
+    def forward_all(self, x):
+        return self.net.forward_all(x)
+
+
+    def loss(self, preds, dict):
+        total_loss = 0.0
+
+        for i, pred in enumerate(preds):
+            fac = lam ** (iters - 1 - i)
+   
+            if cc_loss_enabled:
+                label = dict["bm"][:, :2]
+                loss = loss_smooth(pred, label) + alpha * loss_circle_consistency(pred, dict)
+            else:
+                label = dict["bm"][:, :2]
+                loss = loss_smooth(pred, label)
+
+            total_loss += fac * loss
+
+        return total_loss / float(len(preds))
+
+
 
     def x_and_y_from_dict(self, dict):
         x = dict["img_masked"]
@@ -243,7 +266,7 @@ class BMModel(nn.Module):
     
 
     def eval_metrics(self):
-        return [metric_local_distortion]
+        return [("local_distortion", metric_local_distortion)]
 
 
 def eval_loss_on_batches(model, iter, batch_count, device):
@@ -259,7 +282,7 @@ def eval_loss_on_batches(model, iter, batch_count, device):
             x, _ = model.x_and_y_from_dict(dict)
             pred = model(x)
     
-            loss += model.loss(pred, dict).item()
+            loss += model.loss([pred], dict).item()
 
     loss /= float(batch_count)
 
@@ -280,7 +303,7 @@ def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
             x, y = model.x_and_y_from_dict(dict)
             pred = model(x)
     
-            loss += model.loss(pred, dict).item()
+            loss += model.loss([pred], dict).item()
             count += 1
 
             for i, (_, func) in enumerate(eval_metrics):
@@ -295,23 +318,29 @@ def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
 def loss_smooth(pred, label):
     abs_loss = (pred - label).abs().mean()
         
-    # (pgrad_x, pgrad_y) = MF.image_gradients(pred)
-    # (lgrad_x, lgrad_y) = MF.image_gradients(label)
-    # grad_loss = 0.5 * (pgrad_x - lgrad_x).abs().mean() + 0.5 * (pgrad_y - lgrad_y).abs().mean()
-    return abs_loss # + lam * grad_loss
+    (pgrad_x, pgrad_y) = MF.image_gradients(pred)
+    (lgrad_x, lgrad_y) = MF.image_gradients(label)
+    grad_loss = 0.5 * (pgrad_x - lgrad_x).abs().mean() + 0.5 * (pgrad_y - lgrad_y).abs().mean()
+    return abs_loss + lam * grad_loss
 
 
-# def loss_circle_consistency(pred, dict):
-#     b, c, h, w = pred.size()
+def loss_circle_consistency(bm_pred, dict):
+    b, _, h, w = bm_pred.size()
 
-#     id = torch.cartesian_prod(
-#         torch.linspace(-1.0, 1.0, h, device="cuda"), 
-#         torch.linspace(-1.0, 1.0, w, device="cuda")
-#     ).reshape(h, w, 2).permute(2, 0, 1)
+    bm_pred = 2.0 * bm_pred - 1.0
+    bm_pred = bm_pred.permute(0, 2, 3, 1)
 
-#     dict[]
+    uv_label = dict["uv"][:, :2]
+
+    id_pred = F.grid_sample(uv_label, bm_pred, align_corners=False)
+
+    loss_rows = id_pred - id_pred.mean(dim=3, keepdim=True)
+    loss_cols = id_pred - id_pred.mean(dim=2, keepdim=True)
     
-#     out = F.grid_sample(id, bmap, align_corners=False)  
+    loss_rows = loss_rows.sum()
+    loss_cols = loss_cols.sum()
+
+    return loss_rows + loss_cols
 
 
 def count_params(model):

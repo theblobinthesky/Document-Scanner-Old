@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-from model import Model, save_model, load_model, eval_loss_on_batches, eval_loss_and_metrics_on_batches, count_params
+from model import save_model, load_model, eval_loss_on_batches, eval_loss_and_metrics_on_batches, count_params
 from data import prepare_datasets, load_datasets
 from torchvision.transforms import Resize
 import torch
@@ -25,6 +25,7 @@ valid_eval_every = 4
 mask_time_in_hours = 2.0
 wc_time_in_hours = 0 # 2.5
 bm_time_in_hours = 3.0
+
 
 def cycle(iterable):
     while True:
@@ -63,8 +64,8 @@ def train_model(model, model_path, epochs, time_in_hours, ds, summary_writer):
 
             optim.zero_grad(set_to_none=True)
 
-            pred = model(x)
-            loss = model.loss(pred, dict)
+            preds = model.forward_all(x)
+            loss = model.loss(preds, dict)
             loss.backward()
 
             optim.step()
@@ -130,10 +131,10 @@ def prepare_pre_dataset():
     ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
 
 def prepare_bm_dataset():
-    return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img_masked": "png", "bm": "exr"}, [
-        ([("img_masked", "img_masked/1"), ("bm", "bm/1exr")], 5000),
-        ([("img_masked", "img_masked/2"), ("bm", "bm/2exr")], 5000),
-        ([("img_masked", "img_masked/3"), ("bm", "bm/3exr")], 5000)
+    return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img_masked": "png", "bm": "exr", "uv": "exr"}, [
+        ([("img_masked", "img_masked/1"), ("bm", "bm/1exr"), ("uv", "uv/1")], 5000),
+        ([("img_masked", "img_masked/2"), ("bm", "bm/2exr"), ("uv", "uv/2")], 5000),
+        ([("img_masked", "img_masked/3"), ("bm", "bm/3exr"), ("uv", "uv/3")], 5000)
     ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
 
 def train_pre_model(model, model_path, summary_writer):

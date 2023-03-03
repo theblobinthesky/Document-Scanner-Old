@@ -8,7 +8,7 @@ from seg_model import DoubleConv
 # https://arxiv.org/pdf/2110.14968.pdf
 
 h_chs = 128
-max_iters = 1
+iters = 5
 
 class Conv(nn.Module):
     def __init__(self, inp, out, kernel_size=3, padding=1, dilation=1, stride=1, activation="none"):
@@ -144,16 +144,14 @@ class ResNetEncoder(nn.Module):
             nn.MaxPool2d(2),
 
             DilatedBlock(64, 64),
-            # DilatedBlock(64, 64),
+            ResNetBlockConst(64),
             
             nn.MaxPool2d(2),
 
-            DilatedBlock(64, 96),
-            # DilatedBlock(96, 96),
+            ResNetBlockConst(64),
+            ResNetBlockConst(64),
 
-            DilatedBlock(96, 128),
-            # DilatedBlock(128, 128),
-            
+            ResNetBlockChange(64, 128, False),
             Conv(128, 256, kernel_size=1, padding=0, activation="relu")
         )
 
@@ -196,12 +194,7 @@ class ProgressiveModel(nn.Module):
         self.is_train = mode
 
 
-    def forward(self, x):
-        if self.is_train:
-            iters = randrange(1, max_iters + 1)
-        else:
-            iters = max_iters
-
+    def forward_all(self, x):
         dc_enc = self.dc_enc(x)
 
         b, _, h, w = x.size()
@@ -209,7 +202,7 @@ class ProgressiveModel(nn.Module):
         bm = torch.cartesian_prod(
             torch.linspace(0.0, 1.0, h, device="cuda"), 
             torch.linspace(0.0, 1.0, w, device="cuda")
-        ).reshape(h, w, 2).permute(2, 0, 1).reshape(1, 2, h, w).repeat(b, 1, 1, 1)
+        ).reshape(1, h, w, 2).permute(0, 3, 1, 2).repeat(b, 1, 1, 1)
 
         Lhs = [torch.zeros((b, h_chs, 32, 32), device="cuda")]
         bms = [bm]
@@ -237,5 +230,9 @@ class ProgressiveModel(nn.Module):
             Lhs.append(H)
             bms.append(bm_large)
 
+        return bms
 
-        return bms[-1]
+
+    def forward(self, x):
+        ys = self.forward_all(x)
+        return ys[-1]
