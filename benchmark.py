@@ -24,7 +24,7 @@ def sample_from_bmap(img, bmap):
 
 transform = Resize((128, 128))
 
-def benchmark_plt(model, ds):
+def benchmark_plt(model, ds, is_rnn):
     _, _, ds = load_datasets(*ds, 1)
 
     iterator = iter(ds)
@@ -35,13 +35,20 @@ def benchmark_plt(model, ds):
             dict[key] = dict[key].to("cuda")
 
         x = model.input_from_dict(dict)
-        pred = model(x)
-        sampled = sample_from_bmap(x, pred)
+
+        if is_rnn:
+            preds = model.forward_all(x)
+        else:
+            preds = [model(x)]
+        
+        sampleds = [sample_from_bmap(x, pred) for pred in preds]
 
         def cpu(ten):
             return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1]).squeeze(axis=0)
 
-        x, y, pred, sampled = cpu(x), cpu(y), cpu(pred), cpu(sampled)
+        x, y = cpu(x), cpu(y)
+        preds = [cpu(pred) for pred in preds]
+        sampleds = [cpu(sampled) for sampled in sampleds]
 
         def pad_if_necessary(ten):
             channels = ten.shape[-1]
@@ -53,12 +60,14 @@ def benchmark_plt(model, ds):
                 print("error invalid channel number")
                 exit()
 
-        x, y, pred, sampled = pad_if_necessary(x), pad_if_necessary(y), pad_if_necessary(pred), pad_if_necessary(sampled)
+        x, y = pad_if_necessary(x), pad_if_necessary(y)
+        preds = [pad_if_necessary(pred) for pred in preds]
+        sampleds = [pad_if_necessary(sampled) for sampled in sampleds]
 
         xs.append(x)
         ys.append(y)
-        preds.append(pred)
-        sampleds.append(sampled)
+        preds.append(preds)
+        sampleds.append(sampleds)
 
 
     title = ["x", "y", "pred", "sampled"]
@@ -67,7 +76,7 @@ def benchmark_plt(model, ds):
     i = 0
 
     for e in range(num_examples):
-        list = [xs[e], ys[e], preds[e], sampleds[e]]
+        list = [xs[e], ys[e], preds[e][-1], sampleds[e]]
         for t, arr in enumerate(list):
             plt.subplot(num_examples // 2, len(title) * 2, i + 1)
             plt.title(title[t])

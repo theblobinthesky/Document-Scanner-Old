@@ -66,6 +66,8 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_rnn, summary_wr
             optim.zero_grad(set_to_none=True)
 
             if is_rnn:
+                preds = model.forward_all(x)
+                
                 loss = 0.0
 
                 for i, pred in enumerate(preds):
@@ -74,8 +76,8 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_rnn, summary_wr
 
                 loss /= float(len(preds))
             else:
-                preds = model.forward_all(x)
-                loss = model.loss(preds, dict)
+                pred = model(x)
+                loss = model.loss(pred, dict)
             
             loss.backward()
 
@@ -126,7 +128,7 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_rnn, summary_wr
 
     summary_writer.add_hparams(hparams, metric_dict)
 
-    plt = benchmark_plt(model, ds)
+    plt = benchmark_plt(model, ds, is_rnn)
     summary_writer.add_figure("benchmark", plt)
     
     print(f"test loss: {test_loss:.4f}")
