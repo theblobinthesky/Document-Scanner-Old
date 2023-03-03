@@ -2,42 +2,10 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from model import Conv, conv1x1, DoubleConv, DilatedBlock
 
 # UNet Transformer based on:
 # https://arxiv.org/pdf/2103.06104.pdf
-
-class Conv(nn.Module):
-    def __init__(self, inp, out, kernel_size=3, padding=1, dilation=1):
-        super().__init__()
-
-        self.layers = nn.Sequential(
-            nn.Conv2d(inp, out, kernel_size=kernel_size, padding=padding, dilation=dilation, bias=False),
-            nn.ReLU(True),
-            nn.BatchNorm2d(out)
-        )
-
-    def forward(self, x):
-        return self.layers(x)
-
-
-class DoubleConv(nn.Module):
-    def __init__(self, inp, out, mid=None):
-        super().__init__()
-
-        if mid == None:
-            mid = out
-        
-        self.layers = nn.Sequential(
-            nn.Conv2d(inp, mid, kernel_size=3, padding=1, bias=False),
-            nn.ReLU(True),
-            nn.BatchNorm2d(mid),
-            nn.Conv2d(mid, out, kernel_size=3, padding=1, bias=False),
-            nn.ReLU(True),
-            nn.BatchNorm2d(out)
-        )
-
-    def forward(self, x):
-        return self.layers(x)
 
 
 class Down(nn.Module):
@@ -121,14 +89,7 @@ class MultiHeadSelfAttention(nn.Module):
         V = self.value(x)
         x = (A @ V).permute(0, 2, 1).reshape(b, c, h, w)
         return x
-
-
-def conv1x1(inp, out):
-    return nn.Sequential(
-        nn.Conv2d(inp, out, kernel_size=1),
-        nn.ReLU(inplace=True),
-        nn.BatchNorm2d(out),
-    )
+    
 
 def convUp(channels):
     return nn.Sequential(
@@ -234,7 +195,7 @@ class UNetTransformer(nn.Module):
         if use_self_attention:
             self.bottle = MultiHeadSelfAttention(depth[2])
         else:
-            self.bottle = Conv(depth[2], depth[2])
+            self.bottle = Conv(depth[2], depth[2], activation="relu")
         
         # self.up2 = Up(depth[3], depth[2])
         self.up1 = Up(depth[2], depth[1])
@@ -262,31 +223,6 @@ class UNetTransformer(nn.Module):
         loss = F.binary_cross_entropy(pred, label)
 
         return loss
-    
-
-class DilatedBlock(nn.Module):
-    def __init__(self, inp, out):
-        super().__init__()
-
-        self.conv0 = DoubleConv(inp, out // 2)
-        self.conv1 = Conv(out // 2, out // 4, kernel_size=3, padding=2, dilation=2)
-        self.conv2 = Conv(out // 4, out // 8, kernel_size=3, padding=2, dilation=2)
-        self.conv3 = Conv(out // 8, out // 16, kernel_size=3, padding=2, dilation=2)
-        self.conv4 = Conv(out // 16, out // 16, kernel_size=3, padding=2, dilation=2)
-        
-        self.skip = conv1x1(inp, out)
-
-
-    def forward(self, x):
-        c0 = self.conv0(x)
-        c1 = self.conv1(c0)
-        c2 = self.conv2(c1)
-        c3 = self.conv3(c2)
-        c4 = self.conv4(c3)
-
-        skip = self.skip(x)
-
-        return torch.cat([c0, c1, c2, c3, c4], axis=1) + skip
 
 
 # Dilated Conv UNet based on:
@@ -294,8 +230,7 @@ class DilatedBlock(nn.Module):
 
 class DownDilatedConv(nn.Module):
     def __init__(self, inp, out):
-        super().__init__()
-
+        super().__init__()DilatedBlock
         self.layers = nn.Sequential(
             nn.MaxPool2d(2),
             DilatedBlock(inp, out)
@@ -320,34 +255,6 @@ class UpDilatedConv(nn.Module):
         return O
 
 
-class OneArg(nn.Module):
-    def __init__(self, layer, out):
-        super().__init__()
-
-        self.layer = layer
-        self.conv = Conv(out, out)
-    
-    def forward(self, x):
-        y = self.layer(x)
-        y = self.conv(y)
-
-        return y
-    
-
-class TwoArgs(nn.Module):
-    def __init__(self, layer, out):
-        super().__init__()
-
-        self.layer = layer
-        self.conv = Conv(out, out)
-    
-    def forward(self, y1, y2):
-        y = self.layer(y1, y2)
-        y = self.conv(y)
-
-        return y
-
-
 class UNetDilatedConv(nn.Module):
     def __init__(self, inp, out, large, think):
         super().__init__()
@@ -357,51 +264,25 @@ class UNetDilatedConv(nn.Module):
         self.cvt_in = DoubleConv(inp, depth[0])
         self.cvt_out = DoubleConv(depth[0], out)
 
-        if think:
-            self.down0 = OneArg(DownDilatedConv(depth[0], depth[1]), depth[1])
-            self.down1 = OneArg(DownDilatedConv(depth[1], depth[2]), depth[2])
-        else:
-            self.down0 = DownDilatedConv(depth[0], depth[1])
-            self.down1 = DownDilatedConv(depth[1], depth[2])
+        self.down0 = DownDilatedConv(depth[0], depth[1])
+        self.down1 = DownDilatedConv(depth[1], depth[2])
         
-        if large:
-            self.down2 = DownDilatedConv(depth[2], depth[3])
-            self.bottle = DilatedBlock(depth[3], depth[3])
-            self.up2 = UpDilatedConv(depth[3], depth[2])
-        else:
-            self.bottle = DilatedBlock(depth[2], depth[2])
+        self.bottle = DilatedBlock(depth[2], depth[2])
 
-        self.large = large
-
-        if think:
-            self.up1 = TwoArgs(UpDilatedConv(depth[2], depth[1]), depth[1])
-            self.up0 = TwoArgs(UpDilatedConv(depth[1], depth[0]), depth[0])
-        else:
-            self.up1 = UpDilatedConv(depth[2], depth[1])
-            self.up0 = UpDilatedConv(depth[1], depth[0])
+        self.up1 = UpDilatedConv(depth[2], depth[1])
+        self.up0 = UpDilatedConv(depth[1], depth[0])
     
 
     def forward(self, x):
         x = self.cvt_in(x)
 
-        if self.large:
-            d0 = self.down0(x)
-            d1 = self.down1(d0)
-            d2 = self.down2(d1)
+        d0 = self.down0(x)
+        d1 = self.down1(d0)
 
-            bn = self.bottle(d2)
+        bn = self.bottle(d1)
 
-            u1 = self.up2(bn, d1)
-            u0 = self.up1(u1, d0)
-            y = self.up0(u0, x)
-        else:
-            d0 = self.down0(x)
-            d1 = self.down1(d0)
-
-            bn = self.bottle(d1)
-
-            u0 = self.up1(bn, d0)
-            y = self.up0(u0, x)
+        u0 = self.up1(bn, d0)
+        y = self.up0(u0, x)
 
         y = self.cvt_out(y)
         return y

@@ -9,124 +9,80 @@ from tqdm import tqdm
 lam = 0.3
 binarize_threshold = 0.8
 
+
 class Conv(nn.Module):
-    def __init__(self, inp, out):
+    def __init__(self, inp, out, kernel_size=3, padding=1, dilation=1, stride=1, activation="none"):
         super().__init__()
-        
+
+        if activation == "relu":
+            activation = nn.ReLU(True)
+        elif activation == "sigmoid":
+            activation = nn.Sigmoid()
+        elif activation == "tanh":
+            activation = nn.Tanh()
+        elif activation == "none":
+            activation = nn.Identity()
+        else:
+            print("error invalid activation")
+            exit()
+
         self.layers = nn.Sequential(
-            nn.Conv2d(inp, out, kernel_size=3, stride=1, padding='same', bias=False),
-            nn.ReLU(),
+            nn.Conv2d(inp, out, kernel_size=kernel_size, padding=padding, dilation=dilation, stride=stride, bias=False),
+            activation,
             nn.BatchNorm2d(out)
         )
-    
-    def forward(self, x):
-        return self.layers(x)
-
-
-class Block(nn.Module):
-    def __init__(self, filters):
-        super().__init__()
-
-        self.conv0 = Conv(filters, filters)
-        self.conv1 = Conv(filters, filters)
-        
-        
-    def forward(self, inp):
-        x = self.conv0(inp)
-        x = self.conv1(x)
-        x = x + inp
-
-        return x
-
-
-class BlockStack(nn.Module):
-    def __init__(self, filters, blocks):
-        super().__init__()
-
-        self.layers = nn.Sequential(
-            *[Block(filters) for _ in range(blocks)]
-        )
-
 
     def forward(self, x):
         return self.layers(x)
 
 
-class DownscaleBlock(nn.Module):
-    def __init__(self, inp, out):
+def conv1x1(inp, out, padding=0, dilation=1, stride=1, activation="none"):
+    return Conv(inp, out, 1, padding, dilation, stride, activation)
+
+
+class DoubleConv(nn.Module):
+    def __init__(self, inp, out, mid=None):
         super().__init__()
+
+        if mid == None:
+            mid = out
         
         self.layers = nn.Sequential(
-            nn.MaxPool2d(2),
-            Conv(inp, out),
-            BlockStack(out, 8)
+            nn.Conv2d(inp, mid, kernel_size=3, padding=1, bias=False),
+            nn.ReLU(True),
+            nn.BatchNorm2d(mid),
+            nn.Conv2d(mid, out, kernel_size=3, padding=1, bias=False),
+            nn.ReLU(True),
+            nn.BatchNorm2d(out)
         )
-
 
     def forward(self, x):
         return self.layers(x)
 
 
-class UpscaleBlock(nn.Module):
+class DilatedBlock(nn.Module):
     def __init__(self, inp, out):
         super().__init__()
 
-        self.conv = Conv(inp, 4 * out)
-        self.stack = BlockStack(out, 8)
+        self.conv0 = DoubleConv(inp, out // 2)
+        self.conv1 = Conv(out // 2, out // 4, kernel_size=3, padding=2, dilation=2, activation="relu")
+        self.conv2 = Conv(out // 4, out // 8, kernel_size=3, padding=2, dilation=2, activation="relu")
+        self.conv3 = Conv(out // 8, out // 16, kernel_size=3, padding=2, dilation=2, activation="relu")
+        self.conv4 = Conv(out // 16, out // 16, kernel_size=3, padding=2, dilation=2, activation="relu")
+        
+        self.skip = conv1x1(inp, out)
 
 
     def forward(self, x):
-        x = self.conv(x)
-        x = F.pixel_shuffle(x, 2)
-        x = self.stack(x)
-        
-        return x
+        c0 = self.conv0(x)
+        c1 = self.conv1(c0)
+        c2 = self.conv2(c1)
+        c3 = self.conv3(c2)
+        c4 = self.conv4(c3)
 
+        skip = self.skip(x)
 
-class UNet(nn.Module):
-    def __init__(self, inp, out, blocks):
-        super().__init__()
-
-        self.blocks = blocks
-        self.last = blocks - 1
-        depth = [ 32, 64, 128, 256, 512, 1024 ]
-
-        self.cvt_in = Conv(inp, depth[0])
-            
-        self.downs = nn.ModuleList([DownscaleBlock(depth[i], depth[i + 1]) for i in range(self.last)])
-
-        self.bottle = Conv(depth[self.last], depth[self.last])
-
-        self.ups = nn.ModuleList([UpscaleBlock(2 * depth[i], depth[i - 1]) for i in range(1, blocks).__reversed__()])
-
-        self.cvt_out = Conv(2 * depth[0], out)
-         
-
-    def forward(self, x):
-        x = self.cvt_in(x)
-
-        x_ds = []
-        for down in self.downs:
-            x_ds.append(x)
-            x = down(x)
-
-        lx = x
-        x = self.bottle(x)
-        x = torch.cat([lx, x], axis=1)
-
-        for i, up in enumerate(self.ups):
-            x = up(x)
-            x = torch.cat([x_ds[self.last - 1 - i], x], axis=1)
-        
-        x = self.cvt_out(x)
-
-        return x
-    
-
-    # def loss(self, pred, dict):
-    #     loss = F.binary_cross_entropy(pred, label)
-
-    #     return loss
+        return torch.cat([c0, c1, c2, c3, c4], axis=1) + skip
 
 
 def metric_dice_coefficient_f(pred, label):
@@ -153,13 +109,13 @@ def metric_sensitivity_f(pred, label):
     return tp / (tp + fp).item()
 
 
-def metric_local_distortion(pred, label):
+def metric_local_distortion_f(pred, label):
     pred, label = pred.detach(), label.detach()
 
     return (pred - label).abs().mean()
 
 
-def metric_line_distortion(pred, label):
+def metric_line_distortion_f(pred, label):
     pred, label = pred.detach(), label.detach()
 
     local_distortion = (pred - label).abs()
@@ -174,6 +130,9 @@ def metric_line_distortion(pred, label):
 metric_dice_coefficient = ("dice", metric_dice_coefficient_f)
 metric_sensitivity = ("sensitivity", metric_specificity_f)
 metric_specificity = ("specificity", metric_specificity_f)
+metric_local_distortion = ("local_distortion", metric_local_distortion_f)
+metric_line_distortion = ("line_distortion", metric_line_distortion_f)
+
 
 class PreModel(nn.Module):
     def __init__(self, large=False):
@@ -193,10 +152,8 @@ class PreModel(nn.Module):
         return F.binary_cross_entropy(pred, label)
 
 
-    def x_and_y_from_dict(self, dict):
-        x = dict["img"]
-        y = dict["lines"][:, [0, 2]]
-        return x, y
+    def input_from_dict(self, dict):
+        return dict["img"]
     
 
     def eval_metrics(self):
@@ -214,7 +171,6 @@ from bm_model import iters
 
 cc_loss_enabled = False
 alpha = 0.5
-lam = 0.85
 
 class BMModel(nn.Module):
     def __init__(self, train, learn_up, t1):
@@ -240,29 +196,17 @@ class BMModel(nn.Module):
         return self.net.forward_all(x)
 
 
-    def loss(self, preds, dict):
-        total_loss = 0.0
-
-        for i, pred in enumerate(preds):
-            fac = lam ** (iters - 1 - i)
-   
-            if cc_loss_enabled:
-                label = dict["bm"][:, :2]
-                loss = loss_smooth(pred, label) + alpha * loss_circle_consistency(pred, dict)
-            else:
-                label = dict["bm"][:, :2]
-                loss = loss_smooth(pred, label)
-
-            total_loss += fac * loss
-
-        return total_loss / float(len(preds))
+    def loss(self, pred, dict):
+        if cc_loss_enabled:
+            label = dict["bm"][:, :2]
+            return loss_smooth(pred, label) + alpha * loss_circle_consistency(pred, dict)
+        else:
+            label = dict["bm"][:, :2]
+            return loss_smooth(pred, label)
 
 
-
-    def x_and_y_from_dict(self, dict):
-        x = dict["img_masked"]
-        y = dict["bm"][:, :2]
-        return x, y
+    def input_from_dict(self, dict):
+        return dict["img_masked"]
     
 
     def eval_metrics(self):
@@ -279,7 +223,7 @@ def eval_loss_on_batches(model, iter, batch_count, device):
             for key in dict.keys():
                 dict[key] = dict[key].to(device)
 
-            x, _ = model.x_and_y_from_dict(dict)
+            x = model.input_from_dict(dict)
             pred = model(x)
     
             loss += model.loss([pred], dict).item()
@@ -300,7 +244,7 @@ def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
             for key in dict.keys():
                 dict[key] = dict[key].to(device)
 
-            x, y = model.x_and_y_from_dict(dict)
+            x = model.input_from_dict(dict)
             pred = model(x)
     
             loss += model.loss([pred], dict).item()

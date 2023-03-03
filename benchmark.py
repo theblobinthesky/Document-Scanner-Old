@@ -14,33 +14,6 @@ num_examples = 16
 
 dpi = 50
 
-def bmap_from_fmap(fmap, mask):
-    indices = np.indices(fmap.shape[1:]).transpose([2, 1, 0]).reshape((-1, 2))
-    sample_at = (indices / indices.max() + bmap_padding) * (1.0 - 2.0 * bmap_padding)
-    # todo: adjust max(dim=(..)) and bmap_padding for other aspect-ratio if necessary in the future 
-    fmap = fmap.transpose([2, 1, 0]).reshape((-1, 2))
-
-    u_l, i_l = [], []
-
-    for i in range(0, mask.shape[1] * mask.shape[0], 1):
-        ind = indices[i]
-        
-        if mask[ind[0], ind[1]] == 1.0:
-            u_l.append(fmap[i].tolist())
-            i_l.append(indices[i].tolist())
-
-    u_l = np.array(u_l, np.float32)
-    i_l = np.array(i_l, np.float32)
-    i_l[:, 0] /= float(mask.shape[1] - 1)
-    i_l[:, 1] /= float(mask.shape[0] - 1)
-
-    bmap = scipy.interpolate.LinearNDInterpolator(u_l, i_l)
-    bmap = bmap(sample_at).reshape((mask.shape[0], mask.shape[1], 2))
-    
-    bmap = bmap.astype("float32")
-    return bmap
-
-
 def sample_from_bmap(img, bmap):
     bmap = bmap.clone().permute(0, 2, 3, 1)
     bmap = bmap * 2 - 1
@@ -48,8 +21,6 @@ def sample_from_bmap(img, bmap):
     out = torch.nn.functional.grid_sample(img, bmap, align_corners=False)                
     return out
 
-# bmaps = [bmap_from_fmap(label[e,0:2,:,:], label[e,2,:,:]) for e in range(num_examples)]
-# bmaps = [sample_from_bmap(np.transpose(img[e,:,:,:], [1, 2, 0]), bmap) for e, bmap in enumerate(bmaps)]
 
 transform = Resize((128, 128))
 
@@ -63,8 +34,7 @@ def benchmark_plt(model, ds):
         for key in dict.keys():
             dict[key] = dict[key].to("cuda")
 
-        x, y = model.x_and_y_from_dict(dict)
-
+        x = model.input_from_dict(dict)
         pred = model(x)
         sampled = sample_from_bmap(x, pred)
 

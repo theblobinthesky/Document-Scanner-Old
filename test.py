@@ -20,8 +20,8 @@ class SigmoidOutputTestModule(nn.Module):
     def loss(self, pred, dict):
         return self.model.loss(pred, dict)
     
-    def x_and_y_from_dict(self, dict):
-        return self.model.x_and_y_from_dict(dict)
+    def input_from_dict(self, dict):
+        return self.model.input_from_dict(dict)
 
 
 print("running all tests")

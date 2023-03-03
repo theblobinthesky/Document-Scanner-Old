@@ -21,6 +21,7 @@ min_learning_rate_before_early_termination = 1e-7
 lr_plateau_patience = 3
 valid_batch_count = 16
 valid_eval_every = 4
+lam = 0.85
 
 mask_time_in_hours = 2.0
 wc_time_in_hours = 0 # 2.5
@@ -37,7 +38,7 @@ def model_to_device(model):
     return model.to(device)
 
 
-def train_model(model, model_path, epochs, time_in_hours, ds, summary_writer):
+def train_model(model, model_path, epochs, time_in_hours, ds, is_rnn, summary_writer):
     optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, factor=0.1, patience=lr_plateau_patience)
 
@@ -60,12 +61,22 @@ def train_model(model, model_path, epochs, time_in_hours, ds, summary_writer):
             for key in dict.keys():
                 dict[key] = dict[key].to(device)
                 
-            x, _ = model.x_and_y_from_dict(dict)
+            x = model.input_from_dict(dict)
 
             optim.zero_grad(set_to_none=True)
 
-            preds = model.forward_all(x)
-            loss = model.loss(preds, dict)
+            if is_rnn:
+                loss = 0.0
+
+                for i, pred in enumerate(preds):
+                    fac = lam ** (len(preds) - 1 - i)
+                    loss += fac * model.loss(pred, dict)
+
+                loss /= float(len(preds))
+            else:
+                preds = model.forward_all(x)
+                loss = model.loss(preds, dict)
+            
             loss.backward()
 
             optim.step()
@@ -137,22 +148,15 @@ def prepare_bm_dataset():
         ([("img_masked", "img_masked/3"), ("bm", "bm/3exr"), ("uv", "uv/3")], 5000)
     ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
 
+
 def train_pre_model(model, model_path, summary_writer):
     ds = prepare_pre_dataset()
-    train_model(model, model_path, mask_epochs, mask_time_in_hours, ds, summary_writer)
-
-
-def train_wc_model(model, model_path, summary_writer):
-    train_ds, valid_ds, test_ds = prepare_datasets([
-        ("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [("img_masked/1", "png"), ("lines/1", "png")], "wc/1", "exr", 20000)
-    ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
-
-    train_model(model, model_path, wc_epochs, wc_time_in_hours, trainds_iter, valid_iter, test_iter, summary_writer)
+    train_model(model, model_path, mask_epochs, mask_time_in_hours, ds, False, summary_writer)
 
 
 def train_bm_model(model, model_path, summary_writer):
     ds = prepare_bm_dataset()
-    train_model(model, model_path, bm_epochs, bm_time_in_hours, ds, summary_writer)
+    train_model(model, model_path, bm_epochs, bm_time_in_hours, ds, True, summary_writer)
 
 
 if __name__ == "__main__":

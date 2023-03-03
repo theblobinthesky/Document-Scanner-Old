@@ -2,39 +2,13 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from seg_model import DoubleConv
+from model import Conv, conv1x1, DoubleConv, DilatedBlock
 
 # Progressive dewarping inspired by:
 # https://arxiv.org/pdf/2110.14968.pdf
 
 h_chs = 128
 iters = 5
-
-class Conv(nn.Module):
-    def __init__(self, inp, out, kernel_size=3, padding=1, dilation=1, stride=1, activation="none"):
-        super().__init__()
-
-        if activation == "relu":
-            activation = nn.ReLU(True)
-        elif activation == "sigmoid":
-            activation = nn.Sigmoid()
-        elif activation == "tanh":
-            activation = nn.Tanh()
-        elif activation == "none":
-            activation = nn.Identity()
-        else:
-            print("error invalid activation")
-            exit()
-
-        self.layers = nn.Sequential(
-            nn.Conv2d(inp, out, kernel_size=kernel_size, padding=padding, dilation=dilation, stride=stride, bias=False),
-            activation,
-            nn.BatchNorm2d(out)
-        )
-
-    def forward(self, x):
-        return self.layers(x)
-
 
 # class Upscale2(nn.Module):
 #     def __init__(self, inp, out, t1):
@@ -50,20 +24,6 @@ class Conv(nn.Module):
 #         x = torch.pixel_shuffle(x, 2)
 
 #         return x
-
-
-class Upscale2(nn.Module):
-    def __init__(self, inp, out, t1):
-        super().__init__()
-
-        self.conv = nn.Sequential(
-
-            Conv(inp, out, activation="relu"),
-        )
-
-    def forward(self, x):
-        x = self.layers(x)
-        return x
 
 
 class ConvGru(nn.Module):
@@ -90,8 +50,6 @@ class ConvGru(nn.Module):
         O = self.o_conv(H)
         return H, O
 
-from random import randrange
-from seg_model import DilatedBlock, UpDilatedConv
 
 class ResNetBlockConst(nn.Module):
     def __init__(self, channels, dilated=False):
@@ -124,8 +82,8 @@ class ResNetBlockChange(nn.Module):
             Conv(inp, out, stride=stride, activation="relu")
         )
 
-        self.skip = Conv(inp, out, kernel_size=1, padding=0, stride=stride)
-
+        self.skip = conv1x1(inp, out)
+        
     def forward(self, x):
         residual = x
         x = self.conv(x)
@@ -152,7 +110,7 @@ class ResNetEncoder(nn.Module):
             ResNetBlockConst(64),
 
             ResNetBlockChange(64, 128, False),
-            Conv(128, 256, kernel_size=1, padding=0, activation="relu")
+            conv1x1(128, 256, activation="relu")
         )
 
     def forward(self, x):
@@ -160,7 +118,7 @@ class ResNetEncoder(nn.Module):
 
     
 class ProgressiveModel(nn.Module):
-    def __init__(self, learn_up, t1):
+    def __init__(self):
         super().__init__()
 
         self.is_train = False
@@ -178,16 +136,9 @@ class ProgressiveModel(nn.Module):
 
         self.gru = ConvGru(2 + enc_all_out_chs + dc_enc_chs, 2)
 
-        if learn_up:
-            self.upscaler = nn.Sequential(
-                Upscale2(2, 2, t1),
-                Upscale2(2, 2, t1),
-                Upscale2(2, 2, t1)
-            )
-        else:
-            self.upscaler = nn.Sequential(
-                nn.UpsamplingBilinear2d((128, 128))
-            )
+        self.upscaler = nn.Sequential(
+            nn.UpsamplingBilinear2d((128, 128))
+        )
 
 
     def set_train(self, mode):
