@@ -1,14 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchmetrics.functional as MF 
-from torchvision.ops.focal_loss import sigmoid_focal_loss
-from seg_model import UNetDilatedConv
+import torchmetrics.functional as MF
 from tqdm import tqdm
 
+beta = 0.3
 lam = 0.3
-binarize_threshold = 0.8
-
 
 class Conv(nn.Module):
     def __init__(self, inp, out, kernel_size=3, padding=1, dilation=1, stride=1, activation="none"):
@@ -134,85 +131,6 @@ metric_local_distortion = ("local_distortion", metric_local_distortion_f)
 metric_line_distortion = ("line_distortion", metric_line_distortion_f)
 
 
-class PreModel(nn.Module):
-    def __init__(self, large=False):
-        super().__init__()
-
-        self.unet = UNetDilatedConv(3, 2, large)
-
-
-    def forward(self, x):
-        x = self.unet(x)
-        x = torch.sigmoid(x)
-
-        return x
-    
-
-    def loss(self, pred, label):
-        return F.binary_cross_entropy(pred, label)
-
-
-    def input_from_dict(self, dict):
-        return dict["img"]
-    
-
-    def eval_metrics(self):
-        return [metric_dice_coefficient, metric_sensitivity, metric_specificity]
-
-
-def binarize(x):
-    x = torch.gt(x, binarize_threshold).float()
-
-    return x
-
-
-from bm_model import ProgressiveModel
-from bm_model import iters
-
-cc_loss_enabled = False
-alpha = 0.5
-
-class BMModel(nn.Module):
-    def __init__(self, train, learn_up, t1):
-        super().__init__()
-
-        self.net = ProgressiveModel(learn_up, t1)
-        self.net.set_train(train)
-
-        self.dummy = nn.Parameter(torch.empty(0))
-
-
-    def set_train(self, train):
-        self.net.set_train(train)
-
-
-    def forward(self, x):
-        y = self.net(x)
-
-        return y
-
-
-    def forward_all(self, x):
-        return self.net.forward_all(x)
-
-
-    def loss(self, pred, dict):
-        if cc_loss_enabled:
-            label = dict["bm"][:, :2]
-            return loss_smooth(pred, label) + alpha * loss_circle_consistency(pred, dict)
-        else:
-            label = dict["bm"][:, :2]
-            return loss_smooth(pred, label)
-
-
-    def input_from_dict(self, dict):
-        return dict["img_masked"]
-    
-
-    def eval_metrics(self):
-        return [("local_distortion", metric_local_distortion)]
-
-
 def eval_loss_on_batches(model, iter, batch_count, device):
     loss = 0.0
 
@@ -223,10 +141,10 @@ def eval_loss_on_batches(model, iter, batch_count, device):
             for key in dict.keys():
                 dict[key] = dict[key].to(device)
 
-            x = model.input_from_dict(dict)
+            x, _ = model.input_and_label_from_dict(dict)
             pred = model(x)
     
-            loss += model.loss([pred], dict).item()
+            loss += model.loss(pred, dict).item()
 
     loss /= float(batch_count)
 
@@ -244,10 +162,10 @@ def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
             for key in dict.keys():
                 dict[key] = dict[key].to(device)
 
-            x = model.input_from_dict(dict)
+            x, y = model.input_and_label_from_dict(dict)
             pred = model(x)
     
-            loss += model.loss([pred], dict).item()
+            loss += model.loss(pred, dict).item()
             count += 1
 
             for i, (_, func) in enumerate(eval_metrics):
@@ -260,12 +178,13 @@ def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
 
 
 def loss_smooth(pred, label):
-    abs_loss = (pred - label).abs().mean()
-        
+    l1_loss = (pred - label).abs().mean()
+    l2_loss = (pred - label).pow(2).mean()
+
     (pgrad_x, pgrad_y) = MF.image_gradients(pred)
     (lgrad_x, lgrad_y) = MF.image_gradients(label)
     grad_loss = 0.5 * (pgrad_x - lgrad_x).abs().mean() + 0.5 * (pgrad_y - lgrad_y).abs().mean()
-    return abs_loss + lam * grad_loss
+    return l1_loss + beta * l2_loss + lam * grad_loss
 
 
 def loss_circle_consistency(bm_pred, dict):

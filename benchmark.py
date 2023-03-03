@@ -1,16 +1,13 @@
 #!/usr/bin/python3
-from model import load_model, binarize
 from data import load_datasets
-import data
 from torchvision.transforms import Resize
 import torch
 import numpy as np
-import scipy
-import cv2
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 bmap_padding = 1e-2
-num_examples = 16
+num_examples = 6
 
 dpi = 50
 
@@ -24,6 +21,10 @@ def sample_from_bmap(img, bmap):
 
 transform = Resize((128, 128))
 
+def filter(list):
+    return [list[0], list[len(list) // 2], list[-1]]
+
+
 def benchmark_plt(model, ds, is_rnn):
     _, _, ds = load_datasets(*ds, 1)
 
@@ -34,21 +35,21 @@ def benchmark_plt(model, ds, is_rnn):
         for key in dict.keys():
             dict[key] = dict[key].to("cuda")
 
-        x = model.input_from_dict(dict)
+        x, y = model.input_and_label_from_dict(dict)
 
         if is_rnn:
-            preds = model.forward_all(x)
+            pred = model.forward_all(x)
         else:
-            preds = [model(x)]
+            pred = [model(x)]
         
-        sampleds = [sample_from_bmap(x, pred) for pred in preds]
+        sampled = [sample_from_bmap(x, p) for p in pred]
 
         def cpu(ten):
             return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1]).squeeze(axis=0)
 
         x, y = cpu(x), cpu(y)
-        preds = [cpu(pred) for pred in preds]
-        sampleds = [cpu(sampled) for sampled in sampleds]
+        pred = [cpu(p) for p in pred]
+        sampled = [cpu(s) for s in sampled]
 
         def pad_if_necessary(ten):
             channels = ten.shape[-1]
@@ -61,24 +62,26 @@ def benchmark_plt(model, ds, is_rnn):
                 exit()
 
         x, y = pad_if_necessary(x), pad_if_necessary(y)
-        preds = [pad_if_necessary(pred) for pred in preds]
-        sampleds = [pad_if_necessary(sampled) for sampled in sampleds]
+        pred = [pad_if_necessary(p) for p in pred]
+        sampled = [pad_if_necessary(s) for s in sampled]
 
         xs.append(x)
         ys.append(y)
-        preds.append(preds)
-        sampleds.append(sampleds)
+        preds.append(pred)
+        sampleds.append(sampled)
 
 
-    title = ["x", "y", "pred", "sampled"]
+    sample_titles = [f"sampled {i + 1}" for i in range(len(sampleds[0]))]
+    title = ["x", "y", *filter(sample_titles)]
 
     fig = plt.figure(figsize=(25, 25), dpi=dpi)
     i = 0
 
-    for e in range(num_examples):
-        list = [xs[e], ys[e], preds[e][-1], sampleds[e]]
+    for e in tqdm(range(num_examples), desc="Plotting benchmark"):
+        list = [xs[e], ys[e], *filter(sampleds[e])]
+        
         for t, arr in enumerate(list):
-            plt.subplot(num_examples // 2, len(title) * 2, i + 1)
+            plt.subplot(num_examples, len(title), i + 1)
             plt.title(title[t])
             plt.imshow(arr)
 
@@ -86,3 +89,17 @@ def benchmark_plt(model, ds, is_rnn):
             i += 1
 
     return fig
+
+
+from data import prepare_bm_dataset
+import bm_model
+
+if __name__ == "__main__":
+    ds = prepare_bm_dataset()
+  
+    model = bm_model.BMModel(True)
+    model.load_state_dict(torch.load("models/test.pth"))
+    model = model.cuda()
+
+    fig = benchmark_plt(model, ds, True)
+    fig.savefig("docs/fig.png", dpi=50)

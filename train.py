@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 from model import save_model, load_model, eval_loss_on_batches, eval_loss_and_metrics_on_batches, count_params
-from data import prepare_datasets, load_datasets
-from torchvision.transforms import Resize
+from data import load_datasets, prepare_pre_dataset, prepare_bm_dataset
 import torch
 from torchinfo import summary
 import datetime
@@ -25,7 +24,7 @@ lam = 0.85
 
 mask_time_in_hours = 2.0
 wc_time_in_hours = 0 # 2.5
-bm_time_in_hours = 3.0
+bm_time_in_hours = 8.0
 
 
 def cycle(iterable):
@@ -61,7 +60,7 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_rnn, summary_wr
             for key in dict.keys():
                 dict[key] = dict[key].to(device)
                 
-            x = model.input_from_dict(dict)
+            x, _ = model.input_and_label_from_dict(dict)
 
             optim.zero_grad(set_to_none=True)
 
@@ -132,23 +131,6 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_rnn, summary_wr
     summary_writer.add_figure("benchmark", plt)
     
     print(f"test loss: {test_loss:.4f}")
-
-
-transform = Resize((128, 128))
-
-def prepare_pre_dataset():
-    return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img": "png", "lines": "png"}, [
-        ([("img", "img/1"), ("lines", "lines/1")], 5000),
-        ([("img", "img/2"), ("lines", "lines/2")], 5000),
-        ([("img", "img/3"), ("lines", "lines/3")], 5000)
-    ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
-
-def prepare_bm_dataset():
-    return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img_masked": "png", "bm": "exr", "uv": "exr"}, [
-        ([("img_masked", "img_masked/1"), ("bm", "bm/1exr"), ("uv", "uv/1")], 5000),
-        ([("img_masked", "img_masked/2"), ("bm", "bm/2exr"), ("uv", "uv/2")], 5000),
-        ([("img_masked", "img_masked/3"), ("bm", "bm/3exr"), ("uv", "uv/3")], 5000)
-    ], valid_perc=0.1, test_perc=0.1, batch_size=batch_size, transform=transform)
 
 
 def train_pre_model(model, model_path, summary_writer):

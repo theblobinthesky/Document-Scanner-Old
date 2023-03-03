@@ -4,6 +4,7 @@ import Imath
 import OpenEXR
 from torchvision.transforms.functional import to_tensor
 from torchvision.datasets.folder import default_loader
+from torchvision.transforms import Resize
 from torch.utils.data import Dataset, random_split, DataLoader
 from torch import from_numpy
 from pathlib import Path
@@ -69,7 +70,7 @@ def split_dataset(dataset, valid_perc, test_perc):
 def load_dataset(dataset, batch_size):
     return DataLoader(dataset, batch_size=batch_size, pin_memory=True, shuffle=False, num_workers=num_workers)
 
-def prepare_datasets(dir, exts, datasets, valid_perc, test_perc, batch_size, transform=None):
+def prepare_datasets(dir, exts, datasets, valid_perc, test_perc, transform=None):
     for (instances, count) in datasets:
         for (name, subdir) in instances:
             if not exts.__contains__(name):
@@ -122,3 +123,20 @@ def load_datasets(train_ds, valid_ds, test_ds, batch_size):
     return load_dataset(train_ds, batch_size), \
            load_dataset(valid_ds, batch_size), \
            load_dataset(test_ds, batch_size)
+
+
+transform = Resize((128, 128))
+
+def prepare_pre_dataset():
+    return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img": "png", "lines": "png"}, [
+        ([("img", "img/1"), ("lines", "lines/1")], 5000),
+        ([("img", "img/2"), ("lines", "lines/2")], 5000),
+        ([("img", "img/3"), ("lines", "lines/3")], 5000)
+    ], valid_perc=0.1, test_perc=0.1, transform=transform)
+
+def prepare_bm_dataset():
+    return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img_masked": "png", "bm": "exr", "uv": "exr"}, [
+        ([("img_masked", "img_masked/1"), ("bm", "bm/1exr"), ("uv", "uv/1")], 5000),
+        ([("img_masked", "img_masked/2"), ("bm", "bm/2exr"), ("uv", "uv/2")], 5000),
+        ([("img_masked", "img_masked/3"), ("bm", "bm/3exr"), ("uv", "uv/3")], 5000)
+    ], valid_perc=0.1, test_perc=0.1, transform=transform)

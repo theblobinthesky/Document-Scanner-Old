@@ -3,10 +3,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from model import Conv, conv1x1, DoubleConv, DilatedBlock
+from model import metric_dice_coefficient, metric_sensitivity, metric_specificity
 
 # UNet Transformer based on:
 # https://arxiv.org/pdf/2103.06104.pdf
 
+binarize_threshold = 0.5
 
 class Down(nn.Module):
     def __init__(self, inp, out):
@@ -230,7 +232,7 @@ class UNetTransformer(nn.Module):
 
 class DownDilatedConv(nn.Module):
     def __init__(self, inp, out):
-        super().__init__()DilatedBlock
+        super().__init__()
         self.layers = nn.Sequential(
             nn.MaxPool2d(2),
             DilatedBlock(inp, out)
@@ -286,3 +288,35 @@ class UNetDilatedConv(nn.Module):
 
         y = self.cvt_out(y)
         return y
+    
+
+
+class PreModel(nn.Module):
+    def __init__(self, large=False):
+        super().__init__()
+
+        self.unet = UNetDilatedConv(3, 2, large)
+
+
+    def forward(self, x):
+        x = self.unet(x)
+        x = torch.sigmoid(x)
+
+        return x
+    
+
+    def loss(self, pred, label):
+        return F.binary_cross_entropy(pred, label)
+
+
+    def input_and_label_from_dict(self, dict):
+        return dict["img"]
+
+    def eval_metrics(self):
+        return [metric_dice_coefficient, metric_sensitivity, metric_specificity]
+
+
+def binarize(x):
+    x = torch.gt(x, binarize_threshold).float()
+
+    return x

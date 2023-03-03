@@ -1,14 +1,16 @@
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from model import Conv, conv1x1, DoubleConv, DilatedBlock
+from model import loss_smooth, loss_circle_consistency, metric_local_distortion
 
 # Progressive dewarping inspired by:
 # https://arxiv.org/pdf/2110.14968.pdf
 
 h_chs = 128
 iters = 5
+cc_loss_enabled = False
+alpha = 0.5
 
 # class Upscale2(nn.Module):
 #     def __init__(self, inp, out, t1):
@@ -187,3 +189,43 @@ class ProgressiveModel(nn.Module):
     def forward(self, x):
         ys = self.forward_all(x)
         return ys[-1]
+
+
+class BMModel(nn.Module):
+    def __init__(self, train):
+        super().__init__()
+
+        self.net = ProgressiveModel()
+        self.net.set_train(train)
+
+        self.dummy = nn.Parameter(torch.empty(0))
+
+
+    def set_train(self, train):
+        self.net.set_train(train)
+
+
+    def forward(self, x):
+        y = self.net(x)
+
+        return y
+
+
+    def forward_all(self, x):
+        return self.net.forward_all(x)
+
+    def loss(self, pred, dict):
+        if cc_loss_enabled:
+            label = dict["bm"][:, :2]
+            return loss_smooth(pred, label) + alpha * loss_circle_consistency(pred, dict)
+        else:
+            label = dict["bm"][:, :2]
+            return loss_smooth(pred, label)
+
+
+    def input_and_label_from_dict(self, dict):
+        return dict["img_masked"], dict["bm"][:, :2]
+    
+
+    def eval_metrics(self):
+        return [metric_local_distortion]
