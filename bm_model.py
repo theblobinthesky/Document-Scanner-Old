@@ -9,7 +9,6 @@ from model import loss_smooth, loss_circle_consistency, metric_local_distortion
 
 h_chs = 128
 iters = 5
-cc_loss_enabled = False
 alpha = 0.5
 
 # class Upscale2(nn.Module):
@@ -215,13 +214,8 @@ class BMModel(nn.Module):
         return self.net.forward_all(x)
 
     def loss(self, pred, dict):
-        if cc_loss_enabled:
-            label = dict["bm"][:, :2]
-            return loss_smooth(pred, label) + alpha * loss_circle_consistency(pred, dict)
-        else:
-            label = dict["bm"][:, :2]
-            return loss_smooth(pred, label)
-
+        label = dict["bm"][:, :2]
+        return loss_smooth(pred, label) + alpha * loss_circle_consistency(pred, dict)
 
     def input_and_label_from_dict(self, dict):
         return dict["img_masked"], dict["bm"][:, :2]

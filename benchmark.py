@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 bmap_padding = 1e-2
-num_examples = 6
+num_examples = 8
 
 dpi = 50
 
@@ -77,7 +77,7 @@ def benchmark_plt(model, ds, is_rnn):
     fig = plt.figure(figsize=(25, 25), dpi=dpi)
     i = 0
 
-    for e in tqdm(range(num_examples), desc="Plotting benchmark"):
+    for e in range(num_examples):
         list = [xs[e], ys[e], *filter(sampleds[e])]
         
         for t, arr in enumerate(list):
@@ -98,8 +98,8 @@ if __name__ == "__main__":
     ds = prepare_bm_dataset()
   
     model = bm_model.BMModel(True)
-    model.load_state_dict(torch.load("models/test.pth"))
+    model.load_state_dict(torch.load("models/bm_progressive_baseline.pth"))
     model = model.cuda()
 
     fig = benchmark_plt(model, ds, True)
-    fig.savefig("docs/fig.png", dpi=50)
+    fig.savefig("docs/fig.png", dpi=90)

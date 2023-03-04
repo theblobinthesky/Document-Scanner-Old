@@ -27,13 +27,10 @@ class SigmoidOutputTestModule(nn.Module):
 
 print("running all tests")
 
-bm_model.cc_loss_enabled = True
-
 print()
-print("running test")
-writer = SummaryWriter("runs/test")
+print("running bm_progressive_baseline")
+writer = SummaryWriter("runs/bm_progressive_baseline")
 model = bm_model.BMModel(True)
-model.load_state_dict(torch.load("models/test.pth"))
 model = model_to_device(model)
-train_bm_model(model, "models/test.pth", summary_writer=writer)
+train_bm_model(model, "models/bm_progressive_baseline.pth", summary_writer=writer)
 writer.flush()

@@ -14,7 +14,6 @@ batch_size = 12
 device = torch.device("cuda")
 
 mask_epochs = 300
-wc_epochs = 2000
 bm_epochs = 300
 min_learning_rate_before_early_termination = 1e-7
 lr_plateau_patience = 3
@@ -23,8 +22,7 @@ valid_eval_every = 4
 lam = 0.85
 
 mask_time_in_hours = 2.0
-wc_time_in_hours = 0 # 2.5
-bm_time_in_hours = 8.0
+bm_time_in_hours = 3.0
 
 
 def cycle(iterable):
