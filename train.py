@@ -2,12 +2,14 @@
 from model import save_model, load_model, eval_loss_on_batches, eval_loss_and_metrics_on_batches, count_params
 from data import load_datasets, prepare_pre_dataset, prepare_bm_dataset
 import torch
+import torch.optim.lr_scheduler as lr_scheduler
 from torchinfo import summary
 import datetime
 from itertools import cycle
 from tqdm import tqdm
 from benchmark import benchmark_plt
 
+warmup_lr = 1e-5
 lr = 1e-3
 steps_per_epoch = 40
 batch_size = 12
@@ -15,6 +17,7 @@ device = torch.device("cuda")
 
 mask_epochs = 300
 bm_epochs = 300
+warmup_epochs = 15
 min_learning_rate_before_early_termination = 1e-7
 lr_plateau_patience = 3
 valid_batch_count = 16
@@ -37,7 +40,8 @@ def model_to_device(model):
 
 def train_model(model, model_path, epochs, time_in_hours, ds, is_rnn, summary_writer):
     optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, factor=0.1, patience=lr_plateau_patience)
+    warmup_scheduler = lr_scheduler.LinearLR(optim, start_factor=warmup_lr / lr, total_iters=warmup_epochs)
+    main_scheduler = lr_scheduler.ReduceLROnPlateau(optim, factor=0.1, patience=lr_plateau_patience)
 
     start_time = datetime.datetime.now()
 
@@ -88,13 +92,18 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_rnn, summary_wr
             valid_loss = eval_loss_on_batches(model, valid_iter, valid_batch_count, device)
             summary_writer.add_scalar("Loss/valid", valid_loss, epoch)
 
-        scheduler.step(train_loss)
+        if epoch < warmup_epochs:
+            warmup_scheduler.step()
+        else:
+            main_scheduler.step(train_loss)
+
 
         now = datetime.datetime.now()
         hours_passed = (now - start_time).seconds / (60.0 * 60.0)
         learning_rate = optim.param_groups[-1]['lr']
 
         summary_writer.add_scalar("Loss/train", train_loss, epoch)
+        summary_writer.add_scalar("Learning rate", learning_rate, epoch)
 
         pbar.update(1)
         pbar.set_description(f"epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. training loss: {train_loss:.4f}, validation loss: {valid_loss:.4f}, learning rate: {learning_rate}")

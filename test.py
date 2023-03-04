@@ -28,9 +28,9 @@ class SigmoidOutputTestModule(nn.Module):
 print("running all tests")
 
 print()
-print("running bm_progressive_baseline")
-writer = SummaryWriter("runs/bm_progressive_baseline")
+print("running test")
+writer = SummaryWriter("runs/test")
 model = bm_model.BMModel(True)
 model = model_to_device(model)
-train_bm_model(model, "models/bm_progressive_baseline.pth", summary_writer=writer)
+train_bm_model(model, "models/test.pth", summary_writer=writer)
 writer.flush()

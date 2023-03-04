@@ -179,12 +179,11 @@ def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
 
 def loss_smooth(pred, label):
     l1_loss = (pred - label).abs().mean()
-    l2_loss = (pred - label).pow(2).mean()
-
+    
     (pgrad_x, pgrad_y) = MF.image_gradients(pred)
     (lgrad_x, lgrad_y) = MF.image_gradients(label)
     grad_loss = 0.5 * (pgrad_x - lgrad_x).abs().mean() + 0.5 * (pgrad_y - lgrad_y).abs().mean()
-    return l1_loss + beta * l2_loss + lam * grad_loss
+    return l1_loss + lam * grad_loss
 
 
 def loss_circle_consistency(bm_pred, dict):
