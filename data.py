@@ -4,7 +4,7 @@ import Imath
 import OpenEXR
 from torchvision.transforms.functional import to_tensor
 from torchvision.datasets.folder import default_loader
-from torchvision.transforms import Resize
+from torchvision.transforms import Resize, ColorJitter
 from torch.utils.data import Dataset, random_split, DataLoader
 from torch import from_numpy
 from pathlib import Path
@@ -41,10 +41,11 @@ def load(path):
         return from_numpy(exr_loader(path))
 
 class ImageDataSet(Dataset):
-    def __init__(self, items, names, transform):
+    def __init__(self, items, names, transforms, global_transform):
         self.items = items
         self.names = names
-        self.transform = transform
+        self.transforms = transforms
+        self.global_transform = global_transform
 
     def __len__(self):
         return len(self.items)
@@ -53,11 +54,14 @@ class ImageDataSet(Dataset):
         item = self.items[index]
         item = [load(path) for path in item]
 
-        if self.transform != None:
-            item = [self.transform(x) for x in item]
-
         out = {}
         for i, name in enumerate(self.names):
+            if self.global_transform != None:
+                item[i] = self.global_transform(item[i])
+
+            if self.transforms.__contains__(name):
+                item[i] = self.transforms[name](item[i])
+
             out[name] = item[i]
 
         return out
@@ -70,7 +74,7 @@ def split_dataset(dataset, valid_perc, test_perc):
 def load_dataset(dataset, batch_size):
     return DataLoader(dataset, batch_size=batch_size, pin_memory=True, shuffle=False, num_workers=num_workers)
 
-def prepare_datasets(dir, exts, datasets, valid_perc, test_perc, transform=None):
+def prepare_datasets(dir, exts, transforms, datasets, valid_perc, test_perc, global_transform=None):
     for (instances, count) in datasets:
         for (name, subdir) in instances:
             if not exts.__contains__(name):
@@ -113,7 +117,7 @@ def prepare_datasets(dir, exts, datasets, valid_perc, test_perc, transform=None)
 
     np.random.shuffle(items)
 
-    ds = ImageDataSet(items, names, transform)
+    ds = ImageDataSet(items, names, transforms, global_transform)
     train_ds, valid_ds, test_ds = split_dataset(ds, valid_perc, test_perc)
 
     return train_ds, valid_ds, test_ds
@@ -125,18 +129,19 @@ def load_datasets(train_ds, valid_ds, test_ds, batch_size):
            load_dataset(test_ds, batch_size)
 
 
-transform = Resize((128, 128))
+resize_transform = Resize((128, 128))
+jitter_transform = ColorJitter(brightness=0.1, contrast=0.05, saturation=0.3, hue=0.1)
 
 def prepare_pre_dataset():
-    return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img": "png", "lines": "png"}, [
+    return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img": "png", "lines": "png"}, {}, [
         ([("img", "img/1"), ("lines", "lines/1")], 5000),
         ([("img", "img/2"), ("lines", "lines/2")], 5000),
         ([("img", "img/3"), ("lines", "lines/3")], 5000)
-    ], valid_perc=0.1, test_perc=0.1, transform=transform)
+    ], valid_perc=0.1, test_perc=0.1, global_transform=resize_transform)
 
 def prepare_bm_dataset():
-    return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img_masked": "png", "bm": "exr", "uv": "exr"}, [
+    return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img_masked": "png", "bm": "exr", "uv": "exr"}, {"img_masked": jitter_transform}, [
         ([("img_masked", "img_masked/1"), ("bm", "bm/1exr"), ("uv", "uv/1")], 5000),
         ([("img_masked", "img_masked/2"), ("bm", "bm/2exr"), ("uv", "uv/2")], 5000),
         ([("img_masked", "img_masked/3"), ("bm", "bm/3exr"), ("uv", "uv/3")], 5000)
-    ], valid_perc=0.1, test_perc=0.1, transform=transform)
+    ], valid_perc=0.1, test_perc=0.1, global_transform=resize_transform)

@@ -11,20 +11,17 @@ h_chs = 128
 iters = 5
 alpha = 0.5
 
-# class Upscale2(nn.Module):
-#     def __init__(self, inp, out, t1):
-#         super().__init__()
+class Upscale2(nn.Module):
+    def __init__(self, inp, out):
+        super().__init__()
 
-#         self.conv = nn.Sequential(
-#             Conv(inp, out, kernel_size=1, padding=0, activation="relu") if t1 else Conv(inp, out, activation="relu"),
-#             Conv(out, out * 4, activation="relu"),
-#         )
+        self.layers = nn.Sequential(
+            Conv(inp, out * 4, activation="relu"),
+            nn.PixelShuffle(2)
+        )
 
-#     def forward(self, x):
-#         x = self.conv(x)
-#         x = torch.pixel_shuffle(x, 2)
-
-#         return x
+    def forward(self, x):
+        return self.layers(x)
 
 
 class ConvGru(nn.Module):
@@ -119,7 +116,7 @@ class ResNetEncoder(nn.Module):
 
     
 class ProgressiveModel(nn.Module):
-    def __init__(self):
+    def __init__(self, learnable_up):
         super().__init__()
 
         self.is_train = False
@@ -135,11 +132,17 @@ class ProgressiveModel(nn.Module):
         self.dc_sampled = DoubleConv(dc_enc_chs, dc_sampled_chs)
         self.enc_all = Conv(enc_all_inp_chs, enc_all_out_chs)
 
-        self.gru = ConvGru(2 + enc_all_out_chs + dc_enc_chs, 2)
-
-        self.upscaler = nn.Sequential(
-            nn.UpsamplingBilinear2d((128, 128))
-        )
+        if learnable_up:
+            self.gru = ConvGru(2 + enc_all_out_chs + dc_enc_chs, 16)
+            self.upscaler = nn.Sequential(
+                Upscale2(16, 8),
+                Upscale2(8, 2),
+            )
+        else:
+            self.gru = ConvGru(2 + enc_all_out_chs + dc_enc_chs, 2)
+            self.upscaler = nn.Sequential(
+                nn.UpsamplingBilinear2d((128, 128))
+            )
 
 
     def set_train(self, mode):
@@ -191,10 +194,10 @@ class ProgressiveModel(nn.Module):
 
 
 class BMModel(nn.Module):
-    def __init__(self, train):
+    def __init__(self, train, learnable_up):
         super().__init__()
 
-        self.net = ProgressiveModel()
+        self.net = ProgressiveModel(learnable_up)
         self.net.set_train(train)
 
         self.dummy = nn.Parameter(torch.empty(0))

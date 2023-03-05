@@ -187,8 +187,6 @@ def loss_smooth(pred, label):
 
 
 def loss_circle_consistency(bm_pred, dict):
-    b, _, h, w = bm_pred.size()
-
     bm_pred = 2.0 * bm_pred - 1.0
     bm_pred = bm_pred.permute(0, 2, 3, 1)
 

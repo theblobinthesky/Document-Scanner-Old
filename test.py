@@ -27,10 +27,18 @@ class SigmoidOutputTestModule(nn.Module):
 
 print("running all tests")
 
+# print()
+# print("running color_jitter")
+# writer = SummaryWriter("runs/color_jitter")
+# model = bm_model.BMModel(True, False)
+# model = model_to_device(model)
+# train_bm_model(model, "models/color_jitter.pth", summary_writer=writer)
+# writer.flush()
+
 print()
-print("running test")
-writer = SummaryWriter("runs/test")
-model = bm_model.BMModel(True)
+print("running color_jitter_and_upscaling")
+writer = SummaryWriter("runs/color_jitter_and_upscaling")
+model = bm_model.BMModel(True, True)
 model = model_to_device(model)
-train_bm_model(model, "models/test.pth", summary_writer=writer)
+train_bm_model(model, "models/color_jitter_and_upscaling.pth", summary_writer=writer)
 writer.flush()
