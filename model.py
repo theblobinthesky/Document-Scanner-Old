@@ -4,8 +4,9 @@ import torch.nn.functional as F
 import torchmetrics.functional as MF
 from tqdm import tqdm
 
-beta = 0.3
-lam = 0.3
+l2_weight = 0.3
+grad_weight = 0.3
+binarize_threshold = 0.5
 
 class Conv(nn.Module):
     def __init__(self, inp, out, kernel_size=3, padding=1, dilation=1, stride=1, activation="none"):
@@ -178,12 +179,14 @@ def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
 
 
 def loss_smooth(pred, label):
-    l1_loss = (pred - label).abs().mean()
+    diff = pred - label
+    l1_loss = diff.abs().mean()
+    l2_loss = diff.pow(2).mean()
     
     (pgrad_x, pgrad_y) = MF.image_gradients(pred)
     (lgrad_x, lgrad_y) = MF.image_gradients(label)
     grad_loss = 0.5 * (pgrad_x - lgrad_x).abs().mean() + 0.5 * (pgrad_y - lgrad_y).abs().mean()
-    return l1_loss + lam * grad_loss
+    return l1_loss + l2_weight * l2_loss + grad_weight * grad_loss
 
 
 def loss_circle_consistency(bm_pred, dict):

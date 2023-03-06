@@ -7,7 +7,7 @@ from torchinfo import summary
 import datetime
 from itertools import cycle
 from tqdm import tqdm
-from benchmark import benchmark_plt
+from benchmark import benchmark_plt_pre, benchmark_plt_bm
 
 warmup_lr = 1e-5
 lr = 1e-3
@@ -25,7 +25,7 @@ valid_eval_every = 4
 lam = 0.85
 
 mask_time_in_hours = 2.0
-bm_time_in_hours = 3.0
+bm_time_in_hours = 4.0
 
 
 def cycle(iterable):
@@ -38,7 +38,7 @@ def model_to_device(model):
     return model.to(device)
 
 
-def train_model(model, model_path, epochs, time_in_hours, ds, is_rnn, summary_writer):
+def train_model(model, model_path, epochs, time_in_hours, ds, is_pre, summary_writer):
     optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
     warmup_scheduler = lr_scheduler.LinearLR(optim, start_factor=warmup_lr / lr, total_iters=warmup_epochs)
     main_scheduler = lr_scheduler.ReduceLROnPlateau(optim, factor=0.1, patience=lr_plateau_patience)
@@ -66,7 +66,10 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_rnn, summary_wr
 
             optim.zero_grad(set_to_none=True)
 
-            if is_rnn:
+            if is_pre:
+                pred = model(x)
+                loss = model.loss(pred, dict)
+            else:
                 preds = model.forward_all(x)
                 
                 loss = 0.0
@@ -76,9 +79,6 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_rnn, summary_wr
                     loss += fac * model.loss(pred, dict)
 
                 loss /= float(len(preds))
-            else:
-                pred = model(x)
-                loss = model.loss(pred, dict)
             
             loss.backward()
 
@@ -134,7 +134,11 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_rnn, summary_wr
 
     summary_writer.add_hparams(hparams, metric_dict)
 
-    plt = benchmark_plt(model, ds, is_rnn)
+    if is_pre:
+        plt = benchmark_plt_pre(model, ds)
+    else:
+        plt = benchmark_plt_bm(model, ds)
+
     summary_writer.add_figure("benchmark", plt)
     
     print(f"test loss: {test_loss:.4f}")
@@ -142,15 +146,33 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_rnn, summary_wr
 
 def train_pre_model(model, model_path, summary_writer):
     ds = prepare_pre_dataset()
-    train_model(model, model_path, mask_epochs, mask_time_in_hours, ds, False, summary_writer)
+    train_model(model, model_path, mask_epochs, mask_time_in_hours, ds, True, summary_writer)
 
 
 def train_bm_model(model, model_path, summary_writer):
     ds = prepare_bm_dataset()
-    train_model(model, model_path, bm_epochs, bm_time_in_hours, ds, True, summary_writer)
+    train_model(model, model_path, bm_epochs, bm_time_in_hours, ds, False, summary_writer)
 
 
 if __name__ == "__main__":
-    model = load_model("model unet transformer.pth")
-    model.to(device)
-    summary(model.pre_model, input_size=(1, 3, 128, 128), device=device)
+    import os
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    from torch.utils.tensorboard import SummaryWriter
+    import seg_model, bm_model
+
+    print("training segmentation model")
+
+    writer = SummaryWriter("runs/main_seg_model")
+    model = seg_model.PreModel()
+    model = model_to_device(model)
+    train_pre_model(model, "models/main_seg_model.pth", summary_writer=writer)
+    writer.flush()
+
+    print()
+    print("training bm model")
+
+    writer = SummaryWriter("runs/main_bm_model")
+    model = bm_model.BMModel(True, False)
+    model = model_to_device(model)
+    train_bm_model(model, "models/main_bm_model.pth", summary_writer=writer)
+    writer.flush()

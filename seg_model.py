@@ -3,12 +3,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from model import Conv, conv1x1, DoubleConv, DilatedBlock
-from model import metric_dice_coefficient, metric_sensitivity, metric_specificity
+from model import binarize_threshold, metric_dice_coefficient, metric_sensitivity, metric_specificity
 
 # UNet Transformer based on:
 # https://arxiv.org/pdf/2103.06104.pdf
-
-binarize_threshold = 0.5
 
 class Down(nn.Module):
     def __init__(self, inp, out):
@@ -258,7 +256,7 @@ class UpDilatedConv(nn.Module):
 
 
 class UNetDilatedConv(nn.Module):
-    def __init__(self, inp, out, large, think):
+    def __init__(self, inp, out):
         super().__init__()
 
         depth = [32, 64, 128, 256]
@@ -292,10 +290,10 @@ class UNetDilatedConv(nn.Module):
 
 
 class PreModel(nn.Module):
-    def __init__(self, large=False):
+    def __init__(self):
         super().__init__()
 
-        self.unet = UNetDilatedConv(3, 2, large)
+        self.unet = UNetDilatedConv(3, 1)
 
 
     def forward(self, x):
@@ -303,14 +301,21 @@ class PreModel(nn.Module):
         x = torch.sigmoid(x)
 
         return x
-    
 
-    def loss(self, pred, label):
+
+    def set_train(self, booleanlol):
+        pass
+
+
+    def loss(self, pred, dict):
+        label = dict["uv"][:, 2].unsqueeze(1)
+
         return F.binary_cross_entropy(pred, label)
 
 
     def input_and_label_from_dict(self, dict):
-        return dict["img"]
+        return dict["img"], dict["uv"][:, 2].unsqueeze(1)
+
 
     def eval_metrics(self):
         return [metric_dice_coefficient, metric_sensitivity, metric_specificity]

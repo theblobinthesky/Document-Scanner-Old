@@ -133,10 +133,10 @@ resize_transform = Resize((128, 128))
 jitter_transform = ColorJitter(brightness=0.1, contrast=0.05, saturation=0.3, hue=0.1)
 
 def prepare_pre_dataset():
-    return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img": "png", "lines": "png"}, {}, [
-        ([("img", "img/1"), ("lines", "lines/1")], 5000),
-        ([("img", "img/2"), ("lines", "lines/2")], 5000),
-        ([("img", "img/3"), ("lines", "lines/3")], 5000)
+    return prepare_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", {"img": "png", "uv": "exr"}, {}, [
+        ([("img", "img/1"), ("uv", "uv/1")], 5000),
+        ([("img", "img/2"), ("uv", "uv/2")], 5000),
+        ([("img", "img/3"), ("uv", "uv/3")], 5000)
     ], valid_perc=0.1, test_perc=0.1, global_transform=resize_transform)
 
 def prepare_bm_dataset():

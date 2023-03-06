@@ -24,8 +24,60 @@ transform = Resize((128, 128))
 def filter(list):
     return [list[0], list[len(list) // 2], list[-1]]
 
+def cpu(ten):
+    return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1]).squeeze(axis=0)
 
-def benchmark_plt(model, ds, is_rnn):
+def pad_if_necessary(ten):
+    channels = ten.shape[-1]
+    if channels == 3 or channels == 1:
+        return ten
+    elif channels == 2:
+        return np.pad(ten, ((0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)
+    else:
+        print("error invalid channel number")
+        exit()
+
+
+def benchmark_plt_pre(model, ds):
+    _, _, ds = load_datasets(*ds, 1)
+
+    iterator = iter(ds)
+    xs, ys, preds = [], [], []
+    for i in range(num_examples):
+        dict = next(iterator)
+        for key in dict.keys():
+            dict[key] = dict[key].to("cuda")
+
+        x, y = model.input_and_label_from_dict(dict)
+        pred = model(x)
+
+        x, y, pred = cpu(x), cpu(y), cpu(pred)
+        x, y, pred = pad_if_necessary(x), pad_if_necessary(y), pad_if_necessary(pred)
+
+        xs.append(x)
+        ys.append(y)
+        preds.append(pred)
+
+    title = ["image", "mask label", "mask pred"]
+
+    fig = plt.figure(figsize=(25, 25), dpi=dpi)
+    i = 0
+
+    for e in range(num_examples):
+        list = [xs[e], preds[e], ys[e]]
+        
+        for t, arr in enumerate(list):
+            plt.subplot(num_examples, len(title), i + 1)
+            plt.title(title[t])
+            plt.imshow(arr)
+
+            plt.axis('off')
+            i += 1
+
+    return fig
+
+
+def benchmark_plt_bm(model, ds):
     _, _, ds = load_datasets(*ds, 1)
 
     iterator = iter(ds)
@@ -37,29 +89,13 @@ def benchmark_plt(model, ds, is_rnn):
 
         x, y = model.input_and_label_from_dict(dict)
 
-        if is_rnn:
-            pred = model.forward_all(x)
-        else:
-            pred = [model(x)]
+        pred = model.forward_all(x)
         
         sampled = [sample_from_bmap(x, p) for p in pred]
-
-        def cpu(ten):
-            return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1]).squeeze(axis=0)
 
         x, y = cpu(x), cpu(y)
         pred = [cpu(p) for p in pred]
         sampled = [cpu(s) for s in sampled]
-
-        def pad_if_necessary(ten):
-            channels = ten.shape[-1]
-            if channels == 3 or channels == 1:
-                return ten
-            elif channels == 2:
-                return np.pad(ten, ((0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)
-            else:
-                print("error invalid channel number")
-                exit()
 
         x, y = pad_if_necessary(x), pad_if_necessary(y)
         pred = [pad_if_necessary(p) for p in pred]
@@ -72,7 +108,7 @@ def benchmark_plt(model, ds, is_rnn):
 
 
     sample_titles = [f"sampled {i + 1}" for i in range(len(sampleds[0]))]
-    title = ["x", "y", *filter(sample_titles)]
+    title = ["image masked", "uv label", *filter(sample_titles)]
 
     fig = plt.figure(figsize=(25, 25), dpi=dpi)
     i = 0
@@ -101,5 +137,5 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load("models/bm_progressive_baseline.pth"))
     model = model.cuda()
 
-    fig = benchmark_plt(model, ds, True)
+    fig = benchmark_plt_bm(model, ds)
     fig.savefig("docs/fig.png", dpi=90)

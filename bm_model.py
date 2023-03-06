@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from model import Conv, conv1x1, DoubleConv, DilatedBlock
+from model import Conv, conv1x1, DilatedBlock
 from model import loss_smooth, loss_circle_consistency, metric_local_distortion
 
 # Progressive dewarping inspired by:
@@ -10,6 +10,34 @@ from model import loss_smooth, loss_circle_consistency, metric_local_distortion
 h_chs = 128
 iters = 5
 alpha = 0.5
+use_relu = False
+
+class DoubleConv(nn.Module):
+    def __init__(self, inp, out, mid=None):
+        super().__init__()
+
+        if mid == None:
+            mid = out
+        
+        self.layers = nn.Sequential(
+            nn.Conv2d(inp, mid, kernel_size=3, padding=1, bias=False),
+            nn.ReLU(True),
+            nn.BatchNorm2d(mid),
+            nn.Conv2d(mid, out, kernel_size=3, padding=1, bias=False),
+            nn.ReLU(True),
+            nn.BatchNorm2d(out)
+        )
+
+        self.skip = conv1x1(inp, out)
+
+    def forward(self, x):
+        residual = x
+        x = self.layers(x)
+        
+        x = x + self.skip(residual)
+
+        return x
+
 
 class Upscale2(nn.Module):
     def __init__(self, inp, out):
@@ -28,18 +56,19 @@ class ConvGru(nn.Module):
     def __init__(self, inp, out):
         super().__init__()
 
+        # This implementation of ConvGru is a slight variation on the traditional GRU by implementing OGRU and replacing tanh by RELU.
         self.r_conv = Conv(h_chs + inp, h_chs, activation="sigmoid")
         self.z_conv = Conv(h_chs + inp, h_chs, activation="sigmoid")
-        self.h_conv = Conv(2 * h_chs + inp, h_chs, activation="tanh")
+        self.h_conv = Conv(2 * h_chs + inp, h_chs, activation="relu" if use_relu else "tanh")
         self.o_conv = DoubleConv(h_chs, out)
 
     def forward(self, Lh, x):
         Lh_x = torch.cat([Lh, x], axis=1)
-
         R = self.r_conv(Lh_x)
         R = Lh * R
 
-        Z = self.z_conv(Lh_x)
+        Lh_xR = torch.cat([Lh, x], axis=1)
+        Z = self.z_conv(Lh_xR)
         
         x_R = torch.cat([Lh, x, R], axis=1)
         H = self.h_conv(x_R)

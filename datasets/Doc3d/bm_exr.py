@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 import concurrent.futures
 
-dir_pairs = [("bm/1", "bm/1exr"), ("bm/2", "bm/2exr"), ("bm/3", "bm/3exr")]
+dir_pairs = [("bm/3", "bm/3exr")]
 
 def task(pairs):
     for (src, dst) in pairs:    
