@@ -8,6 +8,7 @@ import datetime
 from itertools import cycle
 from tqdm import tqdm
 from benchmark import benchmark_plt_pre, benchmark_plt_bm
+import math
 
 warmup_lr = 1e-5
 lr = 1e-3
@@ -16,8 +17,10 @@ batch_size = 12
 device = torch.device("cuda")
 
 mask_epochs = 300
-bm_epochs = 300
+bm_epochs = 85 - 2 # to make sure you catch the minimum
 warmup_epochs = 15
+T_0 = 10
+T_mul = 2
 min_learning_rate_before_early_termination = 1e-7
 lr_plateau_patience = 3
 valid_batch_count = 16
@@ -38,10 +41,34 @@ def model_to_device(model):
     return model.to(device)
 
 
+class CosineAnnealingWarmRestartsWithWarmup(lr_scheduler.CosineAnnealingWarmRestarts):
+    def __init__(self, optimizer, T_0, T_mult, min_warmup_lr, warmup_epochs):
+        self.min_warmup_lr = min_warmup_lr
+        self.warmup_epochs = warmup_epochs
+        self.warmup_epoch = 0
+        super().__init__(optimizer, T_0, T_mult)
+
+    def get_lr(self):
+        if self.warmup_epoch < self.warmup_epochs:
+            return [self.min_warmup_lr + (base_lr - self.min_warmup_lr) * self.warmup_epoch / self.warmup_epochs for base_lr in self.base_lrs]
+        else:
+            return super().get_lr()
+
+    def step(self):
+        if self.warmup_epoch < self.warmup_epochs:
+            lrs = self.get_lr()
+            for i, param_group in enumerate(self.optimizer.param_groups):
+                param_group['lr'] = lrs[i]
+
+            self.warmup_epoch += 1
+        else:
+            super().step()
+
+
+
 def train_model(model, model_path, epochs, time_in_hours, ds, is_pre, summary_writer):
     optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
-    warmup_scheduler = lr_scheduler.LinearLR(optim, start_factor=warmup_lr / lr, total_iters=warmup_epochs)
-    main_scheduler = lr_scheduler.ReduceLROnPlateau(optim, factor=0.1, patience=lr_plateau_patience)
+    scheduler = CosineAnnealingWarmRestartsWithWarmup(optim, T_0, T_mul, warmup_lr, warmup_epochs)
 
     start_time = datetime.datetime.now()
 
@@ -92,10 +119,11 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_pre, summary_wr
             valid_loss = eval_loss_on_batches(model, valid_iter, valid_batch_count, device)
             summary_writer.add_scalar("Loss/valid", valid_loss, epoch)
 
-        if epoch < warmup_epochs:
-            warmup_scheduler.step()
-        else:
-            main_scheduler.step(train_loss)
+        scheduler.step()
+        #if epoch < warmup_epochs:
+        #    warmup_scheduler.step()
+        #else:
+        #    main_scheduler.step()
 
 
         now = datetime.datetime.now()
@@ -160,19 +188,19 @@ if __name__ == "__main__":
     from torch.utils.tensorboard import SummaryWriter
     import seg_model, bm_model
 
-    print("training segmentation model")
+    # print("training segmentation model")
 
-    writer = SummaryWriter("runs/main_seg_model")
-    model = seg_model.PreModel()
-    model = model_to_device(model)
-    train_pre_model(model, "models/main_seg_model.pth", summary_writer=writer)
-    writer.flush()
+    # writer = SummaryWriter("runs/main_seg_model")
+    # model = seg_model.PreModel()
+    # model = model_to_device(model)
+    # train_pre_model(model, "models/main_seg_model.pth", summary_writer=writer)
+    # writer.flush()
 
     print()
     print("training bm model")
 
-    writer = SummaryWriter("runs/main_bm_model")
+    writer = SummaryWriter("runs/main_bm_model_x2_10")
     model = bm_model.BMModel(True, False)
     model = model_to_device(model)
-    train_bm_model(model, "models/main_bm_model.pth", summary_writer=writer)
+    train_bm_model(model, "models/main_bm_model_x2_10.pth", summary_writer=writer)
     writer.flush()
