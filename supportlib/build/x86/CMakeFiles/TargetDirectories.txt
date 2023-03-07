@@ -1,3 +1,0 @@
-/media/shared/Projekte/CrossCompilationTemplate/build/x86/CMakeFiles/docscanner.dir
-/media/shared/Projekte/CrossCompilationTemplate/build/x86/CMakeFiles/edit_cache.dir
-/media/shared/Projekte/CrossCompilationTemplate/build/x86/CMakeFiles/rebuild_cache.dir

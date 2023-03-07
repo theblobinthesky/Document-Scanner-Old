@@ -1,3 +1,0 @@
-/media/shared/Projekte/CrossCompilationTemplate/build/armeabi-v7a/CMakeFiles/docscanner.dir
-/media/shared/Projekte/CrossCompilationTemplate/build/armeabi-v7a/CMakeFiles/edit_cache.dir
-/media/shared/Projekte/CrossCompilationTemplate/build/armeabi-v7a/CMakeFiles/rebuild_cache.dir
