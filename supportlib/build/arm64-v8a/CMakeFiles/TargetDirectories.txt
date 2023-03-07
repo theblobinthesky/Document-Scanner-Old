@@ -1,0 +1,3 @@
+/media/shared/Projekte/CrossCompilationTemplate/build/arm64-v8a/CMakeFiles/docscanner.dir
+/media/shared/Projekte/CrossCompilationTemplate/build/arm64-v8a/CMakeFiles/edit_cache.dir
+/media/shared/Projekte/CrossCompilationTemplate/build/arm64-v8a/CMakeFiles/rebuild_cache.dir

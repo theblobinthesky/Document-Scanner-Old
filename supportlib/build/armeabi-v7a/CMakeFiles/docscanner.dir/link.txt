@@ -1,0 +1,2 @@
+/home/erik/Android/Sdk/ndk/23.1.7779620/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar qc /media/shared/Projekte/CrossCompilationTemplate/bin/armeabi-v7a/libdocscanner.a CMakeFiles/docscanner.dir/src/android_jni.cpp.o
+/home/erik/Android/Sdk/ndk/23.1.7779620/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib /media/shared/Projekte/CrossCompilationTemplate/bin/armeabi-v7a/libdocscanner.a
