@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-#define null (void*)0
+#define null nullptr
 
 using s8 = int8_t;
 using s16 = int16_t;

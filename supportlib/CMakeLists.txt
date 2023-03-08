@@ -5,7 +5,7 @@ set(CMAKE_BUILD_TYPE Release)
 
 if(${TARGET_PLATFORM} STREQUAL Android)
     set(CMAKE_SYSTEM_NAME Android)
-    set(CMAKE_SYSTEM_VERSION 21) # API level
+    set(CMAKE_SYSTEM_VERSION 26) # API level
     set(CMAKE_ANDROID_NDK "/home/erik/Android/Sdk/ndk/23.1.7779620")
 endif()
 

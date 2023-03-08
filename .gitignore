@@ -2,6 +2,13 @@
 __pycache__/*
 *.mat
 *.png
+*.jpg
+*.JPG
 *.exr
 *.sh
-events.out*
+*.a
+*.so
+**/runs/*
+**/build/*
+**/CMakeFiles/*
+.vscode/*

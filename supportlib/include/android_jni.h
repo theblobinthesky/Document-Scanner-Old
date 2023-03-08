@@ -1,4 +1,9 @@
 #include <jni.h>
-#include <string>
+#include "types.h"
+#include "pipeline.h"
 
-jstring test(JNIEnv* env);
+namespace docscanner {
+    bool create_persistent_pipeline(JNIEnv* env, jobject obj);
+    bool destroy_persistent_pipeline(JNIEnv* env, jobject obj);
+    pipeline* get_persistent_pipeline(JNIEnv* env, jobject obj);
+};
