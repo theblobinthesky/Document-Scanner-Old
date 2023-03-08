@@ -1,13 +1,19 @@
 package com.erikstern.documentscanner
 
+import android.content.Context
+import android.content.pm.PackageManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.widget.TextView
+import android.util.AttributeSet
+import android.util.Log
+import android.view.View
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import com.erikstern.documentscanner.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
-
     private lateinit var binding: ActivityMainBinding
+    private val surfaceRenderer = GLSurfaceRenderer()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -15,18 +21,24 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Example of a call to a native method
-        binding.sampleText.text = stringFromJNI()
+        surfaceRenderer.setSurfaceView(binding.glSurfaceView)
+
+        val permissionCheck = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grantResults ->
+            val allResult = grantResults.all { it.value }
+            if(allResult) {
+                surfaceRenderer.initCam()
+            }
+        }
+
+        if(ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            surfaceRenderer.initCam()
+        }
+        else {
+            permissionCheck.launch(arrayOf(android.Manifest.permission.CAMERA))
+        }
     }
 
-    /**
-     * A native method that is implemented by the 'documentscanner' native library,
-     * which is packaged with this application.
-     */
-    external fun stringFromJNI(): String
-
     companion object {
-        // Used to load the 'documentscanner' library on application startup.
         init {
             System.loadLibrary("documentscanner")
         }
