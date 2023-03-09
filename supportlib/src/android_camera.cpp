@@ -37,7 +37,7 @@ void onCaptureSequenceAborted(void* context, ACameraCaptureSession* session, int
 void onCaptureCompleted(void* context, ACameraCaptureSession* session, ACaptureRequest* request, const ACameraMetadata* result) {
 }
 
-ACameraDevice* find_and_open_back_camera(uint32_t &width, uint32_t &height) {
+ACameraDevice* docscanner::find_and_open_back_camera(uint32_t &width, uint32_t &height) {
     ACameraManager* mng = ACameraManager_create();
 
     ACameraIdList* camera_ids = nullptr;
@@ -112,7 +112,7 @@ ACameraDevice* find_and_open_back_camera(uint32_t &width, uint32_t &height) {
     return device;
 }
 
-void init_camera_capture_to_native_window(ACameraDevice* cam, ANativeWindow* texture_window) {
+void docscanner::init_camera_capture_to_native_window(ACameraDevice* cam, ANativeWindow* texture_window) {
     // prepare request with desired template
     ACaptureRequest* request = nullptr;
     ACameraDevice_createCaptureRequest(cam, TEMPLATE_STILL_CAPTURE, &request);

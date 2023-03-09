@@ -3,6 +3,8 @@
 #include <GLES3/gl31.h>
 #include <GLES2/gl2ext.h>
 
+NAMESPACE_BEGIN
+
 struct shader_program {
     u32 program;
 };
@@ -39,7 +41,7 @@ void delete_program(shader_program &program);
 
 void use_program(const shader_program &program);
 
-void dispatch_compute_program(uvec2 &size, u32 depth);
+void dispatch_compute_program(const uvec2 &&size, u32 depth);
 
 shader_buffer make_shader_buffer();
 
@@ -49,6 +51,8 @@ texture create_texture(uvec2 size, u32 format);
 
 void bind_image_to_slot(u32 slot, const texture &tex);
 
+void bind_texture_to_slot(u32 slot, const texture &tex);
+
 void DEBUG_texture_data(const texture &tex);
 
 variable get_variable(const shader_program& program, const char* name);
@@ -56,3 +60,5 @@ variable get_variable(const shader_program& program, const char* name);
 void draw(const canvas &canvas);
 
 void mat4f_load_ortho(float left, float right, float bottom, float top, float near, float far, float* mat4f);
+
+NAMESPACE_END

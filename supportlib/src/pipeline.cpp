@@ -2,6 +2,7 @@
 #include "log.h"
 #include "backend.h"
 #include "android_camera.h"
+#include "nn.h"
 
 constexpr const char vert_src[] = R"(#version 310 es
         uniform mat4 projection;
@@ -20,13 +21,34 @@ constexpr const char frag_src[] = R"(#version 310 es
         #extension GL_OES_EGL_image_external_essl3 : require
         precision mediump float;
 
-        uniform samplerExternalOES tex_sampler;
+        // uniform samplerExternalOES tex_sampler;
+        uniform layout(binding=0) sampler2D tex_sampler;
 
         in vec2 out_uvs;
         out vec4 out_col;
 
         void main() {
              out_col = texture(tex_sampler, out_uvs);
+        }
+)";
+
+const char compute_shader_cam_to_nn_input_size[] = R"(#version 320 es
+        #extension GL_OES_EGL_image_external_essl3 : require
+        precision mediump image2D;
+
+        layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+        uniform layout(binding = 0) samplerExternalOES sampler_input;
+        uniform layout(binding = 0, rgba32f) writeonly image2D img_output;
+
+        void main() {
+            ivec2 pt_xy = ivec2(gl_GlobalInvocationID.xy);
+            vec2 pt_uv = vec2(
+                float(gl_GlobalInvocationID.x) / float(gl_NumWorkGroups.x - 1u),
+                float(gl_GlobalInvocationID.y) / float(gl_NumWorkGroups.y - 1u)
+            );
+
+            vec4 color = texture(sampler_input, pt_uv);
+            imageStore(img_output, pt_xy, color);
         }
 )";
 
@@ -40,10 +62,7 @@ void docscanner::pipeline::init_preview(uvec2 preview_size) {
     // shader stuff
     
     preview_program = compile_and_link_program(vert_src, frag_src, nullptr, nullptr);
-    if (!preview_program.program) {
-        LOGE_AND_BREAK("Preview program could not be compiled.");
-        return;
-    }
+    ASSERT(preview_program.program, "Preview program could not be compiled.");
 
     use_program(preview_program);
 
@@ -76,15 +95,29 @@ void docscanner::pipeline::init_preview(uvec2 preview_size) {
 }
 
 
-void docscanner::pipeline::init_cam(ANativeWindow* texture_window) {
+void docscanner::pipeline::init_cam(ANativeWindow* texture_window, file_context* file_ctx) {
     // camera stuff
     init_camera_capture_to_native_window(cam, texture_window);
+
+    nn_input_program = compile_and_link_program(compute_shader_cam_to_nn_input_size);
+    ASSERT(nn_input_program.program, "NN input program could not be compiled.");
+    nn_input_tex = create_texture({128, 128}, GL_RGBA32F);
+    bind_image_to_slot(0, nn_input_tex);
+    bind_texture_to_slot(0, nn_input_tex);
+    
+    // create_neural_network_from_path(file_ctx, "seg_model.tflite", execution_pref::sustrained_speed);
 }
     
 void docscanner::pipeline::render_preview() {
+    use_program(nn_input_program);
+
+    dispatch_compute_program({128, 128}, 1);
+
     canvas c = {
         .bg_color={0, 1, 0}
     };
     
+    use_program(preview_program);
+
     draw(c);
 }

@@ -17,3 +17,7 @@ find_library(EGL-lib EGL)
 
 target_link_libraries(documentscanner docscanner)
 target_link_libraries(documentscanner ${log-lib} ${camera-lib} ${GLES-lib} ${EGL-lib} android)
+
+add_library(tflite SHARED IMPORTED)
+set_target_properties(tflite PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}/libtensorflowlite_jni.so)
+target_link_libraries(documentscanner tflite)

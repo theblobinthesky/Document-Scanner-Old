@@ -14,7 +14,7 @@ project(docscanner)
 file(GLOB_RECURSE sources CONFIGURE_DEPENDS "src/*.cpp")
 
 add_library(docscanner STATIC ${sources})
-target_include_directories(docscanner PUBLIC "include")
+target_include_directories(docscanner PUBLIC "include" "dependencies")
 
 if(${TARGET_PLATFORM} STREQUAL Android)
     set_target_properties(docscanner PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/../../bin/${CMAKE_ANDROID_ARCH_ABI}")

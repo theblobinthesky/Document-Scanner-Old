@@ -25,12 +25,8 @@ class GLSurfaceRenderer : GLSurfaceView.Renderer {
     private external fun nativeCreate()
     private external fun nativeDestroy()
     private external fun nativePreInit(): IntArray
-    private external fun nativeRenderInit(
-        preview_width: Int,
-        preview_height: Int,
-        asset_mng: AssetManager
-    )
-    private external fun nativeCamInit(surface: Surface)
+    private external fun nativeRenderInit(preview_width: Int, preview_height: Int)
+    private external fun nativeCamInit(surface: Surface, assetManager: AssetManager)
 
     private external fun nativeRender()
 
@@ -67,12 +63,12 @@ class GLSurfaceRenderer : GLSurfaceView.Renderer {
 
     fun initCam() {
         if(surfaceTextureId == -1) camMustBeInitialized = true
-        else nativeCamInit(surface)
+        else nativeCamInit(surface, context.assets)
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
-        nativeRenderInit(width, height, context.assets)
-        if(camMustBeInitialized) nativeCamInit(surface)
+        nativeRenderInit(width, height)
+        if(camMustBeInitialized) nativeCamInit(surface, context.assets)
     }
 
     override fun onDrawFrame(gl: GL10?) {

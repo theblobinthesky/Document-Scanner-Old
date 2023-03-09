@@ -1,6 +1,6 @@
 #include "backend.h"
 
-void mat4f_load_ortho(float left, float right, float bottom, float top, float near, float far, float* mat4f) {
+void docscanner::mat4f_load_ortho(float left, float right, float bottom, float top, float near, float far, float* mat4f) {
     float r_l = right - left;
     float t_b = top - bottom;
     float f_n = far - near;

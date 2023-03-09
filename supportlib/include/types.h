@@ -28,3 +28,6 @@ struct uvec2 {
     u32 x;
     u32 y;
 };
+
+#define NAMESPACE_BEGIN namespace docscanner {
+#define NAMESPACE_END }

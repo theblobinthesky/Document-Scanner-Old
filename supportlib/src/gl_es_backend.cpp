@@ -4,13 +4,15 @@
 #include <cstdlib>
 #include <csignal>
 
+using namespace docscanner;
+
 void check_gl_error(const char* op) {
     for (GLenum error = glGetError(); error; error = glGetError()) {
         LOGE_AND_BREAK("glError with code 0x%04x was triggered by %s().\n", error, op);
     }
 }
 
-void variable::set_mat4(float* data) {
+void docscanner::variable::set_mat4(float* data) {
     glUniformMatrix4fv(location, 1, GL_FALSE, data);
 }
 
@@ -67,7 +69,7 @@ bool link_program(GLuint &program) {
     }
 }
 
-shader_program compile_and_link_program(const char* vert_src, const char* frag_src, GLuint* vert_out, GLuint* frag_out) {
+shader_program docscanner::compile_and_link_program(const char* vert_src, const char* frag_src, GLuint* vert_out, GLuint* frag_out) {
     GLuint vert_shader = load_shader(GL_VERTEX_SHADER, vert_src);
     if (!vert_shader) {
         LOGE_AND_BREAK("Vertex Shader could not be compiled.");
@@ -104,7 +106,7 @@ shader_program compile_and_link_program(const char* vert_src, const char* frag_s
     return {program};
 }
 
-shader_program compile_and_link_program(const char* comp_src) {
+shader_program docscanner::compile_and_link_program(const char* comp_src) {
     GLuint comp_shader = load_shader(GL_COMPUTE_SHADER, comp_src);
     if (!comp_shader) {
         LOGE_AND_BREAK("Compute Shader could not be compiled.");
@@ -126,7 +128,7 @@ shader_program compile_and_link_program(const char* comp_src) {
     return {program};
 }
 
-void delete_program(shader_program &program) {
+void docscanner::delete_program(shader_program &program) {
     if (program.program) {
         glUseProgram(0);
         glDeleteProgram(program.program);
@@ -134,12 +136,12 @@ void delete_program(shader_program &program) {
     }
 }
 
-void use_program(const shader_program &program) {
+void docscanner::use_program(const shader_program &program) {
     glUseProgram(program.program);
     check_gl_error("glUseProgram");
 }
 
-void dispatch_compute_program(uvec2 &size, u32 depth) {
+void docscanner::dispatch_compute_program(const uvec2 &&size, u32 depth) {
     glDispatchCompute(size.x, size.y, depth);
     check_gl_error("glDispatchCompute");
 
@@ -147,7 +149,7 @@ void dispatch_compute_program(uvec2 &size, u32 depth) {
     check_gl_error("glFinish");
 }
 
-shader_buffer make_shader_buffer() {
+shader_buffer docscanner::make_shader_buffer() {
     GLuint vbo;
     glGenBuffers(1, &vbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -164,25 +166,32 @@ shader_buffer make_shader_buffer() {
     return {vbo};
 }
 
-void fill_shader_buffer(const shader_buffer& buff, void* data, u32 size) {
+void docscanner::fill_shader_buffer(const shader_buffer& buff, void* data, u32 size) {
     glBindBuffer(GL_ARRAY_BUFFER, buff.id);
     glBufferData(GL_ARRAY_BUFFER, size, data, GL_STATIC_DRAW);
 }
 
-texture create_texture(uvec2 size, u32 format) {
+texture docscanner::create_texture(uvec2 size, u32 format) {
     u32 id;
     glGenTextures(1, &id);
     glBindTexture(GL_TEXTURE_2D, id);
     glTexStorage2D(GL_TEXTURE_2D, 1, format, (int) size.x, (int) size.y);
+    check_gl_error("glTexStorage2D");
     return {id, format};
 }
 
-void bind_image_to_slot(u32 slot, const texture &tex) {
+void docscanner::bind_image_to_slot(u32 slot, const texture &tex) {
     glBindImageTexture(slot, tex.id, 0, GL_FALSE, 0, GL_WRITE_ONLY, tex.format);
     check_gl_error("glBindImageTexture");
 }
 
-void DEBUG_texture_data(const texture &tex) {
+void docscanner::bind_texture_to_slot(u32 slot, const texture &tex) {
+    glActiveTexture(GL_TEXTURE0 + slot);
+    glBindTexture(GL_TEXTURE_2D, tex.id);
+    check_gl_error("glBindTexture");
+}
+
+void docscanner::DEBUG_texture_data(const texture &tex) {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, tex.id);
 
@@ -209,11 +218,11 @@ void DEBUG_texture_data(const texture &tex) {
     LOGE_AND_BREAK("DEBUG_texture_data has been executed.");
 }
 
-variable get_variable(const shader_program& program, const char* name) {
+variable docscanner::get_variable(const shader_program& program, const char* name) {
     return {glGetUniformLocation(program.program, name)};
 }
 
-void draw(const canvas &canvas) {
+void docscanner::draw(const canvas &canvas) {
     glClear(GL_COLOR_BUFFER_BIT);
     glClearColor(canvas.bg_color.x, canvas.bg_color.y, canvas.bg_color.z, 1);
     glDrawArrays(GL_TRIANGLES, 0, 6);
