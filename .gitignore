@@ -1,5 +1,5 @@
 *.pth
-__pycache__/*
+**/__pycache__/*
 *.mat
 *.png
 *.jpg
@@ -12,3 +12,5 @@ __pycache__/*
 **/build/*
 **/CMakeFiles/*
 .vscode/*
+*.tflite
+supportlib/dependencies
