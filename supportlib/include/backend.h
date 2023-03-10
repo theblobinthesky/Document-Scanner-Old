@@ -53,7 +53,11 @@ void bind_image_to_slot(u32 slot, const texture &tex);
 
 void bind_texture_to_slot(u32 slot, const texture &tex);
 
-void DEBUG_texture_data(const texture &tex);
+u32 framebuffer_from_texture(const texture& tex, u32 size);
+
+void get_framebuffer_data(u32 fb, u8* &data, u32 size);
+
+void set_texture_data(const texture &tex, u8* data, int width, int height);
 
 variable get_variable(const shader_program& program, const char* name);
 

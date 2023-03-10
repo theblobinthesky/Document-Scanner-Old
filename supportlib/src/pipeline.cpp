@@ -18,11 +18,11 @@ constexpr const char vert_src[] = R"(#version 310 es
 )";
 
 constexpr const char frag_src[] = R"(#version 310 es
-        #extension GL_OES_EGL_image_external_essl3 : require
+        // #extension GL_OES_EGL_image_external_essl3 : require
         precision mediump float;
 
         // uniform samplerExternalOES tex_sampler;
-        uniform layout(binding=0) sampler2D tex_sampler;
+        uniform layout(binding = 0) sampler2D tex_sampler;
 
         in vec2 out_uvs;
         out vec4 out_col;
@@ -78,7 +78,6 @@ void docscanner::pipeline::init_preview(uvec2 preview_size) {
     float p = (cam_out_size.x / (float) cam_out_size.y) * (preview_size.x / (float) preview_size.y);
     float l = (1.0f - p) / 2.0f;
     float r = 1.0f - l;
-    LOGI("l: %f, r: %f", l, r);
     
     vertex vertices[] = {
         {{1.f, 0.f}, {1, l}},   // 1, 0
@@ -101,17 +100,37 @@ void docscanner::pipeline::init_cam(ANativeWindow* texture_window, file_context*
 
     nn_input_program = compile_and_link_program(compute_shader_cam_to_nn_input_size);
     ASSERT(nn_input_program.program, "NN input program could not be compiled.");
-    nn_input_tex = create_texture({128, 128}, GL_RGBA32F);
-    bind_image_to_slot(0, nn_input_tex);
-    bind_texture_to_slot(0, nn_input_tex);
+
+    nn_input_buffer_size = 128 * 128 * 4 * sizeof(float);
+    nn_input_buffer = new u8[nn_input_buffer_size];
+
+    nn_output_buffer_size = 128 * 128 * 1 * sizeof(float);
+    nn_output_buffer = new u8[nn_output_buffer_size];
     
-    // create_neural_network_from_path(file_ctx, "seg_model.tflite", execution_pref::sustrained_speed);
+    for(int i = 0; i < nn_output_buffer_size; i++) {
+        if(i % 100 < 50) nn_output_buffer[i] = 0;
+        else nn_output_buffer[i] = 100;
+    }
+
+    nn_input_tex = create_texture({128, 128}, GL_RGBA32F);
+    nn_output_tex = create_texture({128, 128}, GL_R32F);
+
+    nn_input_fb = framebuffer_from_texture(nn_input_tex, nn_input_buffer_size);
+    
+    nn = create_neural_network_from_path(file_ctx, "seg_model.tflite", execution_pref::sustained_speed);
 }
     
 void docscanner::pipeline::render_preview() {
     use_program(nn_input_program);
 
+    bind_image_to_slot(0, nn_input_tex);
     dispatch_compute_program({128, 128}, 1);
+    
+    get_framebuffer_data(nn_input_fb, nn_input_buffer, nn_input_buffer_size);
+    
+    invoke_neural_network_on_data(nn, nn_input_buffer, nn_input_buffer_size, nn_output_buffer, nn_output_buffer_size);
+
+    set_texture_data(nn_output_tex, nn_output_buffer, 128, 128);
 
     canvas c = {
         .bg_color={0, 1, 0}
@@ -119,5 +138,8 @@ void docscanner::pipeline::render_preview() {
     
     use_program(preview_program);
 
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    
+    bind_texture_to_slot(0, nn_output_tex);
     draw(c);
 }

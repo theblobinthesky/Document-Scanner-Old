@@ -191,13 +191,29 @@ void docscanner::bind_texture_to_slot(u32 slot, const texture &tex) {
     check_gl_error("glBindTexture");
 }
 
-void docscanner::DEBUG_texture_data(const texture &tex) {
-    glActiveTexture(GL_TEXTURE0);
+u32 docscanner::framebuffer_from_texture(const texture& tex, u32 size) {
+    GLint prev_tex;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
+    
     glBindTexture(GL_TEXTURE_2D, tex.id);
 
-    int width, height;
+    int width, height, internal_format;
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, &internal_format);
+
+    int num_channels = 0;
+    switch (internal_format)
+    {
+        case GL_R32F: num_channels = 1; break;
+        case GL_RG32F: num_channels = 2; break;
+        case GL_RGBA32F: num_channels = 4; break;
+        default: LOGE_AND_BREAK("Invalid internal format.");
+    }
+
+    ASSERT(size == width * height * num_channels * 4, "The texture size doesn't match the buffer size.");
+
+    glBindTexture(GL_TEXTURE_2D, prev_tex);
 
     GLuint offscreen_framebuffer;
     glGenFramebuffers(1, &offscreen_framebuffer);
@@ -205,17 +221,35 @@ void docscanner::DEBUG_texture_data(const texture &tex) {
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex.id, 0);
 
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    if (status != GL_FRAMEBUFFER_COMPLETE) {
-        LOGE_AND_BREAK("glCheckFramebufferStatus indicates the Framebuffer is incomplete (error code 0x%4x).", status);
+    ASSERT(status == GL_FRAMEBUFFER_COMPLETE, "glCheckFramebufferStatus indicates the Framebuffer is incomplete (error code 0x%x).", status);
+
+    return offscreen_framebuffer;
+}
+
+void docscanner::get_framebuffer_data(u32 fb, u8* &data, u32 size) { 
+    glBindFramebuffer(GL_FRAMEBUFFER, fb);
+    glReadPixels(0, 0, 128, 128, GL_RGBA, GL_FLOAT, data);
+    check_gl_error("glReadPixels");
+}
+
+void docscanner::set_texture_data(const texture &tex, u8* data, int width, int height) {
+    glBindTexture(GL_TEXTURE_2D, tex.id);
+
+    GLenum format, type;
+    switch(tex.format) {
+    case GL_R32F: {
+        format = GL_RED;
+        type = GL_FLOAT;
+    } break;
+    case GL_RGBA32F: { 
+        format = GL_RGBA;
+        type = GL_FLOAT;
+    } break;
+    default: LOGE_AND_BREAK("Unsupported texture format in set_texture_data.");
     }
 
-    glViewport(0, 0, width, height);
-
-    u8* download_pixels = new u8[width * height * 4];
-    glReadPixels(0, 0, width, height, GL_RGBA_INTEGER, GL_UNSIGNED_BYTE, download_pixels);
-    check_gl_error("glReadPixels");
-
-    LOGE_AND_BREAK("DEBUG_texture_data has been executed.");
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, format, type, data);
+    check_gl_error("glTexSubImage2D");
 }
 
 variable docscanner::get_variable(const shader_program& program, const char* name) {

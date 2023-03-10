@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import torch
+import torch.nn as nn
 import onnx
 import os
 import shutil
@@ -9,7 +10,7 @@ import tensorflow as tf
 
 from seg_model import PreModel
 
-dummy_input = torch.randn(1, 3, 128, 128)
+dummy_input = torch.randn(1, 128, 128, 4)
 
 def export(model, path_without_extension):
     print(f"Exporting {path_without_extension}")
@@ -25,6 +26,9 @@ def export(model, path_without_extension):
     tf_rep.export_graph(tf_path)
 
     converter = tf.lite.TFLiteConverter.from_saved_model(tf_path)
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.inference_input_type = tf.float32
+    converter.inference_output_type = tf.float32
     tflite_model = converter.convert()
 
     with open(tflite_path, "wb") as f:
@@ -34,6 +38,18 @@ def export(model, path_without_extension):
     shutil.rmtree(tf_path)
 
 
-model = PreModel()
-model.load_state_dict(torch.load("models/main_seg_model.pth"))
+class PreModelWrapper(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = PreModel()
+        self.model.load_state_dict(torch.load("models/main_seg_model.pth"))
+
+    def forward(self, x):
+        x = x.permute(0, 3, 1, 2)
+        x = x[:, :3]
+        x = self.model(x)
+        return x
+
+
+model = PreModelWrapper()
 export(model, "exports/seg_model")

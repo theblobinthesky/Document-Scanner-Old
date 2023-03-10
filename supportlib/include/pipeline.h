@@ -2,6 +2,7 @@
 #include "android_camera.h"
 #include "backend.h"
 #include "assets.h"
+#include "nn.h"
 
 NAMESPACE_BEGIN
 
@@ -16,6 +17,13 @@ struct pipeline {
     
     shader_program nn_input_program;
     texture nn_input_tex;
+    u32 nn_input_fb;
+    u32 nn_input_buffer_size;
+    u8* nn_input_buffer;
+    u32 nn_output_buffer_size;
+    u8* nn_output_buffer;
+    texture nn_output_tex;
+    neural_network nn;
 
     void pre_init_preview(int* cam_width, int* cam_height);
     void init_preview(uvec2 preview_size);

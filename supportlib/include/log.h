@@ -9,5 +9,5 @@
 
 #define BREAK() raise(SIGTRAP)
 #define LOGE_AND_BREAK(...) LOGE(__VA_ARGS__); BREAK()
-#define ASSERT(expr, ...) if (!(expr)) { LOGE_AND_BREAK(__VA_ARGS__); }
+#define ASSERT(working_condition, ...) if (!(working_condition)) { LOGE_AND_BREAK(__VA_ARGS__); }
 #endif
