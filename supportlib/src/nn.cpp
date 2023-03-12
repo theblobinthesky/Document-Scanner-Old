@@ -3,9 +3,12 @@
 #include "tensorflow/lite/c/c_api.h"
 #include "tensorflow/lite/c/common.h"
 #include "tensorflow/lite/delegates/nnapi/nnapi_delegate_c_api.h"
+#include "tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h"
+#include "tensorflow/lite/delegates/gpu/delegate.h"
 
 using namespace docscanner;
 
+#if true
 TfLiteDelegate* create_delegate(execution_pref pref) {
     TfLiteNnapiDelegateOptions options = TfLiteNnapiDelegateOptionsDefault();
     
@@ -13,9 +16,29 @@ TfLiteDelegate* create_delegate(execution_pref pref) {
         options.execution_preference = TfLiteNnapiDelegateOptions::ExecutionPreference::kSustainedSpeed;
     else if(pref == execution_pref::fast_single_answer)
         options.execution_preference = TfLiteNnapiDelegateOptions::ExecutionPreference::kFastSingleAnswer;
-    
+
+    options.allow_fp16 = true;
+
     return TfLiteNnapiDelegateCreate(&options);
 }
+#elif false
+TfLiteDelegate* create_delegate(execution_pref pref) {
+    auto options = TfLiteGpuDelegateOptionsV2Default();
+
+    if(pref == execution_pref::sustained_speed)
+        options.inference_preference = TFLITE_GPU_INFERENCE_PREFERENCE_SUSTAINED_SPEED;
+    else if(pref == execution_pref::fast_single_answer)
+        options.inference_preference = TFLITE_GPU_INFERENCE_PREFERENCE_FAST_SINGLE_ANSWER;
+
+    return TfLiteGpuDelegateV2Create(&options);
+}
+#else
+TfLiteDelegate* create_delegate(execution_pref pref) {
+    auto options = TfLiteXNNPackDelegateOptionsDefault();
+
+    return TfLiteXNNPackDelegateCreate(&options);
+}
+#endif
 
 void destroy_delegate(TfLiteDelegate* delegate) {
     TfLiteNnapiDelegateDelete(delegate);
@@ -52,12 +75,21 @@ void docscanner::destory_neural_network(const neural_network& nn) {
     destroy_delegate(nn.delegate);
 }
 
+#include <chrono>
+
 void docscanner::invoke_neural_network_on_data(const neural_network& nn, u8* inp_data, u32 inp_size, u8* out_data, u32 out_size) {
+    auto start = std::chrono::high_resolution_clock::now();
+    
     TfLiteTensor* input_tensor = TfLiteInterpreterGetInputTensor(nn.interpreter, 0);
+    LOGI("(%d, %d, %d, %d), size: %d", input_tensor->dims->data[0], input_tensor->dims->data[1], input_tensor->dims->data[2], input_tensor->dims->data[3], input_tensor->dims->size);
     TfLiteTensorCopyFromBuffer(input_tensor, inp_data, inp_size);
 
     TfLiteInterpreterInvoke(nn.interpreter);
 
     const TfLiteTensor* output_tensor = TfLiteInterpreterGetOutputTensor(nn.interpreter, 0);
     TfLiteTensorCopyToBuffer(output_tensor, out_data, out_size);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    LOGI("duration of nn inference: %lldms", dur.count());
 }

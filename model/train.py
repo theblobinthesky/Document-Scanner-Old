@@ -16,7 +16,7 @@ steps_per_epoch = 40
 batch_size = 12
 device = torch.device("cuda")
 
-mask_epochs = 300
+mask_epochs = 85 - 2
 bm_epochs = 85 - 2 # to make sure you catch the minimum
 warmup_epochs = 15
 T_0 = 10
@@ -188,19 +188,19 @@ if __name__ == "__main__":
     from torch.utils.tensorboard import SummaryWriter
     import seg_model, bm_model
 
-    # print("training segmentation model")
+    print("training segmentation model")
 
-    # writer = SummaryWriter("runs/main_seg_model")
-    # model = seg_model.PreModel()
-    # model = model_to_device(model)
-    # train_pre_model(model, "models/main_seg_model.pth", summary_writer=writer)
-    # writer.flush()
-
-    print()
-    print("training bm model")
-
-    writer = SummaryWriter("runs/main_bm_model_x2_10")
-    model = bm_model.BMModel(True, False)
+    writer = SummaryWriter("runs/main_seg_model")
+    model = seg_model.PreModel()
     model = model_to_device(model)
-    train_bm_model(model, "models/main_bm_model_x2_10.pth", summary_writer=writer)
+    train_pre_model(model, "models/main_seg_model.pth", summary_writer=writer)
     writer.flush()
+
+    # print()
+    # print("training bm model")
+
+    # writer = SummaryWriter("runs/main_bm_model_x2_10")
+    # model = bm_model.BMModel(True, False)
+    # model = model_to_device(model)
+    # train_bm_model(model, "models/main_bm_model_x2_10.pth", summary_writer=writer)
+    # writer.flush()

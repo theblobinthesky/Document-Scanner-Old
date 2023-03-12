@@ -3,29 +3,28 @@ import torch
 import torch.nn as nn
 import onnx
 import os
-import shutil
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-from onnx_tf.backend import prepare
 import tensorflow as tf
+# Its very important to note that as of 2023 the onnx2keras repository had three years of development done
+# without a release on github or the package on pip. onnx2keras must be directly cloned from github otherwise 
+# the library is not necessarily compatible with modern tensorflow. 
+from onnx2keras import onnx_to_keras
+import io
 
-from seg_model import PreModel
+dummy_input = torch.randn(1, 4, 128, 128)
 
-dummy_input = torch.randn(1, 128, 128, 4)
+def export(model, tflite_path):
+    print(f"Exporting tflite file to {tflite_path}")
 
-def export(model, path_without_extension):
-    print(f"Exporting {path_without_extension}")
+    onxx_file = io.BytesIO()
+    torch.onnx.export(model, dummy_input, onxx_file, opset_version=9, input_names=['input'], output_names=['output'])
+    # opset_version=9 is required since Upsampling is replaced by Resize in more recent versions.
+    # Also there seem to be some other nontrivial changes.
 
-    onnx_path = path_without_extension + ".onnx"
-    tf_path = path_without_extension + "_tf"
-    tflite_path = path_without_extension + ".tflite"
+    onnx_model = onnx.load_model_from_string(onxx_file.getvalue())
+    keras_model = onnx_to_keras(onnx_model, ["input"], verbose=False, name_policy='renumerate', change_ordering=True)
 
-    torch.onnx.export(model, dummy_input, onnx_path, opset_version=12, input_names=['input'], output_names=['output'])
-
-    onnx_model = onnx.load(onnx_path)
-    tf_rep = prepare(onnx_model)
-    tf_rep.export_graph(tf_path)
-
-    converter = tf.lite.TFLiteConverter.from_saved_model(tf_path)
+    converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
     converter.inference_input_type = tf.float32
     converter.inference_output_type = tf.float32
@@ -34,22 +33,38 @@ def export(model, path_without_extension):
     with open(tflite_path, "wb") as f:
         f.write(tflite_model)
 
-    os.remove(onnx_path)
-    shutil.rmtree(tf_path)
+from seg_model import PreModel
 
+model = PreModel()
+model.load_state_dict(torch.load("models/main_seg_model.pth"))
+export(model, "exports/seg_model.tflite")
 
-class PreModelWrapper(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.model = PreModel()
-        self.model.load_state_dict(torch.load("models/main_seg_model.pth"))
+# import cv2
+# import numpy as np
+# np_features = cv2.imread("/media/shared/Projekte/DocumentScanner/datasets/Doc3d/img/2/996_6-pr_Page_025-bgI0001.png")
+# np_features = cv2.resize(np_features, (128, 128))
 
-    def forward(self, x):
-        x = x.permute(0, 3, 1, 2)
-        x = x[:, :3]
-        x = self.model(x)
-        return x
+# np_features = np_features.astype("float32") / 255.0
 
+# h, w, _ = np_features.shape
+# padding = np.full((h, w, 1), 1.0, dtype=np.float32)
+# np_features = np.concatenate([np_features, padding], axis=-1)
 
-model = PreModelWrapper()
-export(model, "exports/seg_model")
+# interpreter = tf.lite.Interpreter(model_path="exports/seg_model.tflite")
+
+# input_details = interpreter.get_input_details()
+# output_details = interpreter.get_output_details()
+
+# interpreter.allocate_tensors()
+
+# np_features = np.expand_dims(np_features, axis=0)
+
+# interpreter.set_tensor(input_details[0]['index'], np_features)
+# interpreter.invoke()
+
+# output = interpreter.get_tensor(output_details[0]['index'])
+# output = output[0]
+
+# import matplotlib.pyplot as plt
+# plt.imshow(output)
+# plt.show()

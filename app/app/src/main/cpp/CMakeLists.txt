@@ -21,3 +21,7 @@ target_link_libraries(documentscanner ${log-lib} ${camera-lib} ${GLES-lib} ${EGL
 add_library(tflite SHARED IMPORTED)
 set_target_properties(tflite PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}/libtensorflowlite_jni.so)
 target_link_libraries(documentscanner tflite)
+
+add_library(tflite_gpu SHARED IMPORTED)
+set_target_properties(tflite_gpu PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}/libtensorflowlite_gpu_jni.so)
+target_link_libraries(documentscanner tflite_gpu)

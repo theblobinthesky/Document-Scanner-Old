@@ -18,16 +18,17 @@ constexpr const char vert_src[] = R"(#version 310 es
 )";
 
 constexpr const char frag_src[] = R"(#version 310 es
-        // #extension GL_OES_EGL_image_external_essl3 : require
+        #extension GL_OES_EGL_image_external_essl3 : require
         precision mediump float;
 
-        // uniform samplerExternalOES tex_sampler;
+        // uniform samplerExternalOES oes_sampler;
         uniform layout(binding = 0) sampler2D tex_sampler;
 
         in vec2 out_uvs;
         out vec4 out_col;
 
         void main() {
+             // out_col = texture(oes_sampler, out_uvs); 
              out_col = texture(tex_sampler, out_uvs);
         }
 )";
@@ -107,11 +108,6 @@ void docscanner::pipeline::init_cam(ANativeWindow* texture_window, file_context*
     nn_output_buffer_size = 128 * 128 * 1 * sizeof(float);
     nn_output_buffer = new u8[nn_output_buffer_size];
     
-    for(int i = 0; i < nn_output_buffer_size; i++) {
-        if(i % 100 < 50) nn_output_buffer[i] = 0;
-        else nn_output_buffer[i] = 100;
-    }
-
     nn_input_tex = create_texture({128, 128}, GL_RGBA32F);
     nn_output_tex = create_texture({128, 128}, GL_R32F);
 
@@ -120,6 +116,8 @@ void docscanner::pipeline::init_cam(ANativeWindow* texture_window, file_context*
     nn = create_neural_network_from_path(file_ctx, "seg_model.tflite", execution_pref::sustained_speed);
 }
     
+#include <random>
+
 void docscanner::pipeline::render_preview() {
     use_program(nn_input_program);
 

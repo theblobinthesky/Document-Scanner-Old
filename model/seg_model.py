@@ -293,7 +293,7 @@ class PreModel(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.unet = UNetDilatedConv(3, 1)
+        self.unet = UNetDilatedConv(4, 1)
 
 
     def forward(self, x):
@@ -314,7 +314,11 @@ class PreModel(nn.Module):
 
 
     def input_and_label_from_dict(self, dict):
-        return dict["img"], dict["uv"][:, 2].unsqueeze(1)
+        img = dict["img"]
+        b, _, h, w = img.shape
+        padding = torch.full((b, 1, h, w), 1.0, device="cuda")
+        img = torch.cat([img, padding], axis=1)
+        return img, dict["uv"][:, 2].unsqueeze(1)
 
 
     def eval_metrics(self):
