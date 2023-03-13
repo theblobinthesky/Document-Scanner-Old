@@ -47,7 +47,7 @@ void dispatch_compute_program(const uvec2 size, u32 depth);
 
 shader_buffer make_shader_buffer();
 
-void fill_shader_buffer(const shader_buffer& buff, void* data, u32 size);
+void fill_shader_buffer(const shader_buffer& buff, vertex* vertices, u32 vertices_size, u32* indices, u32 indices_size);
 
 texture create_texture(uvec2 size, u32 format);
 

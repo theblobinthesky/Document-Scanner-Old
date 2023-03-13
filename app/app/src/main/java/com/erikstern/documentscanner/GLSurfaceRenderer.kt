@@ -63,7 +63,7 @@ class GLSurfaceRenderer : GLSurfaceView.Renderer {
 
     fun initCam() {
         if(surfaceTextureId == -1) camMustBeInitialized = true
-        
+
         /*if(surfaceTextureId == -1) camMustBeInitialized = true
         else {
             nativeCamInit(surface)

@@ -101,14 +101,16 @@ void docscanner::cam_preview::init_backend(uvec2 preview_size, file_context* fil
         {{1.f, 0.f}, {1, cam_tex_left}},   // 1, 0
         {{0.f, 1.f}, {0, cam_tex_right}},  // 0, 1
         {{1.f, 1.f}, {0, cam_tex_left}},   // 1, 1
-    
-        {{1.f, 0.f}, {1, cam_tex_left}},   // 1, 0
-        {{0.f, 0.f}, {1, cam_tex_right}},  // 0, 0
-        {{0.f, 1.f}, {0, cam_tex_right}}   // 0, 1
+        {{0.f, 0.f}, {1, cam_tex_right}}  // 0, 0
+    };
+
+    u32 indices[] = { 
+        0, 1, 2, 
+        0, 3, 1 
     };
 
     cam_quad_buffer = make_shader_buffer();
-    fill_shader_buffer(cam_quad_buffer, vertices, sizeof(vertices));
+    fill_shader_buffer(cam_quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
 
 
     cam_to_tex_program = compile_and_link_program(compute_shader_cam_to_texture);

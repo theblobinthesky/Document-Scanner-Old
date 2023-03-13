@@ -150,8 +150,14 @@ void docscanner::dispatch_compute_program(const uvec2 size, u32 depth) {
 }
 
 shader_buffer docscanner::make_shader_buffer() {
-    GLuint vbo;
-    glGenBuffers(1, &vbo);
+    GLuint vao;
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+
+    GLuint buffers[2];
+    glGenBuffers(2, buffers);
+
+    GLuint vbo = buffers[0];
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
 #define attrib_enable(index, num_comp, var_name) \
@@ -163,12 +169,16 @@ shader_buffer docscanner::make_shader_buffer() {
 
 #undef attrib_enable
 
-    return {vbo};
+    GLuint ebo = buffers[1];
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+
+    return {vao};
 }
 
-void docscanner::fill_shader_buffer(const shader_buffer& buff, void* data, u32 size) {
-    glBindBuffer(GL_ARRAY_BUFFER, buff.id);
-    glBufferData(GL_ARRAY_BUFFER, size, data, GL_STATIC_DRAW);
+void docscanner::fill_shader_buffer(const shader_buffer& buff, vertex* vertices, u32 vertices_size, u32* indices, u32 indices_size) {
+    glBindVertexArray(buff.id);
+    glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_STATIC_DRAW);
 }
 
 texture docscanner::create_texture(uvec2 size, u32 format) {
@@ -259,7 +269,7 @@ variable docscanner::get_variable(const shader_program& program, const char* nam
 void docscanner::draw(const canvas &canvas) {
     glClear(GL_COLOR_BUFFER_BIT);
     glClearColor(canvas.bg_color.x, canvas.bg_color.y, canvas.bg_color.z, 1);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
 }
 
 #endif
