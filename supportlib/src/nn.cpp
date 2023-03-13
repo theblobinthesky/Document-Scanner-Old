@@ -81,7 +81,6 @@ void docscanner::invoke_neural_network_on_data(const neural_network& nn, u8* inp
     auto start = std::chrono::high_resolution_clock::now();
     
     TfLiteTensor* input_tensor = TfLiteInterpreterGetInputTensor(nn.interpreter, 0);
-    LOGI("(%d, %d, %d, %d), size: %d", input_tensor->dims->data[0], input_tensor->dims->data[1], input_tensor->dims->data[2], input_tensor->dims->data[3], input_tensor->dims->size);
     TfLiteTensorCopyFromBuffer(input_tensor, inp_data, inp_size);
 
     TfLiteInterpreterInvoke(nn.interpreter);

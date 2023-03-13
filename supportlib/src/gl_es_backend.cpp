@@ -141,7 +141,7 @@ void docscanner::use_program(const shader_program &program) {
     check_gl_error("glUseProgram");
 }
 
-void docscanner::dispatch_compute_program(const uvec2 &&size, u32 depth) {
+void docscanner::dispatch_compute_program(const uvec2 size, u32 depth) {
     glDispatchCompute(size.x, size.y, depth);
     check_gl_error("glDispatchCompute");
 

@@ -33,6 +33,8 @@ struct variable {
     void set_mat4(float* data);
 };
 
+extern shader_program cam_preview_program;
+
 shader_program compile_and_link_program(const char* vert_src, const char* frag_src, u32* vert_out, u32* frag_out);
 
 shader_program compile_and_link_program(const char* comp_src);
@@ -41,7 +43,7 @@ void delete_program(shader_program &program);
 
 void use_program(const shader_program &program);
 
-void dispatch_compute_program(const uvec2 &&size, u32 depth);
+void dispatch_compute_program(const uvec2 size, u32 depth);
 
 shader_buffer make_shader_buffer();
 

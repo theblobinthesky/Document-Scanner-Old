@@ -33,38 +33,49 @@ def export(model, tflite_path):
     with open(tflite_path, "wb") as f:
         f.write(tflite_model)
 
-from seg_model import PreModel
+from seg_model import PreModel, binarize
 
-model = PreModel()
-model.load_state_dict(torch.load("models/main_seg_model.pth"))
+class PreModelWrapper(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = PreModel()
+        self.model.load_state_dict(torch.load("models/main_seg_model.pth"))
+
+    def forward(self, x):
+        x = self.model(x)
+
+        return x
+
+
+model = PreModelWrapper()
 export(model, "exports/seg_model.tflite")
 
-# import cv2
-# import numpy as np
-# np_features = cv2.imread("/media/shared/Projekte/DocumentScanner/datasets/Doc3d/img/2/996_6-pr_Page_025-bgI0001.png")
-# np_features = cv2.resize(np_features, (128, 128))
+import cv2
+import numpy as np
+np_features = cv2.imread("/media/shared/Projekte/DocumentScanner/datasets/Doc3d/img/2/996_6-pr_Page_025-bgI0001.png")
+np_features = cv2.resize(np_features, (128, 128))
 
-# np_features = np_features.astype("float32") / 255.0
+np_features = np_features.astype("float32") / 255.0
 
-# h, w, _ = np_features.shape
-# padding = np.full((h, w, 1), 1.0, dtype=np.float32)
-# np_features = np.concatenate([np_features, padding], axis=-1)
+h, w, _ = np_features.shape
+padding = np.full((h, w, 1), 1.0, dtype=np.float32)
+np_features = np.concatenate([np_features, padding], axis=-1)
 
-# interpreter = tf.lite.Interpreter(model_path="exports/seg_model.tflite")
+interpreter = tf.lite.Interpreter(model_path="exports/seg_model.tflite")
 
-# input_details = interpreter.get_input_details()
-# output_details = interpreter.get_output_details()
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
 
-# interpreter.allocate_tensors()
+interpreter.allocate_tensors()
 
-# np_features = np.expand_dims(np_features, axis=0)
+np_features = np.expand_dims(np_features, axis=0)
 
-# interpreter.set_tensor(input_details[0]['index'], np_features)
-# interpreter.invoke()
+interpreter.set_tensor(input_details[0]['index'], np_features)
+interpreter.invoke()
 
-# output = interpreter.get_tensor(output_details[0]['index'])
-# output = output[0]
+output = interpreter.get_tensor(output_details[0]['index'])
+output = output[0]
 
-# import matplotlib.pyplot as plt
-# plt.imshow(output)
-# plt.show()
+import matplotlib.pyplot as plt
+plt.imshow(output)
+plt.show()
