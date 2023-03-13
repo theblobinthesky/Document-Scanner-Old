@@ -141,8 +141,8 @@ void docscanner::cam_preview::init_cam_stuff() {
 
 #undef EVEN_TO_UNEVEN
 
-    cam_tex = create_texture(cam_tex_size, GL_RGBA16F);
-    cam_tex_2 = create_texture(cam_tex_size, GL_RGBA16F);
+    cam_tex = create_texture({128, 128}, GL_RGBA16F);
+    cam_tex_2 = create_texture({128, cam_tex_size.y}, GL_RGBA16F);
 
     cam_fb = framebuffer_from_texture(cam_tex);
     cam_fb_2 = framebuffer_from_texture(cam_tex_2);
@@ -253,12 +253,11 @@ void docscanner::cam_preview::render() {
 
     // first blur pass    
     use_program(gauss_blur_x_program);
-    bind_texture_to_slot(0, cam_tex);
-    
+
     glBindFramebuffer(GL_FRAMEBUFFER, cam_fb_2);
     glBindVertexArray(gauss_quad_buffer.id);
 
-    glViewport(0, 0, cam_tex_size.x, cam_tex_size.y);
+    glViewport(0, 0, 128, cam_tex_size.y);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
     check_gl_error("glDrawElements");
 
@@ -270,7 +269,7 @@ void docscanner::cam_preview::render() {
     glBindFramebuffer(GL_FRAMEBUFFER, cam_fb);
     glBindVertexArray(gauss_quad_buffer.id);
 
-    glViewport(0, 0, cam_tex_size.x, cam_tex_size.y);
+    glViewport(0, 0, 128, 128);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
     check_gl_error("glDrawElements");
 
@@ -308,6 +307,6 @@ void docscanner::cam_preview::render() {
     glBindVertexArray(cam_quad_buffer.id);
     
     bind_texture_to_slot(0, nn_output_tex);
-    bind_texture_to_slot(1, nn_input_tex);
+    bind_texture_to_slot(1, cam_tex);
     draw(c);
 }
