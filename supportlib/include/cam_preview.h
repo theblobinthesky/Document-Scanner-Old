@@ -17,7 +17,8 @@ struct cam_preview {
     u32 nn_input_buffer_size, nn_output_buffer_size;
     u8* nn_input_buffer, *nn_output_buffer;
 
-    texture nn_input_tex, nn_output_tex;
+    texture* nn_input_tex;
+    texture nn_output_tex;
 
     neural_network nn;
 
@@ -25,16 +26,11 @@ struct cam_preview {
     uvec2 preview_size;
     f32 cam_tex_left, cam_tex_right;
 
-    texture cam_tex, cam_tex_2;
-    u32 cam_fb, cam_fb_2;
-    shader_program gauss_blur_x_program;
-    shader_program gauss_blur_y_program;
-
-    shader_buffer gauss_quad_buffer;
-
     u64 last_time;
+    
+    texture_downsampler tex_downsampler;
 
-    void init_cam_stuff();
+    bool is_init;
 
     void pre_init(int* cam_width, int* cam_height);
     void init_backend(uvec2 preview_size, file_context* file_ctx);

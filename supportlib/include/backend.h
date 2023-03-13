@@ -18,6 +18,10 @@ struct shader_buffer {
     u32 id;
 };
 
+struct frame_buffer {
+    u32 id;
+};
+
 struct vertex {
     vec2 pos;
     vec2 uv;
@@ -31,6 +35,23 @@ struct variable {
     int location;
 
     void set_mat4(float* data);
+};
+
+struct texture_downsampler {
+    uvec2 input_size, output_size;
+    bool input_is_oes_texture;
+    const texture* input_tex;
+
+    texture temp_tex, output_tex;
+    frame_buffer temp_fb, output_fb;
+    
+    shader_program gauss_blur_x_program;
+    shader_program gauss_blur_y_program;
+
+    shader_buffer gauss_quad_buffer;
+
+    void init(uvec2 input_size, uvec2 output_size, bool input_is_oes_texture, const texture* input_tex);
+    texture* downsample();
 };
 
 extern shader_program cam_preview_program;
@@ -57,9 +78,11 @@ void bind_image_to_slot(u32 slot, const texture &tex);
 
 void bind_texture_to_slot(u32 slot, const texture &tex);
 
-u32 framebuffer_from_texture(const texture& tex);
+void bind_framebuffer(const frame_buffer &fb);
 
-void get_framebuffer_data(u32 fb, u8* &data, u32 size);
+frame_buffer framebuffer_from_texture(const texture& tex);
+
+void get_framebuffer_data(const frame_buffer &fb, u8* &data, u32 size);
 
 void set_texture_data(const texture &tex, u8* data, int width, int height);
 

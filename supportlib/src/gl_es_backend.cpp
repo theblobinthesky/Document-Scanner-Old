@@ -3,8 +3,58 @@
 #include "backend.h"
 #include <cstdlib>
 #include <csignal>
+#include <string>
+#include <math.h>
 
 using namespace docscanner;
+
+constexpr const char vert_src[] = R"(#version 310 es
+        uniform mat4 projection;
+
+        in vec2 position;
+        in vec2 uvs;
+        out vec2 out_uvs;
+
+        void main() {
+             gl_Position = projection * vec4(position, 0, 1);
+             out_uvs = uvs;
+        }
+)";
+
+constexpr const char gauss_blur_frag_src[] = R"(#version 310 es
+#if %d
+        #extension GL_OES_EGL_image_external_essl3 : require
+        uniform layout(binding = 0) samplerExternalOES sampler;
+#else
+        uniform layout(binding = 0) sampler2D sampler;
+#endif
+
+        precision mediump float;
+        
+        in vec2 out_uvs;
+        out vec4 out_col;
+
+        const int M = %u;
+        const float coeffs[M] = float[M](%s);
+        const vec2 pixel_shift = vec2(%f, %f);
+
+        void main() {
+            vec4 col = coeffs[0] * texture(sampler, out_uvs);
+
+            for(int i = 1; i < M; i += 2) {
+                float w0 = coeffs[i];
+                float w1 = coeffs[i + 1];
+
+                float w = w0 + w1;
+                float t = w1 / w;
+
+                col += w * texture(sampler, out_uvs + (float(i) + t) * pixel_shift);
+                col += w * texture(sampler, out_uvs - (float(i) + t) * pixel_shift);
+            }
+
+            out_col = col;
+        }
+)";
 
 void docscanner::check_gl_error(const char* op) {
     for (GLenum error = glGetError(); error; error = glGetError()) {
@@ -14,6 +64,145 @@ void docscanner::check_gl_error(const char* op) {
 
 void docscanner::variable::set_mat4(float* data) {
     glUniformMatrix4fv(location, 1, GL_FALSE, data);
+}
+
+std::string compute_gauss_coefficients(int n) {
+    int m = n / 2 + 1;
+    f32 sigma = (n - 1.0f) / 4.0f;
+    
+    f32 *coeffs = new f32[m];
+    f32 sum = 0.0f;
+
+#define compute_gauss_coeff(i) \
+        const f32 gauss_factor = 1.0 / sqrt(2 * M_PI * sigma); \
+        const f32 x = (f32)(i); \
+        coeffs[i] = gauss_factor * pow(M_E, -(x * x) / (2 * sigma * sigma));
+
+    compute_gauss_coeff(0);        
+
+    for(int i = 1; i < m; i++) {
+        compute_gauss_coeff(i);
+        sum += 2 * coeffs[i];
+    } 
+
+#undef compute_gauss_coeff
+
+    // normalize
+    for(int i = 0; i < m; i++) {
+        coeffs[i] /= sum;
+    }
+
+    std::string ret = "";
+    for(int i = 0; i < m; i++) {
+        ret = ret + std::to_string(coeffs[i]);
+
+        if(i != m - 1) ret = ret + ", ";
+    }
+
+    delete[] coeffs;
+
+    return ret;
+}
+
+char* prepare_gauss_fragment_src(bool sample_from_external, u32 n, vec2 pixel_shift) {
+    std::string gauss_coeffs = compute_gauss_coefficients(n);
+
+    size_t needed = snprintf(null, 0, gauss_blur_frag_src, sample_from_external, n / 2 + 1, gauss_coeffs.c_str(), pixel_shift.x, pixel_shift.y);
+    
+    char* buff = new char[needed];
+    sprintf(buff, gauss_blur_frag_src, sample_from_external, n / 2 + 1, gauss_coeffs.c_str(), pixel_shift.x, pixel_shift.y);
+    return buff;
+}
+
+void docscanner::texture_downsampler::init(uvec2 input_size, uvec2 output_size, bool input_is_oes_texture, const texture* input_tex) {
+    this->input_size = input_size;
+    this->output_size = output_size;
+    this->input_is_oes_texture = input_is_oes_texture;
+    this->input_tex = input_tex;
+
+    ASSERT(input_is_oes_texture, "Input must be OES texture.");
+
+#define EVEN_TO_UNEVEN(n) if ((n) % 2 == 0) { n++; }
+
+    uvec2 req_kernel_size = {
+        (u32)((f32)input_size.x / (f32)output_size.x),
+        (u32)((f32)input_size.y / (f32)output_size.y)
+    };
+
+    EVEN_TO_UNEVEN(req_kernel_size.x);
+    EVEN_TO_UNEVEN(req_kernel_size.y);
+
+#undef EVEN_TO_UNEVEN
+
+    temp_tex = create_texture({output_size.x, input_size.y}, GL_RGBA16F);
+    output_tex = create_texture(output_size, GL_RGBA32F);
+    
+    temp_fb = framebuffer_from_texture(temp_tex);
+    output_fb = framebuffer_from_texture(output_tex);
+    
+    char* gauss_frag_src_x = prepare_gauss_fragment_src(true, req_kernel_size.x, {1.0f / (f32)input_size.x, 0.0f});
+    LOGI("%s", gauss_frag_src_x);
+    gauss_blur_x_program = compile_and_link_program(vert_src, gauss_frag_src_x, null, null);
+    ASSERT(gauss_blur_x_program.program, "gauss_blur_x_program program could not be compiled.");
+    
+    char* gauss_frag_src_y = prepare_gauss_fragment_src(false, req_kernel_size.y, {0.0f, 1.0f / (f32)input_size.y});
+    gauss_blur_y_program = compile_and_link_program(vert_src, gauss_frag_src_y, null, null);
+    ASSERT(gauss_blur_y_program.program, "gauss_blur_y_program program could not be compiled.");
+
+    float projection[16];
+    mat4f_load_ortho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f, projection);
+
+    use_program(gauss_blur_x_program);
+    auto proj_matrix_x_var = get_variable(gauss_blur_x_program, "projection");
+    proj_matrix_x_var.set_mat4(projection);
+
+    use_program(gauss_blur_y_program);
+    auto proj_matrix_y_var = get_variable(gauss_blur_y_program, "projection");    
+    proj_matrix_y_var.set_mat4(projection);
+
+    vertex vertices[] = {
+        {{1.f, 0.f}, {1, 0}},
+        {{0.f, 1.f}, {0, 1}},
+        {{1.f, 1.f}, {1, 1}},
+        {{0.f, 0.f}, {0, 0}}
+    };
+
+    u32 indices[] = { 
+        0, 1, 2, 
+        0, 3, 1 
+    };
+
+    gauss_quad_buffer = make_shader_buffer();
+    fill_shader_buffer(gauss_quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
+}
+
+texture* docscanner::texture_downsampler::downsample() {
+    int viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+
+    glBindVertexArray(gauss_quad_buffer.id);
+
+    // first blur pass    
+    use_program(gauss_blur_x_program);
+    bind_framebuffer(temp_fb);
+
+    glViewport(0, 0, output_size.x, input_size.y);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
+    check_gl_error("glDrawElements");
+
+    // second blur pass
+    use_program(gauss_blur_y_program);
+    bind_texture_to_slot(0, temp_tex);
+    bind_framebuffer(output_fb);
+    
+    glViewport(0, 0, output_size.x, output_size.y);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
+    check_gl_error("glDrawElements");
+
+    // restore old viewport
+    glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+
+    return &output_tex;
 }
 
 GLuint load_shader(GLenum type, const char* source) {
@@ -201,7 +390,12 @@ void docscanner::bind_texture_to_slot(u32 slot, const texture &tex) {
     check_gl_error("glBindTexture");
 }
 
-u32 docscanner::framebuffer_from_texture(const texture& tex) {
+void docscanner::bind_framebuffer(const frame_buffer& fb) {
+    glBindFramebuffer(GL_FRAMEBUFFER, fb.id);
+    check_gl_error("glBindFramebuffer");
+}
+
+frame_buffer docscanner::framebuffer_from_texture(const texture& tex) {
     GLuint fb;
     glGenFramebuffers(1, &fb);
     glBindFramebuffer(GL_FRAMEBUFFER, fb);
@@ -210,11 +404,11 @@ u32 docscanner::framebuffer_from_texture(const texture& tex) {
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     ASSERT(status == GL_FRAMEBUFFER_COMPLETE, "glCheckFramebufferStatus indicates the Framebuffer is incomplete (error code 0x%x).", status);
 
-    return fb;
+    return {fb};
 }
 
-void docscanner::get_framebuffer_data(u32 fb, u8* &data, u32 size) { 
-    glBindFramebuffer(GL_FRAMEBUFFER, fb);
+void docscanner::get_framebuffer_data(const frame_buffer &fb, u8* &data, u32 size) { 
+    bind_framebuffer(fb);
     glReadPixels(0, 0, 128, 128, GL_RGBA, GL_FLOAT, data);
     check_gl_error("glReadPixels");
 }

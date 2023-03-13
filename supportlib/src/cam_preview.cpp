@@ -28,42 +28,7 @@ constexpr const char frag_src[] = R"(#version 310 es
         out vec4 out_col;
 
         void main() {
-             out_col = texture(cam_sampler, out_uvs); // * texture(mask_sampler, out_uvs).r;
-        }
-)";
-
-constexpr const char gauss_blur_frag_src[] = R"(#version 310 es
-#if %d
-        #extension GL_OES_EGL_image_external_essl3 : require
-        uniform layout(binding = 0) samplerExternalOES sampler;
-#else
-        uniform layout(binding = 0) sampler2D sampler;
-#endif
-
-        precision mediump float;
-        
-        in vec2 out_uvs;
-        out vec4 out_col;
-
-        const int M = %u;
-        const float coeffs[M] = float[M](%s);
-        const vec2 pixel_shift = vec2(%f, %f);
-
-        void main() {
-            vec4 col = coeffs[0] * texture(sampler, out_uvs);
-
-            for(int i = 1; i < M; i += 2) {
-                float w0 = coeffs[i];
-                float w1 = coeffs[i + 1];
-
-                float w = w0 + w1;
-                float t = w1 / w;
-
-                col += w * texture(sampler, out_uvs + (float(i) + t) * pixel_shift);
-                col += w * texture(sampler, out_uvs - (float(i) + t) * pixel_shift);
-            }
-
-            out_col = col;
+             out_col = texture(cam_sampler, out_uvs) * texture(mask_sampler, out_uvs).r;
         }
 )";
 
@@ -71,112 +36,6 @@ void docscanner::cam_preview::pre_init(int* cam_width, int* cam_height) {
     cam = find_and_open_back_camera(cam_tex_size.x, cam_tex_size.y);
     *cam_width = (int) cam_tex_size.x;
     *cam_height = (int) cam_tex_size.y;
-}
-
-#include <string>
-#include <math.h>
-
-std::string compute_gauss_coefficients(int n) {
-    int m = n / 2 + 1;
-    f32 sigma = (n - 1.0f) / 4.0f;
-    
-    f32 *coeffs = new f32[m];
-    f32 sum = 0.0f;
-
-#define compute_gauss_coeff(i) \
-        const f32 gauss_factor = 1.0 / sqrt(2 * M_PI * sigma); \
-        const f32 x = (f32)(i); \
-        coeffs[i] = gauss_factor * pow(M_E, -(x * x) / (2 * sigma * sigma));
-
-    compute_gauss_coeff(0);        
-
-    for(int i = 1; i < m; i++) {
-        compute_gauss_coeff(i);
-        sum += 2 * coeffs[i];
-    } 
-
-#undef compute_gauss_coeff
-
-    // normalize
-    for(int i = 0; i < m; i++) {
-        coeffs[i] /= sum;
-    }
-
-    std::string ret = "";
-    for(int i = 0; i < m; i++) {
-        ret = ret + std::to_string(coeffs[i]);
-
-        if(i != m - 1) ret = ret + ", ";
-    }
-
-    delete[] coeffs;
-
-    return ret;
-}
-
-char* prepare_gauss_fragment_src(bool sample_from_external, u32 n, vec2 pixel_shift) {
-    std::string gauss_coeffs = compute_gauss_coefficients(n);
-
-    size_t needed = snprintf(null, 0, gauss_blur_frag_src, sample_from_external, n / 2 + 1, gauss_coeffs.c_str(), pixel_shift.x, pixel_shift.y);
-    
-    char* buff = new char[needed];
-    sprintf(buff, gauss_blur_frag_src, sample_from_external, n / 2 + 1, gauss_coeffs.c_str(), pixel_shift.x, pixel_shift.y);
-    return buff;
-}
-
-void docscanner::cam_preview::init_cam_stuff() {
-#define EVEN_TO_UNEVEN(n) if ((n) % 2 == 0) { n++; }
-
-    uvec2 req_kernel_size = {
-        (u32)(cam_tex_size.x / 128.0),
-        (u32)(cam_tex_size.y / 128.0)
-    };
-
-    EVEN_TO_UNEVEN(req_kernel_size.x);
-    EVEN_TO_UNEVEN(req_kernel_size.y);
-
-#undef EVEN_TO_UNEVEN
-
-    cam_tex = create_texture({128, 128}, GL_RGBA32F);
-    cam_tex_2 = create_texture({128, cam_tex_size.y}, GL_RGBA16F);
-
-    cam_fb = framebuffer_from_texture(cam_tex);
-    cam_fb_2 = framebuffer_from_texture(cam_tex_2);
-
-    char* gauss_frag_src_x = prepare_gauss_fragment_src(true, req_kernel_size.x, {1.0f / (f32)cam_tex_size.x, 0.0f});
-    LOGI("%s", gauss_frag_src_x);
-    gauss_blur_x_program = compile_and_link_program(vert_src, gauss_frag_src_x, null, null);
-    ASSERT(gauss_blur_x_program.program, "gauss_blur_x_program program could not be compiled.");
-    
-    char* gauss_frag_src_y = prepare_gauss_fragment_src(false, req_kernel_size.y, {0.0f, 1.0f / (f32)cam_tex_size.y});
-    gauss_blur_y_program = compile_and_link_program(vert_src, gauss_frag_src_y, null, null);
-    ASSERT(gauss_blur_y_program.program, "gauss_blur_y_program program could not be compiled.");
-
-    float projection[16];
-    mat4f_load_ortho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f, projection);
-
-    use_program(gauss_blur_x_program);
-    auto proj_matrix_x_var = get_variable(gauss_blur_x_program, "projection");
-    proj_matrix_x_var.set_mat4(projection);
-
-    use_program(gauss_blur_y_program);
-    auto proj_matrix_y_var = get_variable(gauss_blur_y_program, "projection");    
-    proj_matrix_y_var.set_mat4(projection);
-
-    vertex vertices[] = {
-        {{1.f, 0.f}, {1, 0}},
-        {{0.f, 1.f}, {0, 1}},
-        {{1.f, 1.f}, {1, 1}},
-        {{0.f, 0.f}, {0, 0}}
-    };
-
-    u32 indices[] = { 
-        0, 1, 2, 
-        0, 3, 1 
-    };
-
-    gauss_quad_buffer = make_shader_buffer();
-    fill_shader_buffer(gauss_quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
 }
 
 void docscanner::cam_preview::init_backend(uvec2 preview_size, file_context* file_ctx) {
@@ -221,11 +80,11 @@ void docscanner::cam_preview::init_backend(uvec2 preview_size, file_context* fil
     
     nn_output_tex = create_texture({128, 128}, GL_R32F);
 
-    /*
-    nn = create_neural_network_from_path(file_ctx, "seg_model.tflite", execution_pref::sustained_speed);
-    */
+    tex_downsampler.init(cam_tex_size, {128, 128}, true, null);
 
-    init_cam_stuff();
+    nn = create_neural_network_from_path(file_ctx, "seg_model.tflite", execution_pref::sustained_speed);
+
+    is_init = true;
 }
 
 void docscanner::cam_preview::init_cam(ANativeWindow* texture_window) {
@@ -235,46 +94,15 @@ void docscanner::cam_preview::init_cam(ANativeWindow* texture_window) {
 #include <chrono>
 
 void docscanner::cam_preview::render() {
-    int viewport[4];
-    glGetIntegerv(GL_VIEWPORT, viewport);
+    if(!is_init) return;
 
-    // first blur pass    
-    use_program(gauss_blur_x_program);
+    nn_input_tex = tex_downsampler.downsample();
 
-    glBindFramebuffer(GL_FRAMEBUFFER, cam_fb_2);
-    glBindVertexArray(gauss_quad_buffer.id);
-
-    glViewport(0, 0, 128, cam_tex_size.y);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
-    check_gl_error("glDrawElements");
-
-
-    // second blur pass
-    use_program(gauss_blur_y_program);
-    bind_texture_to_slot(0, cam_tex_2);
-    
-    glBindFramebuffer(GL_FRAMEBUFFER, cam_fb);
-    glBindVertexArray(gauss_quad_buffer.id);
-
-    glViewport(0, 0, 128, 128);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
-    check_gl_error("glDrawElements");
-
-
-    glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-
-    auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-    auto dur = end - last_time;
-    LOGI("gl downscaling takes %lldms", dur);
-    last_time = end;
-    
-    /*    
-    get_framebuffer_data(nn_input_fb, nn_input_buffer, nn_input_buffer_size);
+    get_framebuffer_data(tex_downsampler.output_fb, nn_input_buffer, nn_input_buffer_size);
     
     invoke_neural_network_on_data(nn, nn_input_buffer, nn_input_buffer_size, nn_output_buffer, nn_output_buffer_size);
 
     set_texture_data(nn_output_tex, nn_output_buffer, 128, 128);
-    */
 
     canvas c = {
         .bg_color={0, 1, 0}
@@ -286,6 +114,11 @@ void docscanner::cam_preview::render() {
     glBindVertexArray(cam_quad_buffer.id);
     
     bind_texture_to_slot(0, nn_output_tex);
-    bind_texture_to_slot(1, cam_tex);
+    bind_texture_to_slot(1, *nn_input_tex);
     draw(c);
+
+    auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+    auto dur = end - last_time;
+    LOGI("frame time: %lldms", dur);
+    last_time = end;
 }

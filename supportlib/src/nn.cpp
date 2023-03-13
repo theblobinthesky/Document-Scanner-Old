@@ -11,7 +11,7 @@ using namespace docscanner;
 #if true
 TfLiteDelegate* create_delegate(execution_pref pref) {
     TfLiteNnapiDelegateOptions options = TfLiteNnapiDelegateOptionsDefault();
-    
+
     if(pref == execution_pref::sustained_speed)
         options.execution_preference = TfLiteNnapiDelegateOptions::ExecutionPreference::kSustainedSpeed;
     else if(pref == execution_pref::fast_single_answer)
