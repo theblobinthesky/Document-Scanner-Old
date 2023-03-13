@@ -46,36 +46,24 @@ constexpr const char gauss_blur_frag_src[] = R"(#version 310 es
         out vec4 out_col;
 
         const int M = %u;
-        const int N = 2 * M + 1;
-        const float coeffs[N] = float[N](%s);
+        const float coeffs[M] = float[M](%s);
         const vec2 pixel_shift = vec2(%f, %f);
 
         void main() {
-            vec4 col = vec4(0);
-            for(int i = 0; i < N; i++) {
-                col += coeffs[i] * texture(sampler, out_uvs + float(i - M) * pixel_shift);
+            vec4 col = coeffs[0] * texture(sampler, out_uvs);
+
+            for(int i = 1; i < M; i += 2) {
+                float w0 = coeffs[i];
+                float w1 = coeffs[i + 1];
+
+                float w = w0 + w1;
+                float t = w1 / w;
+
+                col += w * texture(sampler, out_uvs + (float(i) + t) * pixel_shift);
+                col += w * texture(sampler, out_uvs - (float(i) + t) * pixel_shift);
             }
 
             out_col = col;
-        }
-)";
-
-const char compute_shader_cam_to_nn_input_size[] = R"(#version 320 es
-        precision mediump image2D;
-
-        layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-        uniform layout(binding = 0) sampler2D sampler_input;
-        uniform layout(binding = 0, rgba32f) writeonly image2D img_output;
-
-        void main() {
-            ivec2 pt_xy = ivec2(gl_GlobalInvocationID.xy);
-            vec2 pt_uv = vec2(
-                float(gl_GlobalInvocationID.x) / float(gl_NumWorkGroups.x - 1u),
-                float(gl_GlobalInvocationID.y) / float(gl_NumWorkGroups.y - 1u)
-            );
-
-            vec4 color = texture(sampler_input, pt_uv);
-            imageStore(img_output, pt_xy, color);
         }
 )";
 
@@ -89,28 +77,36 @@ void docscanner::cam_preview::pre_init(int* cam_width, int* cam_height) {
 #include <math.h>
 
 std::string compute_gauss_coefficients(int n) {
-    f32 sigma = (n - 1.0f) / 2.0f;
+    int m = n / 2 + 1;
+    f32 sigma = (n - 1.0f) / 4.0f;
     
-    f32 *coeffs = new f32[n];
+    f32 *coeffs = new f32[m];
     f32 sum = 0.0f;
 
-    for(int i = 0; i < n; i++) {
-        const f32 gauss_factor = 1.0 / sqrt(2 * M_PI * sigma);
-        const f32 x = (f32)(i - n / 2);
+#define compute_gauss_coeff(i) \
+        const f32 gauss_factor = 1.0 / sqrt(2 * M_PI * sigma); \
+        const f32 x = (f32)(i); \
         coeffs[i] = gauss_factor * pow(M_E, -(x * x) / (2 * sigma * sigma));
-        sum += coeffs[i];
+
+    compute_gauss_coeff(0);        
+
+    for(int i = 1; i < m; i++) {
+        compute_gauss_coeff(i);
+        sum += 2 * coeffs[i];
     } 
 
+#undef compute_gauss_coeff
+
     // normalize
-    for(int i = 0; i < n; i++) {
+    for(int i = 0; i < m; i++) {
         coeffs[i] /= sum;
     }
 
     std::string ret = "";
-    for(int i = 0; i < n; i++) {
+    for(int i = 0; i < m; i++) {
         ret = ret + std::to_string(coeffs[i]);
 
-        if(i != n - 1) ret = ret + ", ";
+        if(i != m - 1) ret = ret + ", ";
     }
 
     delete[] coeffs;
@@ -121,10 +117,10 @@ std::string compute_gauss_coefficients(int n) {
 char* prepare_gauss_fragment_src(bool sample_from_external, u32 n, vec2 pixel_shift) {
     std::string gauss_coeffs = compute_gauss_coefficients(n);
 
-    size_t needed = snprintf(null, 0, gauss_blur_frag_src, sample_from_external, n / 2, gauss_coeffs.c_str(), pixel_shift.x, pixel_shift.y);
+    size_t needed = snprintf(null, 0, gauss_blur_frag_src, sample_from_external, n / 2 + 1, gauss_coeffs.c_str(), pixel_shift.x, pixel_shift.y);
     
     char* buff = new char[needed];
-    sprintf(buff, gauss_blur_frag_src, sample_from_external, n / 2, gauss_coeffs.c_str(), pixel_shift.x, pixel_shift.y);
+    sprintf(buff, gauss_blur_frag_src, sample_from_external, n / 2 + 1, gauss_coeffs.c_str(), pixel_shift.x, pixel_shift.y);
     return buff;
 }
 
@@ -141,7 +137,7 @@ void docscanner::cam_preview::init_cam_stuff() {
 
 #undef EVEN_TO_UNEVEN
 
-    cam_tex = create_texture({128, 128}, GL_RGBA16F);
+    cam_tex = create_texture({128, 128}, GL_RGBA32F);
     cam_tex_2 = create_texture({128, cam_tex_size.y}, GL_RGBA16F);
 
     cam_fb = framebuffer_from_texture(cam_tex);
@@ -217,21 +213,14 @@ void docscanner::cam_preview::init_backend(uvec2 preview_size, file_context* fil
     cam_quad_buffer = make_shader_buffer();
     fill_shader_buffer(cam_quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
 
-
-    nn_input_program = compile_and_link_program(compute_shader_cam_to_nn_input_size);
-    ASSERT(nn_input_program.program, "NN input program could not be compiled.");
-
     nn_input_buffer_size = 128 * 128 * 4 * sizeof(float);
     nn_input_buffer = new u8[nn_input_buffer_size];
 
     nn_output_buffer_size = 128 * 128 * 1 * sizeof(float);
     nn_output_buffer = new u8[nn_output_buffer_size];
     
-    nn_input_tex = create_texture({128, 128}, GL_RGBA32F);
     nn_output_tex = create_texture({128, 128}, GL_R32F);
 
-    nn_input_fb = framebuffer_from_texture(nn_input_tex);
-    
     /*
     nn = create_neural_network_from_path(file_ctx, "seg_model.tflite", execution_pref::sustained_speed);
     */
@@ -246,8 +235,6 @@ void docscanner::cam_preview::init_cam(ANativeWindow* texture_window) {
 #include <chrono>
 
 void docscanner::cam_preview::render() {
-    auto start = std::chrono::high_resolution_clock::now();
-    
     int viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
 
@@ -276,19 +263,11 @@ void docscanner::cam_preview::render() {
 
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 
-    // downscale gl texture
-    use_program(nn_input_program);
-
-    bind_texture_to_slot(0, cam_tex);
-    bind_image_to_slot(0, nn_input_tex);
-    dispatch_compute_program({128, 128}, 1);
-
-    glFinish();
-
-    auto end = std::chrono::high_resolution_clock::now();
-    auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    LOGI("gl downscaling takes %lldms", dur.count());
-
+    auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+    auto dur = end - last_time;
+    LOGI("gl downscaling takes %lldms", dur);
+    last_time = end;
+    
     /*    
     get_framebuffer_data(nn_input_fb, nn_input_buffer, nn_input_buffer_size);
     

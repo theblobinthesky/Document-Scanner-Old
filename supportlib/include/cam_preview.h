@@ -9,7 +9,7 @@ struct ANativeWindow;
 NAMESPACE_BEGIN
 
 struct cam_preview {
-    shader_program preview_program, nn_input_program;
+    shader_program preview_program;
     ACameraDevice* cam;
 
     shader_buffer cam_quad_buffer;
@@ -18,8 +18,6 @@ struct cam_preview {
     u8* nn_input_buffer, *nn_output_buffer;
 
     texture nn_input_tex, nn_output_tex;
-
-    u32 nn_input_fb;
 
     neural_network nn;
 
@@ -33,6 +31,8 @@ struct cam_preview {
     shader_program gauss_blur_y_program;
 
     shader_buffer gauss_quad_buffer;
+
+    u64 last_time;
 
     void init_cam_stuff();
 
