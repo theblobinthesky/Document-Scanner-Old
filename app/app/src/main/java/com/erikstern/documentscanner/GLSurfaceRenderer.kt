@@ -19,14 +19,12 @@ class GLSurfaceRenderer : GLSurfaceView.Renderer {
     var nativeContext: Long = 0
 
     val lock = Any()
-    var camMustBeInitialized = false
     var frameAvailable = false
 
     private external fun nativeCreate()
     private external fun nativeDestroy()
     private external fun nativePreInit() : IntArray
-    private external fun nativeRenderInit(assetManager: AssetManager, preview_width: Int, preview_height: Int)
-    private external fun nativeCamInit(surface: Surface)
+    private external fun nativeInit(assetManager: AssetManager, surface: Surface, preview_width: Int, preview_height: Int)
 
     private external fun nativeRender()
 
@@ -61,21 +59,8 @@ class GLSurfaceRenderer : GLSurfaceView.Renderer {
         surfaceTexture.setDefaultBufferSize(dimens[0], dimens[1])
     }
 
-    fun initCam() {
-        if(surfaceTextureId == -1) camMustBeInitialized = true
-
-        /*if(surfaceTextureId == -1) camMustBeInitialized = true
-        else {
-            nativeCamInit(surface)
-            nativeRenderInit(context.assets, width, height)
-        }*/
-    }
-
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
-        if(camMustBeInitialized) {
-            nativeCamInit(surface)
-            nativeRenderInit(context.assets, width, height)
-        }
+        nativeInit(context.assets, surface, width, height)
     }
 
     override fun onDrawFrame(gl: GL10?) {

@@ -32,19 +32,15 @@ DECL_FUNC(jintArray, GLSurfaceRenderer, nativePreInit)(JNIEnv* env, jobject obj)
     return jintArray_from_ptr(env, dimens, 2);
 }
 
-DECL_FUNC(void, GLSurfaceRenderer, nativeRenderInit)(JNIEnv *env, jobject obj, jobject asset_mngr, jint preview_width, jint preview_height) {
+DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject asset_mngr,
+        jobject surface, jint preview_width, jint preview_height) {
     auto* mngr_from_java = AAssetManager_fromJava(env, asset_mngr);
     auto file_ctx = docscanner::get_file_ctx_from_asset_mngr(mngr_from_java);
 
-    docscanner::pipeline *pipeline = docscanner::get_persistent_pipeline(env, obj);
-    if (pipeline) pipeline->init_backend({(u32) preview_width, (u32) preview_height}, &file_ctx);
-}
-
-DECL_FUNC(void, GLSurfaceRenderer, nativeCamInit)(JNIEnv *env, jobject obj, jobject surface) {
     auto *window = ANativeWindow_fromSurface(env, surface);
 
     docscanner::pipeline *pipeline = docscanner::get_persistent_pipeline(env, obj);
-    if (pipeline) pipeline->init_cam(window);
+    if (pipeline) pipeline->init_backend(window, {(u32) preview_width, (u32) preview_height}, &file_ctx);
 }
 
 DECL_FUNC(void, GLSurfaceRenderer, nativeRender)(JNIEnv *env, jobject obj) {

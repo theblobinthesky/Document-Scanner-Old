@@ -6,7 +6,7 @@
 
 using namespace docscanner;
 
-void check_gl_error(const char* op) {
+void docscanner::check_gl_error(const char* op) {
     for (GLenum error = glGetError(); error; error = glGetError()) {
         LOGE_AND_BREAK("glError with code 0x%04x was triggered by %s().\n", error, op);
     }
@@ -201,39 +201,16 @@ void docscanner::bind_texture_to_slot(u32 slot, const texture &tex) {
     check_gl_error("glBindTexture");
 }
 
-u32 docscanner::framebuffer_from_texture(const texture& tex, u32 size) {
-    GLint prev_tex;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex);
-    
-    glBindTexture(GL_TEXTURE_2D, tex.id);
-
-    int width, height, internal_format;
-    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
-    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
-    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, &internal_format);
-
-    int num_channels = 0;
-    switch (internal_format)
-    {
-        case GL_R32F: num_channels = 1; break;
-        case GL_RG32F: num_channels = 2; break;
-        case GL_RGBA32F: num_channels = 4; break;
-        default: LOGE_AND_BREAK("Invalid internal format.");
-    }
-
-    ASSERT(size == width * height * num_channels * 4, "The texture size doesn't match the buffer size.");
-
-    glBindTexture(GL_TEXTURE_2D, prev_tex);
-
-    GLuint offscreen_framebuffer;
-    glGenFramebuffers(1, &offscreen_framebuffer);
-    glBindFramebuffer(GL_FRAMEBUFFER, offscreen_framebuffer);
+u32 docscanner::framebuffer_from_texture(const texture& tex) {
+    GLuint fb;
+    glGenFramebuffers(1, &fb);
+    glBindFramebuffer(GL_FRAMEBUFFER, fb);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex.id, 0);
 
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     ASSERT(status == GL_FRAMEBUFFER_COMPLETE, "glCheckFramebufferStatus indicates the Framebuffer is incomplete (error code 0x%x).", status);
 
-    return offscreen_framebuffer;
+    return fb;
 }
 
 void docscanner::get_framebuffer_data(u32 fb, u8* &data, u32 size) { 

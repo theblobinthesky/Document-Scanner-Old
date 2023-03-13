@@ -10,12 +10,8 @@ void docscanner::pipeline::pre_init(int* cam_width, int* cam_height) {
     cam_preview_screen.pre_init(cam_width, cam_height);
 }
 
-void docscanner::pipeline::init_backend(uvec2 preview_size, file_context* file_ctx) {
+void docscanner::pipeline::init_backend(ANativeWindow* texture_window, uvec2 preview_size, file_context* file_ctx) {
     cam_preview_screen.init_backend(preview_size, file_ctx);
-}
-
-
-void docscanner::pipeline::init_cam(ANativeWindow* texture_window) {
     cam_preview_screen.init_cam(texture_window);
 }
 

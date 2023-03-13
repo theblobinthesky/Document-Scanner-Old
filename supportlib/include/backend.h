@@ -35,6 +35,8 @@ struct variable {
 
 extern shader_program cam_preview_program;
 
+void check_gl_error(const char* op);
+
 shader_program compile_and_link_program(const char* vert_src, const char* frag_src, u32* vert_out, u32* frag_out);
 
 shader_program compile_and_link_program(const char* comp_src);
@@ -55,7 +57,7 @@ void bind_image_to_slot(u32 slot, const texture &tex);
 
 void bind_texture_to_slot(u32 slot, const texture &tex);
 
-u32 framebuffer_from_texture(const texture& tex, u32 size);
+u32 framebuffer_from_texture(const texture& tex);
 
 void get_framebuffer_data(u32 fb, u8* &data, u32 size);
 

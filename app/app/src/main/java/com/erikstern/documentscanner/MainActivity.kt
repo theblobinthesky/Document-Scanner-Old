@@ -4,8 +4,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.util.AttributeSet
-import android.util.Log
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -15,23 +13,24 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private val surfaceRenderer = GLSurfaceRenderer()
 
+    private fun initSurfaceViewWithGivenPermissions() {
+        surfaceRenderer.setSurfaceView(binding.glSurfaceView)
+        binding.glSurfaceView.visibility = View.VISIBLE
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        surfaceRenderer.setSurfaceView(binding.glSurfaceView)
-
         val permissionCheck = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grantResults ->
             val allResult = grantResults.all { it.value }
-            if(allResult) {
-                surfaceRenderer.initCam()
-            }
+            if(allResult) initSurfaceViewWithGivenPermissions()
         }
 
         if(ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            surfaceRenderer.initCam()
+            initSurfaceViewWithGivenPermissions()
         }
         else {
             permissionCheck.launch(arrayOf(android.Manifest.permission.CAMERA))

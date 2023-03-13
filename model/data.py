@@ -129,7 +129,7 @@ def load_datasets(train_ds, valid_ds, test_ds, batch_size):
            load_dataset(test_ds, batch_size)
 
 
-resize_transform = Resize((128, 128))
+resize_transform = Resize((64, 64))
 jitter_transform = ColorJitter(brightness=0.1, contrast=0.05, saturation=0.3, hue=0.1)
 
 def prepare_pre_dataset():
