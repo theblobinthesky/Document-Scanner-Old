@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from model import Conv, conv1x1, DilatedBlock, DoubleConv
+from model import Conv, conv1x1, MultiscaleBlock, DoubleConv
 from model import loss_smooth, loss_circle_consistency, metric_local_distortion
 
 # Progressive dewarping inspired by:
@@ -97,11 +97,11 @@ class ResNetEncoder(nn.Module):
         super().__init__()
 
         self.layers = nn.Sequential(
-            DilatedBlock(3, 64),
+            MultiscaleBlock(3, 64),
 
             nn.MaxPool2d(2),
 
-            DilatedBlock(64, 64),
+            MultiscaleBlock(64, 64),
             ResNetBlockConst(64),
             
             nn.MaxPool2d(2),

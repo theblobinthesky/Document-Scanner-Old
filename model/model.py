@@ -57,7 +57,7 @@ class DoubleConv(nn.Module):
         return self.layers(x)
 
 
-class DilatedBlock(nn.Module):
+class MultiscaleBlock(nn.Module):
     def __init__(self, inp, out):
         super().__init__()
 

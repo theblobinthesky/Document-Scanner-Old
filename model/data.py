@@ -129,7 +129,7 @@ def load_pre_dataset(batch_size):
         ([("img", "Doc3d_64x64/img/1", "png"), ("uv", "Doc3d_64x64/lines/1", "png")], 5000),
         ([("img", "Doc3d_64x64/img/2", "png"), ("uv", "Doc3d_64x64/lines/2", "png")], 5000),
         ([("img", "Doc3d_64x64/img/3", "png"), ("uv", "Doc3d_64x64/lines/3", "png")], 5000),
-        ([("img", "MitIndoor", "jpg")], 1500)
+        ([("img", "MitIndoor_64x64", "jpg")], 1500)
     ], batch_size=batch_size, valid_perc=0.1, test_perc=0.1, global_transform=resize_transform)
 
 def load_bm_dataset(batch_size):

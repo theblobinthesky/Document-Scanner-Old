@@ -132,7 +132,7 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_pre, summary_wr
         summary_writer.add_scalar("Learning rate", learning_rate, epoch)
 
         pbar.update(1)
-        pbar.set_description(f"epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. training loss: {train_loss:.4f}, validation loss: {valid_loss:.4f}, learning rate: {learning_rate}")
+        pbar.set_description(f"epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. training loss: {train_loss:.4f}, validation loss: {valid_loss:.4f}, learning rate: {learning_rate:.6f}")
 
         if hours_passed > time_in_hours:
             pbar.close()

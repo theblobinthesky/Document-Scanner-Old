@@ -2,7 +2,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from model import Conv, conv1x1, DoubleConv, DilatedBlock
+from model import Conv, conv1x1, DoubleConv, MultiscaleBlock
 from model import binarize_threshold, metric_dice_coefficient, metric_sensitivity, metric_specificity
 
 # UNet Transformer based on:
@@ -227,25 +227,26 @@ class UNetTransformer(nn.Module):
 
 # Dilated Conv UNet based on:
 # https://arxiv.org/pdf/2004.03466.pdf
+# The actual dilation is removed to increase inference performance on mobile gpus.
 
-class DownDilatedConv(nn.Module):
+class MultiscaleDown(nn.Module):
     def __init__(self, inp, out):
         super().__init__()
         self.layers = nn.Sequential(
             nn.MaxPool2d(2),
-            DilatedBlock(inp, out)
+            MultiscaleBlock(inp, out)
         )
 
     def forward(self, x):
         return self.layers(x)
 
 
-class UpDilatedConv(nn.Module):
+class MultiscaleUp(nn.Module):
     def __init__(self, channelsY, channelsS):
         super().__init__()
 
         self.upsample = nn.Upsample(scale_factor=2)
-        self.block = DilatedBlock(channelsY + channelsS, channelsS)
+        self.block = MultiscaleBlock(channelsY + channelsS, channelsS)
 
     def forward(self, Y, S):
         Y = self.upsample(Y)
@@ -259,18 +260,20 @@ class UNetDilatedConv(nn.Module):
     def __init__(self, inp, out):
         super().__init__()
 
-        depth = [32, 64, 128, 256]
+        depth = [32, 64, 128, 128]
 
         self.cvt_in = DoubleConv(inp, depth[0])
         self.cvt_out = DoubleConv(depth[0], out)
 
-        self.down0 = DownDilatedConv(depth[0], depth[1])
-        self.down1 = DownDilatedConv(depth[1], depth[2])
+        self.down0 = MultiscaleDown(depth[0], depth[1])
+        self.down1 = MultiscaleDown(depth[1], depth[2])
+        self.down2 = MultiscaleDown(depth[2], depth[3])
         
-        self.bottle = DilatedBlock(depth[2], depth[2])
+        self.bottle = MultiscaleBlock(depth[3], depth[3])
 
-        self.up1 = UpDilatedConv(depth[2], depth[1])
-        self.up0 = UpDilatedConv(depth[1], depth[0])
+        self.up2 = MultiscaleUp(depth[3], depth[2])
+        self.up1 = MultiscaleUp(depth[2], depth[1])
+        self.up0 = MultiscaleUp(depth[1], depth[0])
     
 
     def forward(self, x):
@@ -278,10 +281,12 @@ class UNetDilatedConv(nn.Module):
 
         d0 = self.down0(x)
         d1 = self.down1(d0)
+        d2 = self.down2(d1)
 
-        bn = self.bottle(d1)
+        bn = self.bottle(d2)
 
-        u0 = self.up1(bn, d0)
+        u1 = self.up2(bn, d1)
+        u0 = self.up1(u1, d0)
         y = self.up0(u0, x)
 
         y = self.cvt_out(y)
