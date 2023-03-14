@@ -287,14 +287,11 @@ class UNetDilatedConv(nn.Module):
         y = self.cvt_out(y)
         return y
     
-
-
 class PreModel(nn.Module):
     def __init__(self):
         super().__init__()
 
         self.unet = UNetDilatedConv(4, 1)
-
 
     def forward(self, x):
         x = self.unet(x)
@@ -307,18 +304,26 @@ class PreModel(nn.Module):
         pass
 
 
-    def loss(self, pred, dict):
-        label = dict["uv"][:, 2].unsqueeze(1)
-
-        return F.binary_cross_entropy(pred, label)
-
-
     def input_and_label_from_dict(self, dict):
         img = dict["img"]
+
         b, _, h, w = img.shape
-        padding = torch.full((b, 1, h, w), 1.0, device="cuda")
-        img = torch.cat([img, padding], axis=1)
-        return img, dict["uv"][:, 2].unsqueeze(1)
+        a_padding = torch.full((b, 1, h, w), 1.0, device="cuda")
+
+        img = torch.cat([img, a_padding], axis=1)
+
+        if "uv" in dict:
+            mask = dict["uv"][:, 2].unsqueeze(1)
+        else:
+            mask = torch.zeros((b, 1, h, w), device="cuda")
+
+        return img, mask
+
+
+    def loss(self, pred, dict):
+        _, label = self.input_and_label_from_dict(dict)
+
+        return F.binary_cross_entropy(pred, label)
 
 
     def eval_metrics(self):

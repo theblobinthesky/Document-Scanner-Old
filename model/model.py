@@ -29,7 +29,6 @@ class Conv(nn.Module):
             activation,
             nn.BatchNorm2d(out)
         )
-
     def forward(self, x):
         return self.layers(x)
 
@@ -208,13 +207,6 @@ def loss_circle_consistency(bm_pred, dict):
 
 def count_params(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
-
-
-def load_model(path):
-    model = Model()
-    model.load_state_dict(torch.load(path))
-
-    return model
 
 
 def save_model(model, path):

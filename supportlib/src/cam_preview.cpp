@@ -72,15 +72,17 @@ void docscanner::cam_preview::init_backend(uvec2 preview_size, file_context* fil
     cam_quad_buffer = make_shader_buffer();
     fill_shader_buffer(cam_quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
 
-    nn_input_buffer_size = 128 * 128 * 4 * sizeof(float);
+    uvec2 downsampled_size = {64, 64};
+
+    nn_input_buffer_size = downsampled_size.x * downsampled_size.y * 4 * sizeof(float);
     nn_input_buffer = new u8[nn_input_buffer_size];
 
-    nn_output_buffer_size = 128 * 128 * 1 * sizeof(float);
+    nn_output_buffer_size = downsampled_size.x * downsampled_size.y * 1 * sizeof(float);
     nn_output_buffer = new u8[nn_output_buffer_size];
     
-    nn_output_tex = create_texture({128, 128}, GL_R32F);
+    nn_output_tex = create_texture(downsampled_size , GL_R32F);
 
-    tex_downsampler.init(cam_tex_size, {128, 128}, true, null);
+    tex_downsampler.init(cam_tex_size, downsampled_size, true, null, 2.0);
 
     nn = create_neural_network_from_path(file_ctx, "seg_model.tflite", execution_pref::sustained_speed);
 
@@ -98,11 +100,11 @@ void docscanner::cam_preview::render() {
 
     nn_input_tex = tex_downsampler.downsample();
 
-    get_framebuffer_data(tex_downsampler.output_fb, nn_input_buffer, nn_input_buffer_size);
+    get_framebuffer_data(tex_downsampler.output_fb, tex_downsampler.output_size, nn_input_buffer, nn_input_buffer_size);
     
     invoke_neural_network_on_data(nn, nn_input_buffer, nn_input_buffer_size, nn_output_buffer, nn_output_buffer_size);
 
-    set_texture_data(nn_output_tex, nn_output_buffer, 128, 128);
+    set_texture_data(nn_output_tex, nn_output_buffer, tex_downsampler.output_size.x, tex_downsampler.output_size.y);
 
     canvas c = {
         .bg_color={0, 1, 0}

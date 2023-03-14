@@ -11,7 +11,10 @@ import tensorflow as tf
 from onnx2keras import onnx_to_keras
 import io
 
-dummy_input = torch.randn(1, 4, 128, 128)
+size = (64, 64)
+name = "seg_model_test"
+
+dummy_input = torch.randn(1, 4, size[0], size[1])
 
 def export(model, tflite_path):
     print(f"Exporting tflite file to {tflite_path}")
@@ -39,7 +42,7 @@ class PreModelWrapper(nn.Module):
     def __init__(self):
         super().__init__()
         self.model = PreModel()
-        self.model.load_state_dict(torch.load("models/main_seg_model.pth"))
+        self.model.load_state_dict(torch.load(f"models/{name}.pth"))
 
     def forward(self, x):
         x = self.model(x)
@@ -48,12 +51,12 @@ class PreModelWrapper(nn.Module):
 
 
 model = PreModelWrapper()
-export(model, "exports/seg_model.tflite")
+export(model, f"exports/{name}.tflite")
 
 import cv2
 import numpy as np
 np_features = cv2.imread("/media/shared/Projekte/DocumentScanner/datasets/Doc3d/img/2/996_6-pr_Page_025-bgI0001.png")
-np_features = cv2.resize(np_features, (128, 128))
+np_features = cv2.resize(np_features, size)
 
 np_features = np_features.astype("float32") / 255.0
 
@@ -61,12 +64,17 @@ h, w, _ = np_features.shape
 padding = np.full((h, w, 1), 1.0, dtype=np.float32)
 np_features = np.concatenate([np_features, padding], axis=-1)
 
-interpreter = tf.lite.Interpreter(model_path="exports/seg_model.tflite")
+interpreter = tf.lite.Interpreter(model_path=f"exports/{name}.tflite")
 
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
 
 interpreter.allocate_tensors()
+
+print("TENSOR-DETAILS FROM HERE:")
+for ten_details in interpreter.get_tensor_details():
+    print(ten_details["name"])
+print("------------------------")
 
 np_features = np.expand_dims(np_features, axis=0)
 

@@ -50,7 +50,7 @@ struct texture_downsampler {
 
     shader_buffer gauss_quad_buffer;
 
-    void init(uvec2 input_size, uvec2 output_size, bool input_is_oes_texture, const texture* input_tex);
+    void init(uvec2 input_size, uvec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor);
     texture* downsample();
 };
 
@@ -82,7 +82,7 @@ void bind_framebuffer(const frame_buffer &fb);
 
 frame_buffer framebuffer_from_texture(const texture& tex);
 
-void get_framebuffer_data(const frame_buffer &fb, u8* &data, u32 size);
+void get_framebuffer_data(const frame_buffer &fb, const uvec2 &size, u8* &data, u32 data_size);
 
 void set_texture_data(const texture &tex, u8* data, int width, int height);
 

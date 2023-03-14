@@ -8,7 +8,7 @@
 
 using namespace docscanner;
 
-#if true
+#if false
 TfLiteDelegate* create_delegate(execution_pref pref) {
     TfLiteNnapiDelegateOptions options = TfLiteNnapiDelegateOptionsDefault();
 
@@ -21,7 +21,7 @@ TfLiteDelegate* create_delegate(execution_pref pref) {
 
     return TfLiteNnapiDelegateCreate(&options);
 }
-#elif false
+#elif true
 TfLiteDelegate* create_delegate(execution_pref pref) {
     auto options = TfLiteGpuDelegateOptionsV2Default();
 
@@ -60,11 +60,16 @@ neural_network docscanner::create_neural_network_from_path(file_context* file_ct
     
     TfLiteInterpreterAllocateTensors(interpreter);
 
+    TfLiteTensor* input_tensor = TfLiteInterpreterGetInputTensor(interpreter, 0);
+    const TfLiteTensor* output_tensor = TfLiteInterpreterGetOutputTensor(interpreter, 0);
+
     return {
         .interpreter=interpreter,
         .options = options,
         .model = model,
-        .delegate = delegate
+        .delegate = delegate,
+        .inp_ten = input_tensor,
+        .out_ten = output_tensor
     };
 }
 
@@ -80,13 +85,9 @@ void docscanner::destory_neural_network(const neural_network& nn) {
 void docscanner::invoke_neural_network_on_data(const neural_network& nn, u8* inp_data, u32 inp_size, u8* out_data, u32 out_size) {
     auto start = std::chrono::high_resolution_clock::now();
     
-    TfLiteTensor* input_tensor = TfLiteInterpreterGetInputTensor(nn.interpreter, 0);
-    TfLiteTensorCopyFromBuffer(input_tensor, inp_data, inp_size);
-
+    TfLiteTensorCopyFromBuffer(nn.inp_ten, inp_data, inp_size);
     TfLiteInterpreterInvoke(nn.interpreter);
-
-    const TfLiteTensor* output_tensor = TfLiteInterpreterGetOutputTensor(nn.interpreter, 0);
-    TfLiteTensorCopyToBuffer(output_tensor, out_data, out_size);
+    TfLiteTensorCopyToBuffer(nn.out_ten, out_data, out_size);
 
     auto end = std::chrono::high_resolution_clock::now();
     auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);

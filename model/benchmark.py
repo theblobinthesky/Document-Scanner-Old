@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-from data import load_datasets
+from data import load_pre_dataset, load_bm_dataset
 from torchvision.transforms import Resize
 import torch
 import numpy as np
@@ -28,7 +28,7 @@ def cpu(ten):
     return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1]).squeeze(axis=0)
 
 def pad_if_necessary(ten):
-    channels = ten.shape[-1]
+    channels = ten.shape[1]
     if channels == 3 or channels == 1:
         return ten
     elif channels == 2:
@@ -38,8 +38,8 @@ def pad_if_necessary(ten):
         exit()
 
 
-def benchmark_plt_pre(model, ds):
-    _, _, ds = load_datasets(*ds, 1)
+def benchmark_plt_pre(model):
+    _, _, ds = load_pre_dataset(1)
 
     iterator = iter(ds)
     xs, ys, preds = [], [], []
@@ -78,7 +78,7 @@ def benchmark_plt_pre(model, ds):
 
 
 def benchmark_plt_bm(model, ds):
-    _, _, ds = load_datasets(*ds, 1)
+    _, _, ds = load_bm_dataset(1)
 
     iterator = iter(ds)
     xs, ys, preds, sampleds = [], [], [], []
@@ -127,11 +127,11 @@ def benchmark_plt_bm(model, ds):
     return fig
 
 
-from data import prepare_bm_dataset
+from data import load_bm_dataset
 import bm_model
 
 if __name__ == "__main__":
-    ds = prepare_bm_dataset()
+    ds = load_bm_dataset()
   
     model = bm_model.BMModel(True)
     model.load_state_dict(torch.load("models/bm_progressive_baseline.pth"))

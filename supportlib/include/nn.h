@@ -6,6 +6,7 @@ struct TfLiteInterpreter;
 struct TfLiteInterpreterOptions;
 struct TfLiteModel;
 struct TfLiteDelegate;
+struct TfLiteTensor;
 
 NAMESPACE_BEGIN
 
@@ -19,6 +20,8 @@ struct neural_network {
     TfLiteInterpreterOptions* options;
     TfLiteModel* model;
     TfLiteDelegate* delegate;
+    TfLiteTensor* inp_ten;
+    const TfLiteTensor* out_ten;
 };
 
 neural_network create_neural_network_from_path(file_context* file_ctx, const char* path, execution_pref pref);

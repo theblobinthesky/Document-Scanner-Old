@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 from model import save_model, load_model, eval_loss_on_batches, eval_loss_and_metrics_on_batches, count_params
-from data import load_datasets, prepare_pre_dataset, prepare_bm_dataset
+from data import load_pre_dataset, load_bm_dataset
 import torch
 import torch.optim.lr_scheduler as lr_scheduler
 from torchinfo import summary
@@ -72,7 +72,7 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_pre, summary_wr
 
     start_time = datetime.datetime.now()
 
-    train_ds, valid_ds, test_ds = load_datasets(*ds, batch_size)
+    train_ds, valid_ds, test_ds = ds
     trainds_iter = iter(cycle(train_ds))
     valid_iter = iter(cycle(valid_ds))
     test_iter = iter(test_ds)
@@ -163,9 +163,9 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_pre, summary_wr
     summary_writer.add_hparams(hparams, metric_dict)
 
     if is_pre:
-        plt = benchmark_plt_pre(model, ds)
+        plt = benchmark_plt_pre(model)
     else:
-        plt = benchmark_plt_bm(model, ds)
+        plt = benchmark_plt_bm(model)
 
     summary_writer.add_figure("benchmark", plt)
     
@@ -173,12 +173,12 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_pre, summary_wr
 
 
 def train_pre_model(model, model_path, summary_writer):
-    ds = prepare_pre_dataset()
+    ds = load_pre_dataset(batch_size)
     train_model(model, model_path, mask_epochs, mask_time_in_hours, ds, True, summary_writer)
 
 
 def train_bm_model(model, model_path, summary_writer):
-    ds = prepare_bm_dataset()
+    ds = load_bm_dataset(batch_size)
     train_model(model, model_path, bm_epochs, bm_time_in_hours, ds, False, summary_writer)
 
 
@@ -190,10 +190,10 @@ if __name__ == "__main__":
 
     print("training segmentation model")
 
-    writer = SummaryWriter("runs/main_seg_model")
+    writer = SummaryWriter("runs/seg_model_test")
     model = seg_model.PreModel()
     model = model_to_device(model)
-    train_pre_model(model, "models/main_seg_model.pth", summary_writer=writer)
+    train_pre_model(model, "models/seg_model_test.pth", summary_writer=writer)
     writer.flush()
 
     # print()
