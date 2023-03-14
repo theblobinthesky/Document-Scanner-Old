@@ -10,7 +10,7 @@ import cv2
 from tqdm import tqdm
 import concurrent.futures
 
-dir_items = [("img/1", "uv/1", "bm/1exr", "lines/1"), ("img/2", "uv/2", "bm/2exr", "lines/2"), ("img/3", "uv/3", "bm/3exr", "lines/3")]
+dir_items = [("img/4", "uv/4", "bm/4exr", "lines/4")]
 padding = 5
 
 def exr_loader(path, ndim=3):

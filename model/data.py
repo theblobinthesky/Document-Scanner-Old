@@ -121,14 +121,14 @@ def load_datasets(dir, missing_names, transforms, datasets, batch_size, valid_pe
     return train_ds, valid_ds, test_ds
 
 
-resize_transform = Resize((32, 32))
+resize_transform = Resize((64, 64))
 jitter_transform = ColorJitter(brightness=0.1, contrast=0.05, saturation=0.3, hue=0.1)
 
 def load_pre_dataset(batch_size):
     return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {"uv": "blank_uv.exr"}, {"img": jitter_transform}, [
-        ([("img", "Doc3d/img/1", "png"), ("uv", "Doc3d/uv/1", "exr")], 5000),
-        ([("img", "Doc3d/img/2", "png"), ("uv", "Doc3d/uv/2", "exr")], 5000),
-        ([("img", "Doc3d/img/3", "png"), ("uv", "Doc3d/uv/3", "exr")], 5000),
+        ([("img", "Doc3d_64x64/img/1", "png"), ("uv", "Doc3d_64x64/lines/1", "png")], 5000),
+        ([("img", "Doc3d_64x64/img/2", "png"), ("uv", "Doc3d_64x64/lines/2", "png")], 5000),
+        ([("img", "Doc3d_64x64/img/3", "png"), ("uv", "Doc3d_64x64/lines/3", "png")], 5000),
         ([("img", "MitIndoor", "jpg")], 1500)
     ], batch_size=batch_size, valid_perc=0.1, test_perc=0.1, global_transform=resize_transform)
 

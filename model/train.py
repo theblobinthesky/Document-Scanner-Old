@@ -1,14 +1,12 @@
 #!/usr/bin/python3
-from model import save_model, load_model, eval_loss_on_batches, eval_loss_and_metrics_on_batches, count_params
+from model import save_model, eval_loss_on_batches, eval_loss_and_metrics_on_batches, count_params
 from data import load_pre_dataset, load_bm_dataset
 import torch
 import torch.optim.lr_scheduler as lr_scheduler
-from torchinfo import summary
 import datetime
 from itertools import cycle
 from tqdm import tqdm
 from benchmark import benchmark_plt_pre, benchmark_plt_bm
-import math
 
 warmup_lr = 1e-5
 lr = 1e-3

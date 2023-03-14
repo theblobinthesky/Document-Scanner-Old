@@ -62,10 +62,10 @@ class DilatedBlock(nn.Module):
         super().__init__()
 
         self.conv0 = DoubleConv(inp, out // 2)
-        self.conv1 = Conv(out // 2, out // 4, kernel_size=3, padding=2, dilation=2, activation="relu")
-        self.conv2 = Conv(out // 4, out // 8, kernel_size=3, padding=2, dilation=2, activation="relu")
-        self.conv3 = Conv(out // 8, out // 16, kernel_size=3, padding=2, dilation=2, activation="relu")
-        self.conv4 = Conv(out // 16, out // 16, kernel_size=3, padding=2, dilation=2, activation="relu")
+        self.conv1 = Conv(out // 2, out // 4, kernel_size=3, padding=1, dilation=1, activation="relu")
+        self.conv2 = Conv(out // 4, out // 8, kernel_size=3, padding=1, dilation=1, activation="relu")
+        self.conv3 = Conv(out // 8, out // 16, kernel_size=3, padding=1, dilation=1, activation="relu")
+        self.conv4 = Conv(out // 16, out // 16, kernel_size=3, padding=1, dilation=1, activation="relu")
         
         self.skip = conv1x1(inp, out)
 

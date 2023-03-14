@@ -73,7 +73,9 @@ interpreter.allocate_tensors()
 
 print("TENSOR-DETAILS FROM HERE:")
 for ten_details in interpreter.get_tensor_details():
-    print(ten_details["name"])
+    name = ten_details["name"]
+    if name != "": print(name)
+
 print("------------------------")
 
 np_features = np.expand_dims(np_features, axis=0)

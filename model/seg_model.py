@@ -313,7 +313,7 @@ class PreModel(nn.Module):
         img = torch.cat([img, a_padding], axis=1)
 
         if "uv" in dict:
-            mask = dict["uv"][:, 2].unsqueeze(1)
+            mask = dict["uv"][:, 0].unsqueeze(1)
         else:
             mask = torch.zeros((b, 1, h, w), device="cuda")
 

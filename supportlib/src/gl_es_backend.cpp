@@ -141,7 +141,6 @@ void docscanner::texture_downsampler::init(uvec2 input_size, uvec2 output_size, 
     output_fb = framebuffer_from_texture(output_tex);
     
     char* gauss_frag_src_x = prepare_gauss_fragment_src(true, req_kernel_size.x, {1.0f / (f32)input_size.x, 0.0f});
-    LOGI("%s", gauss_frag_src_x);
     gauss_blur_x_program = compile_and_link_program(vert_src, gauss_frag_src_x, null, null);
     ASSERT(gauss_blur_x_program.program, "gauss_blur_x_program program could not be compiled.");
     

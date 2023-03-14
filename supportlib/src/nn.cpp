@@ -3,12 +3,11 @@
 #include "tensorflow/lite/c/c_api.h"
 #include "tensorflow/lite/c/common.h"
 #include "tensorflow/lite/delegates/nnapi/nnapi_delegate_c_api.h"
-#include "tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h"
 #include "tensorflow/lite/delegates/gpu/delegate.h"
 
 using namespace docscanner;
 
-#if false
+#if 0
 TfLiteDelegate* create_delegate(execution_pref pref) {
     TfLiteNnapiDelegateOptions options = TfLiteNnapiDelegateOptionsDefault();
 
@@ -21,7 +20,7 @@ TfLiteDelegate* create_delegate(execution_pref pref) {
 
     return TfLiteNnapiDelegateCreate(&options);
 }
-#elif true
+#else
 TfLiteDelegate* create_delegate(execution_pref pref) {
     auto options = TfLiteGpuDelegateOptionsV2Default();
 
@@ -31,12 +30,6 @@ TfLiteDelegate* create_delegate(execution_pref pref) {
         options.inference_preference = TFLITE_GPU_INFERENCE_PREFERENCE_FAST_SINGLE_ANSWER;
 
     return TfLiteGpuDelegateV2Create(&options);
-}
-#else
-TfLiteDelegate* create_delegate(execution_pref pref) {
-    auto options = TfLiteXNNPackDelegateOptionsDefault();
-
-    return TfLiteXNNPackDelegateCreate(&options);
 }
 #endif
 

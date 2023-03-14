@@ -4,7 +4,6 @@ from torchvision.transforms import Resize
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 
 bmap_padding = 1e-2
 num_examples = 8
@@ -28,11 +27,13 @@ def cpu(ten):
     return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1]).squeeze(axis=0)
 
 def pad_if_necessary(ten):
-    channels = ten.shape[1]
+    channels = ten.shape[-1]
     if channels == 3 or channels == 1:
         return ten
     elif channels == 2:
         return np.pad(ten, ((0, 0), (0, 0), (0, 1)), mode='constant', constant_values=0)
+    elif channels == 4:
+        return ten[:, :, :3]
     else:
         print("error invalid channel number")
         exit()
@@ -49,6 +50,7 @@ def benchmark_plt_pre(model):
             dict[key] = dict[key].to("cuda")
 
         x, y = model.input_and_label_from_dict(dict)
+
         pred = model(x)
 
         x, y, pred = cpu(x), cpu(y), cpu(pred)
