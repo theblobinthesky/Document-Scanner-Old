@@ -37,7 +37,7 @@ void onCaptureSequenceAborted(void* context, ACameraCaptureSession* session, int
 void onCaptureCompleted(void* context, ACameraCaptureSession* session, ACaptureRequest* request, const ACameraMetadata* result) {
 }
 
-ACameraDevice* docscanner::find_and_open_back_camera(uint32_t &width, uint32_t &height) {
+ACameraDevice* docscanner::find_and_open_back_camera(const uvec2& min_size, uvec2& size) {
     ACameraManager* mng = ACameraManager_create();
 
     ACameraIdList* camera_ids = nullptr;
@@ -64,23 +64,43 @@ ACameraDevice* docscanner::find_and_open_back_camera(uint32_t &width, uint32_t &
 
                 ACameraMetadata_getConstEntry(metadata, ACAMERA_SCALER_AVAILABLE_STREAM_CONFIGURATIONS, &entry);
 
-                size_t max_index = 0;
-                int32_t max_resolution = 0;
+                size_t min_index = 0, max_index = 0;
+                s32 min_resolution = S32_MAX, max_resolution = 0;
+                uvec2 max_size;
+                
                 for (size_t e = 0; e < entry.count; e += 4) {
                     if (entry.data.i32[e + 3]) continue; // skip input streams
                     if (entry.data.i32[e + 0] != AIMAGE_FORMAT_YUV_420_888) continue; // skip wrong input formats
                     // todo: support raw photography for increased quality!
 
-                    int32_t resolution = entry.data.i32[e + 1] * entry.data.i32[e + 2];
+                    uvec2 entry_size = { (u32) entry.data.i32[e + 1], (u32) entry.data.i32[e + 2] };
+                    int32_t resolution = entry_size.x * entry_size.y;
+
+                    // fallback max size
                     if (resolution > max_resolution) {
                         max_index = e;
                         max_resolution = resolution;
-                        width = (uint32_t) entry.data.i32[e + 1];
-                        height = (uint32_t) entry.data.i32[e + 2];
+                        max_size = entry_size;
+                    }
+
+                    if (entry_size.x < min_size.x || entry_size.y < min_size.y) break; // skip too small formats
+                    
+                    // regular size
+                    if (resolution < min_resolution) {
+                        min_index = e;
+                        min_resolution = resolution;
+                        size = entry_size;
                     }
                 }
 
-                LOGI("Index %zu, Resolution of %dMP", max_index, max_resolution / (1000000));
+                if (min_resolution == 0) {
+                    // fallback to max resolution
+                    min_index = max_index;
+                    min_resolution = max_resolution;
+                    size = max_size;
+                }
+
+                LOGI("Index %zu, Resolution of %dMP", min_index, min_resolution / (1000000));
 
                 camera_index = c;
                 break;

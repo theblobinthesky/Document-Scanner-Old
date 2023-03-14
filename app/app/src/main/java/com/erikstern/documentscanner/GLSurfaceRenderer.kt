@@ -23,8 +23,8 @@ class GLSurfaceRenderer : GLSurfaceView.Renderer {
 
     private external fun nativeCreate()
     private external fun nativeDestroy()
-    private external fun nativePreInit() : IntArray
-    private external fun nativeInit(assetManager: AssetManager, surface: Surface, preview_width: Int, preview_height: Int)
+    private external fun nativePreInit(preview_width: Int, preview_height: Int) : IntArray
+    private external fun nativeInit(assetManager: AssetManager, surface: Surface)
 
     private external fun nativeRender()
 
@@ -53,14 +53,14 @@ class GLSurfaceRenderer : GLSurfaceView.Renderer {
                 frameAvailable = true
             }
         }
-
-        surface = Surface(surfaceTexture)
-        val dimens = nativePreInit()
-        surfaceTexture.setDefaultBufferSize(dimens[0], dimens[1])
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
-        nativeInit(context.assets, surface, width, height)
+        surface = Surface(surfaceTexture)
+        val dimens = nativePreInit(width, height)
+        surfaceTexture.setDefaultBufferSize(dimens[0], dimens[1])
+        
+        nativeInit(context.assets, surface)
     }
 
     override fun onDrawFrame(gl: GL10?) {

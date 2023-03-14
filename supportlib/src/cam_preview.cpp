@@ -32,13 +32,19 @@ constexpr const char frag_src[] = R"(#version 310 es
         }
 )";
 
-void docscanner::cam_preview::pre_init(int* cam_width, int* cam_height) {
-    cam = find_and_open_back_camera(cam_tex_size.x, cam_tex_size.y);
+void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* cam_height) {
+    this->preview_size = preview_size;
+
+    cam = find_and_open_back_camera(preview_size, cam_tex_size);
     *cam_width = (int) cam_tex_size.x;
     *cam_height = (int) cam_tex_size.y;
+
+    LOGI("cam_tex_size: (%u, %u)", cam_tex_size.x, cam_tex_size.y);
 }
 
-void docscanner::cam_preview::init_backend(uvec2 preview_size, file_context* file_ctx) {
+void docscanner::cam_preview::init_backend(file_context* file_ctx) {
+    LOGI("preview_size: (%u, %u)", preview_size.x, preview_size.y);
+
     preview_program = compile_and_link_program(vert_src, frag_src, nullptr, nullptr);
     ASSERT(preview_program.program, "Preview program could not be compiled.");
 

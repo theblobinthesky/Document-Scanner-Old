@@ -3,6 +3,8 @@
 
 #define null nullptr
 
+#define S32_MAX 2147483647
+
 using s8 = int8_t;
 using s16 = int16_t;
 using s32 = int32_t;
