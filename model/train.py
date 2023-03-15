@@ -186,11 +186,10 @@ if __name__ == "__main__":
 
     print("training segmentation model")
 
-    writer = SummaryWriter("runs/seg_model_finetuning")
+    writer = SummaryWriter("runs/seg_model_finetuning_large_amplitude")
     model = seg_model.PreModel()
-    model.load_state_dict(torch.load("models/seg_model_finetuning.pth"))
     model = model_to_device(model)
-    train_pre_model(model, "models/seg_model_finetuning.pth", summary_writer=writer)
+    train_pre_model(model, "models/seg_model_finetuning_large_amplitude.pth", summary_writer=writer)
     writer.flush()
 
     # print()

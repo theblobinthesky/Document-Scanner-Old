@@ -293,7 +293,7 @@ class UNetDilatedConv(nn.Module):
         return y
     
 min_finetuning_weight = torch.tensor(1.0, device="cuda")
-max_finetuning_weight = torch.tensor(1.5, device="cuda")
+max_finetuning_weight = torch.tensor(2.0, device="cuda")
 finetuning_weight_amplitude = max_finetuning_weight - min_finetuning_weight
 
 class PreModel(nn.Module):

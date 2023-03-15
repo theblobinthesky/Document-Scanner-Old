@@ -26,6 +26,19 @@ struct vec3 {
     f32 x, y, z;
 };
 
+struct svec2 {
+    s32 x;
+    s32 y;
+
+    svec2 operator-(svec2 other) const;
+    f32 length() const;
+    f32 length_squared() const;
+    
+    static f32 dot(const svec2& a, const svec2& b);
+    static f32 angle_between(const svec2& a, const svec2& b);
+};
+
+
 struct uvec2 {
     u32 x;
     u32 y;

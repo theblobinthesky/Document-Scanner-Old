@@ -12,7 +12,7 @@ from onnx2keras import onnx_to_keras
 import io
 
 size = (64, 64)
-name = "seg_model_finetuning"
+name = "seg_model_finetuning_large_amplitude"
 
 dummy_input = torch.randn(1, 4, size[0], size[1])
 

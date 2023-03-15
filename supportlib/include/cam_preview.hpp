@@ -30,6 +30,8 @@ struct cam_preview {
     
     texture_downsampler tex_downsampler;
 
+    shader_buffer test_rect_buffer;
+
     bool is_init;
 
     void pre_init(uvec2 preview_size, int* cam_width, int* cam_height);
