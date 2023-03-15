@@ -1,6 +1,6 @@
-#include "assets.h"
+#include "assets.hpp"
 #ifdef ANDROID
-#include "log.h"
+#include "log.hpp"
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
 

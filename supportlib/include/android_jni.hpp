@@ -1,6 +1,6 @@
 #include <jni.h>
-#include "types.h"
-#include "pipeline.h"
+#include "types.hpp"
+#include "pipeline.hpp"
 
 namespace docscanner {
     bool create_persistent_pipeline(JNIEnv* env, jobject obj);

@@ -1,6 +1,6 @@
 #pragma once
-#include "types.h"
-#include "assets.h"
+#include "types.hpp"
+#include "assets.hpp"
 
 struct TfLiteInterpreter;
 struct TfLiteInterpreterOptions;

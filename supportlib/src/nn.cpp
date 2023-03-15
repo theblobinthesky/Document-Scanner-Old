@@ -1,5 +1,5 @@
-#include "nn.h"
-#include "log.h"
+#include "nn.hpp"
+#include "log.hpp"
 #include "tensorflow/lite/c/c_api.h"
 #include "tensorflow/lite/c/common.h"
 #include "tensorflow/lite/delegates/nnapi/nnapi_delegate_c_api.h"

@@ -1,7 +1,7 @@
-#include "cam_preview.h"
-#include "log.h"
-#include "backend.h"
-#include "android_camera.h"
+#include "cam_preview.hpp"
+#include "log.hpp"
+#include "backend.hpp"
+#include "android_camera.hpp"
 
 using namespace docscanner;
 

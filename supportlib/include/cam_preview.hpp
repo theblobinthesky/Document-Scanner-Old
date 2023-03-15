@@ -1,7 +1,7 @@
-#include "types.h"
-#include "backend.h"
-#include "assets.h"
-#include "nn.h"
+#include "types.hpp"
+#include "backend.hpp"
+#include "assets.hpp"
+#include "nn.hpp"
 
 struct ACameraDevice;
 struct ANativeWindow;

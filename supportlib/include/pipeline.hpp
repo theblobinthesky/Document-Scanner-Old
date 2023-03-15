@@ -1,5 +1,5 @@
 #pragma once
-#include "cam_preview.h"
+#include "cam_preview.hpp"
 
 NAMESPACE_BEGIN
 

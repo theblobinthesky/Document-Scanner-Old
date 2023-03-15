@@ -1,5 +1,5 @@
-#include "android_camera.h"
-#include "log.h"
+#include "android_camera.hpp"
+#include "log.hpp"
 #include <camera/NdkCameraDevice.h>
 #include <camera/NdkCameraManager.h>
 #include <media/NdkImage.h>

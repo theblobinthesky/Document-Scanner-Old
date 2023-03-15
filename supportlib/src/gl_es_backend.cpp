@@ -1,6 +1,6 @@
 #ifdef ANDROID
-#include "log.h"
-#include "backend.h"
+#include "log.hpp"
+#include "backend.hpp"
 #include <cstdlib>
 #include <csignal>
 #include <string>

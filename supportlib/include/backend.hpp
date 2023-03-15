@@ -1,5 +1,5 @@
 #pragma once
-#include "types.h"
+#include "types.hpp"
 #include <GLES3/gl31.h>
 #include <GLES2/gl2ext.h>
 

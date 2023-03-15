@@ -1,4 +1,4 @@
-#include "android_jni.h"
+#include "android_jni.hpp"
 
 jfieldID get_field_id(JNIEnv* env, jobject obj) {
     jclass cls = env->GetObjectClass(obj);
