@@ -18,8 +18,8 @@ class SigmoidOutputTestModule(nn.Module):
         x = self.model(x)
         return torch.sigmoid(x)
     
-    def loss(self, pred, dict):
-        return self.model.loss(pred, dict)
+    def loss(self, pred, dict, weight_metrics):
+        return self.model.loss(pred, dict, weight_metrics)
     
     def input_and_label_from_dict(self, dict):
         return self.model.input_and_label_from_dict(dict)

@@ -1,6 +1,5 @@
 #include <jni.h>
-#include "android_jni.h"
-#include <jni.h>
+#include "android_jni.hpp"
 #include <android/native_window_jni.h>
 #include <android/asset_manager_jni.h>
 

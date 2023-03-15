@@ -13,12 +13,17 @@ import concurrent.futures
 out_size = (64, 64)
 
 dir_items = [
-    # ("Doc3d/img/1", "Doc3d_64x64/img/1"), ("Doc3d/img/2", "Doc3d_64x64/img/2"), 
-    # ("Doc3d/img/3", "Doc3d_64x64/img/3"), ("Doc3d/img/4", "Doc3d_64x64/img/4"),
-    # ("Doc3d/lines/1", "Doc3d_64x64/lines/1"), ("Doc3d/lines/2", "Doc3d_64x64/lines/2"), 
-    # ("Doc3d/lines/3", "Doc3d_64x64/lines/3"), ("Doc3d/lines/4", "Doc3d_64x64/lines/4"), 
+    ("Doc3d/img/1", "Doc3d_64x64/img/1"), ("Doc3d/img/2", "Doc3d_64x64/img/2"), 
+    ("Doc3d/img/3", "Doc3d_64x64/img/3"), ("Doc3d/img/4", "Doc3d_64x64/img/4"),
+    ("Doc3d/lines/1", "Doc3d_64x64/lines/1"), ("Doc3d/lines/2", "Doc3d_64x64/lines/2"), 
+    ("Doc3d/lines/3", "Doc3d_64x64/lines/3"), ("Doc3d/lines/4", "Doc3d_64x64/lines/4"), 
     ("MitIndoor", "MitIndoor_64x64"),
 ]
+
+def make_dir(dir):
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+
 
 def task(items):
     for (inp_path, out_path) in items:    
@@ -34,6 +39,9 @@ def chunk(list, chunk_size):
 with concurrent.futures.ThreadPoolExecutor(8) as executor:
     items = []
     for (inp_dir, out_dir) in dir_items:
+        make_dir(inp_dir)
+        make_dir(out_dir)
+
         paths = []
         paths.extend(glob(f"{inp_dir}/*.png"))
         paths.extend(glob(f"{inp_dir}/*.jpg"))
@@ -41,7 +49,7 @@ with concurrent.futures.ThreadPoolExecutor(8) as executor:
         for path in paths:
             path_obj = Path(path)
             name = path_obj.stem
-            ext = path_obj.suffix
+            ext = path_obj.suffix[1:]
             items.append((path, f"{out_dir}/{name}.{ext}"))
 
 

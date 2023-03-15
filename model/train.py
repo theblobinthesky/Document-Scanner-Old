@@ -82,10 +82,12 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_pre, summary_wr
         train_loss = 0.0
 
         for _ in range(steps_per_epoch):
-            dict = next(trainds_iter)
+            dict, weight_metrics = next(trainds_iter)
 
-            for key in dict.keys():
-                dict[key] = dict[key].to(device)
+            def dict_to_device(dict):
+                return { key: value.to(device) for key, value in dict.items() }
+            
+            dict, weight_metrics = dict_to_device(dict), dict_to_device(weight_metrics)
                 
             x, _ = model.input_and_label_from_dict(dict)
 
@@ -93,7 +95,7 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_pre, summary_wr
 
             if is_pre:
                 pred = model(x)
-                loss = model.loss(pred, dict)
+                loss = model.loss(pred, dict, weight_metrics)
             else:
                 preds = model.forward_all(x)
                 
@@ -101,7 +103,7 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_pre, summary_wr
 
                 for i, pred in enumerate(preds):
                     fac = lam ** (len(preds) - 1 - i)
-                    loss += fac * model.loss(pred, dict)
+                    loss += fac * model.loss(pred, dict, weight_metrics)
 
                 loss /= float(len(preds))
             
@@ -118,10 +120,6 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_pre, summary_wr
             summary_writer.add_scalar("Loss/valid", valid_loss, epoch)
 
         scheduler.step()
-        #if epoch < warmup_epochs:
-        #    warmup_scheduler.step()
-        #else:
-        #    main_scheduler.step()
 
 
         now = datetime.datetime.now()
@@ -188,10 +186,11 @@ if __name__ == "__main__":
 
     print("training segmentation model")
 
-    writer = SummaryWriter("runs/seg_model_test")
+    writer = SummaryWriter("runs/seg_model_finetuning")
     model = seg_model.PreModel()
+    model.load_state_dict(torch.load("models/seg_model_finetuning.pth"))
     model = model_to_device(model)
-    train_pre_model(model, "models/seg_model_test.pth", summary_writer=writer)
+    train_pre_model(model, "models/seg_model_finetuning.pth", summary_writer=writer)
     writer.flush()
 
     # print()

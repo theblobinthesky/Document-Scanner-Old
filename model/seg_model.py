@@ -292,6 +292,10 @@ class UNetDilatedConv(nn.Module):
         y = self.cvt_out(y)
         return y
     
+min_finetuning_weight = torch.tensor(1.0, device="cuda")
+max_finetuning_weight = torch.tensor(1.5, device="cuda")
+finetuning_weight_amplitude = max_finetuning_weight - min_finetuning_weight
+
 class PreModel(nn.Module):
     def __init__(self):
         super().__init__()
@@ -325,10 +329,15 @@ class PreModel(nn.Module):
         return img, mask
 
 
-    def loss(self, pred, dict):
+    def loss(self, pred, dict, weight_metrics):
         _, label = self.input_and_label_from_dict(dict)
 
-        return F.binary_cross_entropy(pred, label)
+        loss = F.binary_cross_entropy(pred, label, reduction="none")
+        loss = loss.view(loss.shape[0], -1).mean(1)
+
+        finetuning = min_finetuning_weight + weight_metrics["finetuning"] * finetuning_weight_amplitude
+        loss = (finetuning * loss).mean()
+        return loss
 
 
     def eval_metrics(self):

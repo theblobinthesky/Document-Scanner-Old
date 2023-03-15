@@ -40,12 +40,12 @@ def pad_if_necessary(ten):
 
 
 def benchmark_plt_pre(model):
-    _, _, ds = load_pre_dataset(1)
+    _, _, ds, = load_pre_dataset(1)
 
     iterator = iter(ds)
     xs, ys, preds = [], [], []
     for i in range(num_examples):
-        dict = next(iterator)
+        dict, _ = next(iterator)
         for key in dict.keys():
             dict[key] = dict[key].to("cuda")
 
@@ -85,7 +85,7 @@ def benchmark_plt_bm(model, ds):
     iterator = iter(ds)
     xs, ys, preds, sampleds = [], [], [], []
     for i in range(num_examples):
-        dict = next(iterator)
+        dict, _ = next(iterator)
         for key in dict.keys():
             dict[key] = dict[key].to("cuda")
 

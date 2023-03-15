@@ -42,8 +42,11 @@ def load(path):
         return from_numpy(exr_loader(path))
 
 class ImageDataSet(Dataset):
-    def __init__(self, items, transforms, global_transform):
+    def __init__(self, items, inst0_name, dir_len, weight_metrics, transforms, global_transform):
         self.items = items
+        self.inst0_name = inst0_name
+        self.dir_len = dir_len
+        self.weight_metrics = weight_metrics
         self.transforms = transforms
         self.global_transform = global_transform
 
@@ -52,6 +55,8 @@ class ImageDataSet(Dataset):
         
     def __getitem__(self, index):
         item = self.items[index]
+        key = item[self.inst0_name][self.dir_len + 1:]
+        weight_metrics = {name: torch.tensor(weight_metric[key]) for name, weight_metric in self.weight_metrics.items()}
         item = {name: load(path) for name, path in item.items()}
         
         out = {}
@@ -64,7 +69,7 @@ class ImageDataSet(Dataset):
 
             out[name] = ten
 
-        return out
+        return out, weight_metrics
 
 
 def split_dataset(dataset, valid_perc, test_perc):
@@ -74,7 +79,7 @@ def split_dataset(dataset, valid_perc, test_perc):
 def load_dataset(dataset, batch_size):
     return DataLoader(dataset, batch_size=batch_size, pin_memory=True, shuffle=False, num_workers=num_workers)
 
-def load_datasets(dir, missing_names, transforms, datasets, batch_size, valid_perc, test_perc, global_transform=None):
+def load_datasets(dir, missing_names, transforms, datasets, weight_metrics, batch_size, valid_perc, test_perc, global_transform=None):
     items = []
 
     inst0_name = datasets[0][0][0][0]
@@ -114,7 +119,11 @@ def load_datasets(dir, missing_names, transforms, datasets, batch_size, valid_pe
 
     np.random.shuffle(items)
 
-    ds = ImageDataSet(items, transforms, global_transform)
+    # load weight_metrics dictionaries
+    for name, path in weight_metrics.items():
+        weight_metrics[name] = np.load(f"{dir}/{path}", allow_pickle=True).item() 
+
+    ds = ImageDataSet(items, inst0_name, len(dir), weight_metrics, transforms, global_transform)
     train_ds, valid_ds, test_ds = split_dataset(ds, valid_perc, test_perc)
     train_ds, valid_ds, test_ds = load_dataset(train_ds, batch_size), load_dataset(valid_ds, batch_size), load_dataset(test_ds, batch_size)
 
@@ -130,7 +139,7 @@ def load_pre_dataset(batch_size):
         ([("img", "Doc3d_64x64/img/2", "png"), ("uv", "Doc3d_64x64/lines/2", "png")], 5000),
         ([("img", "Doc3d_64x64/img/3", "png"), ("uv", "Doc3d_64x64/lines/3", "png")], 5000),
         ([("img", "MitIndoor_64x64", "jpg")], 5000)
-    ], batch_size=batch_size, valid_perc=0.1, test_perc=0.1, global_transform=resize_transform)
+    ], {"finetuning": "finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1, global_transform=resize_transform)
 
 def load_bm_dataset(batch_size):
     return load_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [], {"img_masked": jitter_transform}, [

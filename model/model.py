@@ -136,15 +136,17 @@ def eval_loss_on_batches(model, iter, batch_count, device):
 
     with torch.no_grad():
         for _ in range(batch_count):
-            dict = next(iter)
+            dict, weight_metrics = next(iter)
 
-            for key in dict.keys():
-                dict[key] = dict[key].to(device)
-
+            def dict_to_device(dict):
+                return { key: value.to(device) for key, value in dict.items() }
+            
+            dict, weight_metrics = dict_to_device(dict), dict_to_device(weight_metrics)
+                
             x, _ = model.input_and_label_from_dict(dict)
             pred = model(x)
     
-            loss += model.loss(pred, dict).item()
+            loss += model.loss(pred, dict, weight_metrics).item()
 
     loss /= float(batch_count)
 
@@ -158,14 +160,16 @@ def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
     metrics = [0.0 for _ in eval_metrics]
 
     with torch.no_grad():
-        for dict in tqdm(iter, desc="Evaluating test loss and metrics"):
-            for key in dict.keys():
-                dict[key] = dict[key].to(device)
-
+        for dict, weight_metrics in tqdm(iter, desc="Evaluating test loss and metrics"):
+            def dict_to_device(dict):
+                return { key: value.to(device) for key, value in dict.items() }
+            
+            dict, weight_metrics = dict_to_device(dict), dict_to_device(weight_metrics)
+                
             x, y = model.input_and_label_from_dict(dict)
             pred = model(x)
     
-            loss += model.loss(pred, dict).item()
+            loss += model.loss(pred, dict, weight_metrics).item()
             count += 1
 
             for i, (_, func) in enumerate(eval_metrics):
