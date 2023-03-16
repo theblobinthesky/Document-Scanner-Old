@@ -18,6 +18,10 @@ svec2 svec2::operator-(svec2 other) const {
     return { x - other.x, y - other.y }; 
 }
 
+svec2 svec2::orthogonal() const {
+    return { -y, x };
+}
+
 f32 svec2::length() const {
     return sqrt(length_squared());
 }

@@ -2,6 +2,7 @@
 #include "backend.hpp"
 #include "assets.hpp"
 #include "nn.hpp"
+#include "img_proc.hpp"
 
 #include <vector>
 
@@ -34,10 +35,7 @@ struct cam_preview {
 
     shader_buffer test_rect_buffer;
 
-    shader_buffer mesh_buffer;
-    shader_program mesh_program;
-    std::vector<vertex> mesh_vertices;
-    std::vector<u32> mesh_indices;
+    mask_mesher mesher;
 
     bool is_init;
 

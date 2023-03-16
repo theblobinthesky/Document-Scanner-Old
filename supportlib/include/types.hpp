@@ -35,6 +35,7 @@ struct svec2 {
 
     svec2 operator+(svec2 other) const;
     svec2 operator-(svec2 other) const;
+    svec2 orthogonal() const;
     f32 length() const;
     f32 length_squared() const;
     
