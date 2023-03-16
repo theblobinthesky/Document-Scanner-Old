@@ -3,6 +3,8 @@
 #include "assets.hpp"
 #include "nn.hpp"
 
+#include <vector>
+
 struct ACameraDevice;
 struct ANativeWindow;
 
@@ -31,6 +33,11 @@ struct cam_preview {
     texture_downsampler tex_downsampler;
 
     shader_buffer test_rect_buffer;
+
+    shader_buffer mesh_buffer;
+    shader_program mesh_program;
+    std::vector<vertex> mesh_vertices;
+    std::vector<u32> mesh_indices;
 
     bool is_init;
 

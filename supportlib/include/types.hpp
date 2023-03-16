@@ -20,6 +20,9 @@ using f32 = float;
 
 struct vec2 {
     f32 x, y;
+
+    vec2 operator+(vec2 other) const;
+    vec2 operator*(f32 other) const;
 };
 
 struct vec3 {
@@ -30,10 +33,12 @@ struct svec2 {
     s32 x;
     s32 y;
 
+    svec2 operator+(svec2 other) const;
     svec2 operator-(svec2 other) const;
     f32 length() const;
     f32 length_squared() const;
     
+    static vec2 lerp(const svec2& a, const svec2& b, f32 t);
     static f32 dot(const svec2& a, const svec2& b);
     static f32 angle_between(const svec2& a, const svec2& b);
 };
