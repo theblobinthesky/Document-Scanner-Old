@@ -1,11 +1,11 @@
 #include "assets.hpp"
-#ifdef ANDROID
-
 #include "log.hpp"
-#include <android/asset_manager.h>
-#include <android/asset_manager_jni.h>
 
 using namespace docscanner;
+
+#ifdef ANDROID
+#include <android/asset_manager.h>
+#include <android/asset_manager_jni.h>
 
 file_context docscanner::get_file_ctx_from_asset_mngr(AAssetManager* mngr) {
     return {mngr};
@@ -23,9 +23,23 @@ void docscanner::file_to_buffer(file_context* ctx, const char* path, u8* &data, 
 }
 
 #elif defined(LINUX)
+#include <stdio.h>
 
-void docscanner::file_to_buffer(file_context* ctx, const char* path, u8* data, u32 &size) {
-    // TODO: implement
+void docscanner::file_to_buffer(file_context* ctx, const char* path, u8* &data, u32 &size) {
+    FILE* file = fopen(path, "rb");
+    if(!file) {
+        LOGE("Path '%s' does not exist.", path);
+        return;
+    }
+
+    fseek(file, 0, SEEK_END);
+    size = (u32)ftell(file);
+    rewind(file);
+
+    data = new u8[size];
+    fread(data, 1, size, file);
+
+    fclose(file);
 }
 
 #endif

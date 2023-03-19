@@ -4,9 +4,11 @@
 #include "tensorflow/lite/c/common.h"
 #include "tensorflow/lite/delegates/nnapi/nnapi_delegate_c_api.h"
 #include "tensorflow/lite/delegates/gpu/delegate.h"
+#include "tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h"
 
 using namespace docscanner;
 
+#ifdef ANDROID
 #if 0
 TfLiteDelegate* create_delegate(execution_pref pref) {
     TfLiteNnapiDelegateOptions options = TfLiteNnapiDelegateOptionsDefault();
@@ -20,6 +22,10 @@ TfLiteDelegate* create_delegate(execution_pref pref) {
 
     return TfLiteNnapiDelegateCreate(&options);
 }
+
+void destroy_delegate(TfLiteDelegate* delegate) {
+    TfLiteNnapiDelegateDelete(delegate);
+}
 #else
 TfLiteDelegate* create_delegate(execution_pref pref) {
     auto options = TfLiteGpuDelegateOptionsV2Default();
@@ -31,11 +37,23 @@ TfLiteDelegate* create_delegate(execution_pref pref) {
 
     return TfLiteGpuDelegateV2Create(&options);
 }
-#endif
 
 void destroy_delegate(TfLiteDelegate* delegate) {
-    TfLiteNnapiDelegateDelete(delegate);
+    TfLiteGpuDelegateV2Delete(delegate);
 }
+#endif
+#elif defined(LINUX)
+TfLiteDelegate* create_delegate(execution_pref pref) {
+    auto options = TfLiteXNNPackDelegateOptionsDefault();
+
+    return TfLiteXNNPackDelegateCreate(&options);
+}
+
+
+void destroy_delegate(TfLiteDelegate* delegate) {
+    TfLiteXNNPackDelegateDelete(delegate);
+}
+#endif
 
 neural_network docscanner::create_neural_network_from_path(file_context* file_ctx, const char* path, execution_pref pref) {
     TfLiteDelegate* delegate = create_delegate(pref);
@@ -50,7 +68,7 @@ neural_network docscanner::create_neural_network_from_path(file_context* file_ct
     TfLiteInterpreterOptionsAddDelegate(options, delegate);
     
     TfLiteInterpreter* interpreter = TfLiteInterpreterCreate(model, options);
-    
+
     TfLiteInterpreterAllocateTensors(interpreter);
 
     TfLiteTensor* input_tensor = TfLiteInterpreterGetInputTensor(interpreter, 0);

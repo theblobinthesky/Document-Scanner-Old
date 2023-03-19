@@ -2,6 +2,7 @@
 #include "log.hpp"
 #include "backend.hpp"
 #include "camera.hpp"
+#include <chrono>
 
 using namespace docscanner;
 
@@ -98,16 +99,25 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx) {
     is_init = true;
 }
 
+#ifdef ANDROID
 void docscanner::cam_preview::init_cam(ANativeWindow* texture_window) {
-    init_camera_capture_to_native_window(cam, texture_window);
+    init_camera_capture(cam, texture_window);
 }
-
-#include <chrono>
-
-#include <string.h>
+#elif defined(LINUX)
+void docscanner::cam_preview::init_cam() {
+    init_camera_capture(cam);
+}
+#endif
 
 void docscanner::cam_preview::render() {
     if(!is_init) return;
+    cam.get();
+
+    auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+    auto dur = end - last_time;
+    LOGI("frame time: %ldms", (u64)dur);
+    last_time = end;
+    return;
 
     nn_input_tex = tex_downsampler.downsample();
 
@@ -136,10 +146,4 @@ void docscanner::cam_preview::render() {
 
     glBindVertexArray(mesher.mesh_buffer.id);
     glDrawElements(GL_TRIANGLES, mesher.mesh_indices.size(), GL_UNSIGNED_INT, null);
-
-
-    auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-    auto dur = end - last_time;
-    LOGI("frame time: %lldms", dur);
-    last_time = end;
 }

@@ -13,5 +13,6 @@
 **/CMakeFiles/*
 .vscode/*
 *.tflite
-supportlib/dependencies
+supportlib/bin
+supportlib/deps
 *.npy

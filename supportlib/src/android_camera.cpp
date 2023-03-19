@@ -136,7 +136,7 @@ camera docscanner::find_and_open_back_camera(const uvec2& min_size, uvec2& size)
     return { device };
 }
 
-void docscanner::init_camera_capture_to_native_window(const camera& camera, ANativeWindow* texture_window) {
+void docscanner::init_camera_capture(const camera& camera, ANativeWindow* texture_window) {
     ACameraDevice* cam = camera.device;
 
     // prepare request with desired template
@@ -185,5 +185,7 @@ void docscanner::init_camera_capture_to_native_window(const camera& camera, ANat
     // start capturing continuously
     ACameraCaptureSession_setRepeatingRequest(session, &capture_callbacks, 1, &request, nullptr);
 }
+
+void docscanner::camera::get() {}
 
 #endif

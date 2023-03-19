@@ -1,7 +1,14 @@
 #pragma once
 #include "types.hpp"
+
+#ifdef ANDROID
 #include <GLES3/gl31.h>
 #include <GLES2/gl2ext.h>
+#elif defined(LINUX)
+#define GL_GLEXT_PROTOTYPES
+#include <GL/gl.h>
+#include <GL/glext.h>
+#endif
 
 NAMESPACE_BEGIN
 

@@ -1,10 +1,14 @@
-#ifdef ANDROID
+#if 1
 #include "log.hpp"
 #include "backend.hpp"
 #include <cstdlib>
 #include <csignal>
 #include <string>
 #include <math.h>
+
+#if defined(LINUX)
+#include <cstddef>
+#endif
 
 using namespace docscanner;
 
@@ -498,6 +502,10 @@ void docscanner::set_texture_data(const texture &tex, u8* data, int width, int h
     case GL_RGBA32F: { 
         format = GL_RGBA;
         type = GL_FLOAT;
+    } break;
+    case GL_RGBA8: {
+        format = GL_RGBA;
+        type = GL_UNSIGNED_BYTE;
     } break;
     default: LOGE_AND_BREAK("Unsupported texture format in set_texture_data.");
     }

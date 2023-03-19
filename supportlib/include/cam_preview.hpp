@@ -43,7 +43,13 @@ struct cam_preview {
 
     void pre_init(uvec2 preview_size, int* cam_width, int* cam_height);
     void init_backend(file_context* file_ctx);
+
+#ifdef ANDROID
     void init_cam(ANativeWindow* texture_window);
+#elif defined(LINUX)
+    void init_cam();
+#endif
+
     void render();
 };
 
