@@ -1,9 +1,13 @@
-#include "android_camera.hpp"
+#ifdef ANDROID
+
+#include "camera.hpp"
 #include "log.hpp"
 #include <camera/NdkCameraDevice.h>
 #include <camera/NdkCameraManager.h>
 #include <media/NdkImage.h>
 #include <string>
+
+using namespace docscanner;
 
 void onDisconnected(void* context, ACameraDevice* device) {
     LOGE("onDisconnected");
@@ -37,7 +41,7 @@ void onCaptureSequenceAborted(void* context, ACameraCaptureSession* session, int
 void onCaptureCompleted(void* context, ACameraCaptureSession* session, ACaptureRequest* request, const ACameraMetadata* result) {
 }
 
-ACameraDevice* docscanner::find_and_open_back_camera(const uvec2& min_size, uvec2& size) {
+camera docscanner::find_and_open_back_camera(const uvec2& min_size, uvec2& size) {
     ACameraManager* mng = ACameraManager_create();
 
     ACameraIdList* camera_ids = nullptr;
@@ -113,7 +117,7 @@ ACameraDevice* docscanner::find_and_open_back_camera(const uvec2& min_size, uvec
     }
 
     if (camera_index == -1) {
-        return nullptr;
+        return { nullptr };
     }
 
     ACameraDevice* device;
@@ -129,10 +133,12 @@ ACameraDevice* docscanner::find_and_open_back_camera(const uvec2& min_size, uvec
 
     ACameraManager_deleteCameraIdList(camera_ids);
 
-    return device;
+    return { device };
 }
 
-void docscanner::init_camera_capture_to_native_window(ACameraDevice* cam, ANativeWindow* texture_window) {
+void docscanner::init_camera_capture_to_native_window(const camera& camera, ANativeWindow* texture_window) {
+    ACameraDevice* cam = camera.device;
+
     // prepare request with desired template
     ACaptureRequest* request = nullptr;
     ACameraDevice_createCaptureRequest(cam, TEMPLATE_STILL_CAPTURE, &request);
@@ -179,3 +185,5 @@ void docscanner::init_camera_capture_to_native_window(ACameraDevice* cam, ANativ
     // start capturing continuously
     ACameraCaptureSession_setRepeatingRequest(session, &capture_callbacks, 1, &request, nullptr);
 }
+
+#endif

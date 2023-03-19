@@ -35,6 +35,7 @@ struct variable {
     int location;
 
     void set_mat4(float* data);
+    void set_vec2(const vec2& v);
 };
 
 struct texture_downsampler {
@@ -54,7 +55,17 @@ struct texture_downsampler {
     texture* downsample();
 };
 
-extern shader_program cam_preview_program;
+struct sticky_particle_system {
+    const vertex* mesh_vertices;
+    svec2 mesh_size;
+
+    shader_program shader;
+
+    shader_buffer quad_buffer;
+
+    void init(const vertex* mesh_vertices, const svec2& mesh_size, float* projection);
+    void render();
+};
 
 void check_gl_error(const char* op);
 

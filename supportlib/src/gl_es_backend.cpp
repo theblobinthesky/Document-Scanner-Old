@@ -8,7 +8,7 @@
 
 using namespace docscanner;
 
-constexpr const char vert_src[] = R"(#version 310 es
+constexpr const char* vertex_src = R"(#version 310 es
         uniform mat4 projection;
 
         in vec2 position;
@@ -21,7 +21,28 @@ constexpr const char vert_src[] = R"(#version 310 es
         }
 )";
 
-constexpr const char gauss_blur_frag_src[] = R"(#version 310 es
+constexpr const char* vert_instanced_quad_src = R"(#version 310
+    uniform mat4 projection;
+
+    struct quad {
+        vec4 tl, tr, br, bl;
+    };
+
+    uniform vec4 transforms[%u][4];
+
+    layout (location = 0) in vec2 pos;
+    layout (location = 0) in vec2 uv;
+
+    out vec2 out_uv;
+
+    void main() {
+        vec4 pts[4] = transforms[gl_InstanceID];
+        gl_Position = projection * vec4(pos, 0, 1);
+        out_uv = uv;
+    }
+)";
+
+constexpr const char* gauss_blur_frag_src = R"(#version 310 es
 #if %d
         #extension GL_OES_EGL_image_external_essl3 : require
         uniform layout(binding = 0) samplerExternalOES sampler;
@@ -56,6 +77,17 @@ constexpr const char gauss_blur_frag_src[] = R"(#version 310 es
         }
 )";
 
+constexpr const char* frag_debug_src = R"(#version 310 es
+        precision mediump float;
+
+        in vec2 out_uvs;
+        out vec4 out_col;
+
+        void main() {
+             out_col = vec4(out_uvs, 1.0, 1.0);
+        }
+)";
+
 void docscanner::check_gl_error(const char* op) {
     for (GLenum error = glGetError(); error; error = glGetError()) {
         LOGE_AND_BREAK("glError with code 0x%04x was triggered by %s().\n", error, op);
@@ -64,6 +96,10 @@ void docscanner::check_gl_error(const char* op) {
 
 void docscanner::variable::set_mat4(float* data) {
     glUniformMatrix4fv(location, 1, GL_FALSE, data);
+}
+
+void docscanner::variable::set_vec2(const vec2& v) {
+    glUniform2f(location, v.x, v.y);
 }
 
 std::string compute_gauss_coefficients(int n) {
@@ -141,11 +177,11 @@ void docscanner::texture_downsampler::init(uvec2 input_size, uvec2 output_size, 
     output_fb = framebuffer_from_texture(output_tex);
     
     char* gauss_frag_src_x = prepare_gauss_fragment_src(true, req_kernel_size.x, {1.0f / (f32)input_size.x, 0.0f});
-    gauss_blur_x_program = compile_and_link_program(vert_src, gauss_frag_src_x, null, null);
+    gauss_blur_x_program = compile_and_link_program(vertex_src, gauss_frag_src_x, null, null);
     ASSERT(gauss_blur_x_program.program, "gauss_blur_x_program program could not be compiled.");
     
     char* gauss_frag_src_y = prepare_gauss_fragment_src(false, req_kernel_size.y, {0.0f, 1.0f / (f32)input_size.y});
-    gauss_blur_y_program = compile_and_link_program(vert_src, gauss_frag_src_y, null, null);
+    gauss_blur_y_program = compile_and_link_program(vertex_src, gauss_frag_src_y, null, null);
     ASSERT(gauss_blur_y_program.program, "gauss_blur_y_program program could not be compiled.");
 
     float projection[16];
@@ -202,6 +238,44 @@ texture* docscanner::texture_downsampler::downsample() {
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 
     return &output_tex;
+}
+
+void sticky_particle_system::init(const vertex* mesh_vertices, const svec2& mesh_size, float* projection) {
+    this->mesh_vertices = mesh_vertices;
+    this->mesh_size = mesh_size;
+
+    size_t needed = snprintf(null, 0, vert_instanced_quad_src, mesh_size.x * mesh_size.y);
+    char* buffer = new char[needed];
+    sprintf(buffer, vert_instanced_quad_src, mesh_size.x * mesh_size.y);
+
+    LOGI("buffer: %s", buffer);
+
+    shader = compile_and_link_program(buffer, frag_debug_src, null, null);
+
+    use_program(shader);
+    get_variable(shader, "projection").set_mat4(projection);
+    
+    vertex vertices[] = {
+        {{1.f, 0.f}, {1, 0}},
+        {{0.f, 1.f}, {0, 1}},
+        {{1.f, 1.f}, {0, 0}},
+        {{0.f, 0.f}, {1, 1}}
+    };
+
+    u32 indices[] = { 
+        0, 1, 2, 
+        0, 3, 1 
+    };
+
+    quad_buffer = make_shader_buffer();
+    fill_shader_buffer(quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
+}
+
+void sticky_particle_system::render() {
+    use_program(shader);
+    glBindVertexArray(quad_buffer.id);
+
+    glDrawArraysInstanced(GL_TRIANGLES, 1, 6, mesh_size.x * mesh_size.y);
 }
 
 GLuint load_shader(GLenum type, const char* source) {

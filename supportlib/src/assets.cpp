@@ -1,5 +1,6 @@
 #include "assets.hpp"
 #ifdef ANDROID
+
 #include "log.hpp"
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
@@ -19,6 +20,12 @@ void docscanner::file_to_buffer(file_context* ctx, const char* path, u8* &data, 
 
     int status = AAsset_read(asset, data, size);
     ASSERT(status >= 0, "AAsset read failed.");
+}
+
+#elif defined(LINUX)
+
+void docscanner::file_to_buffer(file_context* ctx, const char* path, u8* data, u32 &size) {
+    // TODO: implement
 }
 
 #endif

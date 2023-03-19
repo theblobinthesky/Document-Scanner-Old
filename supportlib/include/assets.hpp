@@ -13,6 +13,10 @@ struct file_context {
 };
 
 file_context get_file_ctx_from_asset_mngr(AAssetManager* mngr);
+#elif defined(LINUX)
+struct file_context {
+    
+};
 #endif
 
 void file_to_buffer(file_context* ctx, const char* path, u8* &data, u32 &size);

@@ -1,11 +1,21 @@
 #include "cam_preview.hpp"
 #include "log.hpp"
 #include "backend.hpp"
-#include "android_camera.hpp"
+#include "camera.hpp"
 
 using namespace docscanner;
 
-constexpr const char vert_src[] = R"(#version 310 es
+void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* cam_height) {
+    this->preview_size = preview_size;
+
+    cam = find_and_open_back_camera(preview_size, cam_tex_size);
+    *cam_width = (int) cam_tex_size.x;
+    *cam_height = (int) cam_tex_size.y;
+
+    LOGI("cam_tex_size: (%u, %u)", cam_tex_size.x, cam_tex_size.y);
+}
+
+constexpr const char* vert_src = R"(#version 310 es
         uniform mat4 projection;
 
         in vec2 position;
@@ -18,34 +28,24 @@ constexpr const char vert_src[] = R"(#version 310 es
         }
 )";
 
-constexpr const char frag_src[] = R"(#version 310 es
-        precision mediump float;
+constexpr const char* oes_sampler_frag_src = R"(#version 310 es
+        #extension GL_OES_EGL_image_external_essl3 : require
 
-        uniform layout(binding = 0) sampler2D mask_sampler;
-        uniform layout(binding = 1) sampler2D cam_sampler;
+        precision mediump float;
+        uniform layout(binding = 0) samplerExternalOES cam_sampler;
 
         in vec2 out_uvs;
         out vec4 out_col;
 
         void main() {
-             out_col = texture(mask_sampler, out_uvs); // texture(cam_sampler, out_uvs) * texture(mask_sampler, out_uvs).r;
+             out_col = texture(cam_sampler, out_uvs);
         }
 )";
-
-void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* cam_height) {
-    this->preview_size = preview_size;
-
-    cam = find_and_open_back_camera(preview_size, cam_tex_size);
-    *cam_width = (int) cam_tex_size.x;
-    *cam_height = (int) cam_tex_size.y;
-
-    LOGI("cam_tex_size: (%u, %u)", cam_tex_size.x, cam_tex_size.y);
-}
 
 void docscanner::cam_preview::init_backend(file_context* file_ctx) {
     LOGI("preview_size: (%u, %u)", preview_size.x, preview_size.y);
 
-    preview_program = compile_and_link_program(vert_src, frag_src, nullptr, nullptr);
+    preview_program = compile_and_link_program(vert_src, oes_sampler_frag_src, null, null);
     ASSERT(preview_program.program, "Preview program could not be compiled.");
 
     // buffer stuff
@@ -86,16 +86,14 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx) {
     nn_output_buffer = new u8[nn_output_buffer_size];
     
     nn_output_tex = create_texture(downsampled_size , GL_R32F);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
     tex_downsampler.init(cam_tex_size, downsampled_size, true, null, 2.0);
+    mesher.init(reinterpret_cast<f32*>(nn_output_buffer), { (s32)downsampled_size.x, (s32)downsampled_size.y }, projection);
+
+    border_program = compile_and_link_program(vert_src, oes_sampler_frag_src, null, null);
+    ASSERT(border_program.program, "Border program could not be compiled.");
 
     nn = create_neural_network_from_path(file_ctx, "seg_model.tflite", execution_pref::sustained_speed);
-
-    test_rect_buffer = make_shader_buffer();
-
-    mesher.init(reinterpret_cast<f32*>(nn_output_buffer), { (s32)downsampled_size.x, (s32)downsampled_size.y }, projection);
 
     is_init = true;
 }
@@ -134,31 +132,11 @@ void docscanner::cam_preview::render() {
     bind_texture_to_slot(1, *nn_input_tex);
     draw(c);
 
-
-
     use_program(mesher.mesh_program);
 
     glBindVertexArray(mesher.mesh_buffer.id);
     glDrawElements(GL_TRIANGLES, mesher.mesh_indices.size(), GL_UNSIGNED_INT, null);
 
-
-    /*glBindVertexArray(test_rect_buffer.id);
-    
-    vertex vertices[] = {
-        {tr, {1, cam_tex_left}},   // 1, 0
-        {bl, {0, cam_tex_right}},  // 0, 1
-        {br, {0, cam_tex_left}},   // 1, 1
-        {tl, {1, cam_tex_right}}  // 0, 0
-    };
-
-    u32 indices[] = { 
-        0, 1, 2, 
-        0, 3, 1 
-    };
-
-    fill_shader_buffer(cam_quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
-
-    draw(c);*/
 
     auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
     auto dur = end - last_time;

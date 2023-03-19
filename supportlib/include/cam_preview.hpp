@@ -3,6 +3,7 @@
 #include "assets.hpp"
 #include "nn.hpp"
 #include "img_proc.hpp"
+#include "camera.hpp"
 
 #include <vector>
 
@@ -13,7 +14,7 @@ NAMESPACE_BEGIN
 
 struct cam_preview {
     shader_program preview_program;
-    ACameraDevice* cam;
+    camera cam;
 
     shader_buffer cam_quad_buffer;
 
@@ -32,10 +33,11 @@ struct cam_preview {
     u64 last_time;
     
     texture_downsampler tex_downsampler;
-
-    shader_buffer test_rect_buffer;
-
     mask_mesher mesher;
+
+    shader_program border_program;
+    std::vector<s32> border_indices;
+    std::vector<vertex> border_vertices;
 
     bool is_init;
 

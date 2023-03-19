@@ -1,3 +1,5 @@
+#ifdef ANDROID
+
 #include "android_jni.hpp"
 
 jfieldID get_field_id(JNIEnv* env, jobject obj) {
@@ -33,3 +35,5 @@ docscanner::pipeline* docscanner::get_persistent_pipeline(JNIEnv* env, jobject o
     if(!field_id) return null;
     return reinterpret_cast<docscanner::pipeline*>(env->GetLongField(obj, field_id));
 }
+
+#endif

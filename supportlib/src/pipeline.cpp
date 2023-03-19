@@ -1,7 +1,7 @@
 #include "pipeline.hpp"
 #include "log.hpp"
 #include "backend.hpp"
-#include "android_camera.hpp"
+#include "camera.hpp"
 #include "nn.hpp"
 
 using namespace docscanner;
