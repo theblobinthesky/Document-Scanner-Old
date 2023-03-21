@@ -11,10 +11,12 @@ struct mask_mesher {
     std::vector<u32> mesh_indices;
     svec2 mesh_size;
 
-    f32* mask_buffer;
+    f32* mask_buffer, *flatten_buffer;
     svec2 mask_size;
 
-    void init(shader_programmer* programmer, f32* mask_buffer, const svec2& mask_size, float* projection);
+    bool exists;
+
+    void init(shader_programmer* programmer, f32* mask_buffer, f32* flatten_buffer, const svec2& mask_size, float* projection);
     void mesh();
 };
 

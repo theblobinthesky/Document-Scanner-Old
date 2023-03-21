@@ -65,98 +65,98 @@ class CosineAnnealingWarmRestartsWithWarmup(lr_scheduler.CosineAnnealingWarmRest
 
 
 def train_model(model, model_path, epochs, time_in_hours, ds, is_pre, summary_writer):
-    optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
-    scheduler = CosineAnnealingWarmRestartsWithWarmup(optim, T_0, T_mul, warmup_lr, warmup_epochs)
+    # optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
+    # scheduler = CosineAnnealingWarmRestartsWithWarmup(optim, T_0, T_mul, warmup_lr, warmup_epochs)
 
-    start_time = datetime.datetime.now()
+    # start_time = datetime.datetime.now()
 
-    train_ds, valid_ds, test_ds = ds
-    trainds_iter = iter(cycle(train_ds))
-    valid_iter = iter(cycle(valid_ds))
-    test_iter = iter(test_ds)
+    # train_ds, valid_ds, test_ds = ds
+    # trainds_iter = iter(cycle(train_ds))
+    # valid_iter = iter(cycle(valid_ds))
+    # test_iter = iter(test_ds)
 
-    pbar = tqdm(total=epochs)
-    pbar.set_description("initializing training and running first epoch")
+    # pbar = tqdm(total=epochs)
+    # pbar.set_description("initializing training and running first epoch")
     
-    for epoch in range(epochs):
-        train_loss = 0.0
+    # for epoch in range(epochs):
+    #     train_loss = 0.0
 
-        for _ in range(steps_per_epoch):
-            dict, weight_metrics = next(trainds_iter)
+    #     for _ in range(steps_per_epoch):
+    #         dict, weight_metrics = next(trainds_iter)
 
-            def dict_to_device(dict):
-                return { key: value.to(device) for key, value in dict.items() }
+    #         def dict_to_device(dict):
+    #             return { key: value.to(device) for key, value in dict.items() }
             
-            dict, weight_metrics = dict_to_device(dict), dict_to_device(weight_metrics)
+    #         dict, weight_metrics = dict_to_device(dict), dict_to_device(weight_metrics)
                 
-            x, _ = model.input_and_label_from_dict(dict)
+    #         x, _ = model.input_and_label_from_dict(dict)
 
-            optim.zero_grad(set_to_none=True)
+    #         optim.zero_grad(set_to_none=True)
 
-            if is_pre:
-                pred = model(x)
-                loss = model.loss(pred, dict, weight_metrics)
-            else:
-                preds = model.forward_all(x)
+    #         if is_pre:
+    #             pred = model(x)
+    #             loss = model.loss(pred, dict, weight_metrics)
+    #         else:
+    #             preds = model.forward_all(x)
                 
-                loss = 0.0
+    #             loss = 0.0
 
-                for i, pred in enumerate(preds):
-                    fac = lam ** (len(preds) - 1 - i)
-                    loss += fac * model.loss(pred, dict, weight_metrics)
+    #             for i, pred in enumerate(preds):
+    #                 fac = lam ** (len(preds) - 1 - i)
+    #                 loss += fac * model.loss(pred, dict, weight_metrics)
 
-                loss /= float(len(preds))
+    #             loss /= float(len(preds))
             
-            loss.backward()
+    #         loss.backward()
 
-            optim.step()
+    #         optim.step()
 
-            train_loss += loss.detach().cpu().item()
+    #         train_loss += loss.detach().cpu().item()
 
-        train_loss /= steps_per_epoch
+    #     train_loss /= steps_per_epoch
 
-        if epoch % valid_eval_every == 0:
-            valid_loss = eval_loss_on_batches(model, valid_iter, valid_batch_count, device)
-            summary_writer.add_scalar("Loss/valid", valid_loss, epoch)
+    #     if epoch % valid_eval_every == 0:
+    #         valid_loss = eval_loss_on_batches(model, valid_iter, valid_batch_count, device)
+    #         summary_writer.add_scalar("Loss/valid", valid_loss, epoch)
 
-        scheduler.step()
+    #     scheduler.step()
 
 
-        now = datetime.datetime.now()
-        hours_passed = (now - start_time).seconds / (60.0 * 60.0)
-        learning_rate = optim.param_groups[-1]['lr']
+    #     now = datetime.datetime.now()
+    #     hours_passed = (now - start_time).seconds / (60.0 * 60.0)
+    #     learning_rate = optim.param_groups[-1]['lr']
 
-        summary_writer.add_scalar("Loss/train", train_loss, epoch)
-        summary_writer.add_scalar("Learning rate", learning_rate, epoch)
+    #     summary_writer.add_scalar("Loss/train", train_loss, epoch)
+    #     summary_writer.add_scalar("Learning rate", learning_rate, epoch)
 
-        pbar.update(1)
-        pbar.set_description(f"epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. training loss: {train_loss:.4f}, validation loss: {valid_loss:.4f}, learning rate: {learning_rate:.6f}")
+    #     pbar.update(1)
+    #     pbar.set_description(f"epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. training loss: {train_loss:.4f}, validation loss: {valid_loss:.4f}, learning rate: {learning_rate:.6f}")
 
-        if hours_passed > time_in_hours:
-            pbar.close()
-            print(f"hour limit of {time_in_hours:.4f}h passed")
-            break
+    #     if hours_passed > time_in_hours:
+    #         pbar.close()
+    #         print(f"hour limit of {time_in_hours:.4f}h passed")
+    #         break
 
-        if learning_rate < min_learning_rate_before_early_termination:
-            pbar.close()
-            print(f"learning rate {learning_rate} is smaller than {min_learning_rate_before_early_termination}. no further learning progress can be made")
-            break
+    #     if learning_rate < min_learning_rate_before_early_termination:
+    #         pbar.close()
+    #         print(f"learning rate {learning_rate} is smaller than {min_learning_rate_before_early_termination}. no further learning progress can be made")
+    #         break
 
-    save_model(model, model_path)
+    # save_model(model, model_path)
 
-    pbar.close()
+    # pbar.close()
 
-    model.set_train(False)
+    # model.set_train(False)
 
-    test_loss, metrics = eval_loss_and_metrics_on_batches(model, test_iter, batch_size, device)
+    # test_loss, metrics = eval_loss_and_metrics_on_batches(model, test_iter, batch_size, device)
 
-    hparams = {"parameter_count": count_params(model)}
+    # hparams = {"parameter_count": count_params(model)}
 
-    metric_dict = {"Loss/test": test_loss}
-    for (name, item) in metrics:
-        metric_dict[name] = item
+    # metric_dict = {"Loss/test": test_loss}
+    # for (name, item) in metrics:
+    #     metric_dict[name] = item
 
-    summary_writer.add_hparams(hparams, metric_dict)
+    # summary_writer.add_hparams(hparams, metric_dict)
 
     if is_pre:
         plt = benchmark_plt_pre(model)
@@ -165,7 +165,7 @@ def train_model(model, model_path, epochs, time_in_hours, ds, is_pre, summary_wr
 
     summary_writer.add_figure("benchmark", plt)
     
-    print(f"test loss: {test_loss:.4f}")
+    # print(f"test loss: {test_loss:.4f}")
 
 
 def train_pre_model(model, model_path, summary_writer):

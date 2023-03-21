@@ -12,7 +12,7 @@ from onnx2keras import onnx_to_keras
 import io
 
 size = (64, 64)
-name = "seg_model_finetuning_large_amplitude"
+name = "seg_model_new"
 
 dummy_input = torch.randn(1, 4, size[0], size[1])
 
@@ -36,7 +36,7 @@ def export(model, tflite_path):
     with open(tflite_path, "wb") as f:
         f.write(tflite_model)
 
-from seg_model import PreModel, binarize
+from seg_model import PreModel
 
 class PreModelWrapper(nn.Module):
     def __init__(self):
@@ -83,7 +83,7 @@ np_features = np.expand_dims(np_features, axis=0)
 interpreter.set_tensor(input_details[0]['index'], np_features)
 interpreter.invoke()
 
-output = interpreter.get_tensor(output_details[0]['index'])
+output = interpreter.get_tensor(output_details[1]['index'])
 output = output[0]
 
 import matplotlib.pyplot as plt

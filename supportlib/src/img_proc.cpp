@@ -8,8 +8,9 @@ using namespace docscanner;
 constexpr f32 binarize_threshold = 0.8f;
 constexpr s32 points_per_side = 10;
 
-void mask_mesher::init(shader_programmer* programmer, f32* mask_buffer, const svec2& mask_size, float* projection) {
+void mask_mesher::init(shader_programmer* programmer, f32* mask_buffer, f32* flatten_buffer, const svec2& mask_size, float* projection) {
     this->mask_buffer = mask_buffer;
+    this->flatten_buffer = flatten_buffer;
     this->mask_size = mask_size;
     this->mesh_size = { points_per_side, points_per_side };
 
@@ -109,6 +110,7 @@ f32 perpendicular_distance(svec2 start, svec2 end, svec2 p) {
     return std::abs(a) / b;
 }
 
+#if false
 f32 arc_length(std::vector<svec2> boundary) {
     f32 len = 0.0f;
 
@@ -198,77 +200,76 @@ std::vector<s32> find_most_promising_corner_pts(const std::vector<svec2>& bounda
 
     return { c0, c1, c2, c3 };
 }
+#endif
 
+s32 find_closest_point_to(const std::vector<svec2>& boundary, const svec2& to) {
+    s32 min_index = 0;
+    f32 min_dist_sqred = 9999999.0f;
 
-s32 most_likely_corner(svec2 s0, svec2 s1) {
-#define loss(v, d) abs(abs(svec2::dot(v, d) / v.length()) - 1.0f)
-#define left_loss(v) loss(v, svec2({ -1, 0 }))
-#define top_loss(v) loss(v, svec2({ 0, 1 }))
-#define right_loss(v) loss(v, svec2({ 1, 0 }))
-#define bottom_loss(v) loss(v, svec2({ 0, -1 }))
-
-    f32 dots[] = {
-        left_loss(s0),
-        top_loss(s0),
-        right_loss(s0),
-        bottom_loss(s0)
-    };
-
-    s32 s0_i; 
-    f32 max_val = 0.0;
-    for (s32 i = 0; i < 4; i++) {
-        if(dots[i] > max_val) {
-            s0_i = i;
-            max_val = dots[i];
+    for(s32 i = 0; i < boundary.size(); i++) {
+        const svec2& cmp = boundary[i];
+        f32 dist_sqred = (cmp - to).length_squared();
+    
+        if(dist_sqred < min_dist_sqred) {
+            min_index = i;
+            min_dist_sqred = dist_sqred;
         }
     }
 
-    s32 lr_i, tb_i;
-
-    if (s0_i == 0 || s0_i == 2) {
-        lr_i = (s0_i == 0);
-        tb_i = (top_loss(s1) < bottom_loss(s1));
-    } else {
-        tb_i = (s0_i == 1);
-        lr_i = (left_loss(s1) < right_loss(s1)); 
-    }
-
-    if (lr_i == 0) {
-        if (tb_i == 0) return 0;
-        else return 3;
-    } else {
-        if (tb_i == 0) return 1;
-        else return 2;
-    }
+    return min_index;
 }
 
-std::vector<s32> reoder_corner_pts_to_match_direction(const std::vector<svec2>& boundary, const std::vector<s32>& corner_pts) {
-    std::vector<s32> already_chosen;
-
-    const svec2& c0 = boundary[corner_pts[0]];
-    const svec2& c1 = boundary[corner_pts[1]];
-    const svec2& c2 = boundary[corner_pts[2]];
-    
-    s32 real_c0 = most_likely_corner((c1 - c0).orthogonal(), (c2 - c1).orthogonal());
-
-    std::vector<s32> reordered;
-    reordered.reserve(4);
-
-    for (s32 i = 0; i < 4; i++) {
-        reordered[(i + real_c0) % 4] = corner_pts[i];
-    }
-    
-    return reordered;
+std::vector<s32> find_most_promising_corner_pts(const std::vector<svec2>& boundary, const svec2 corner_guesses[4]) {
+    return {
+        find_closest_point_to(boundary, corner_guesses[0]),
+        find_closest_point_to(boundary, corner_guesses[1]),
+        find_closest_point_to(boundary, corner_guesses[2]),
+        find_closest_point_to(boundary, corner_guesses[3])
+    };
 }
 
-std::vector<svec2> sample_points_from_boundary(const std::vector<svec2>& boundary, u32 from, u32 to, u32 n) {
+std::vector<svec2> sample_points_from_boundary(const std::vector<svec2>& boundary, const std::vector<s32>& corners, s32 edge_start, s32 n) {
     std::vector<svec2> pts;
 
-    if (to < from) to += boundary.size();
+    s32 from = corners[edge_start];
+    s32 to = corners[(edge_start + 1) % 4];
+    s32 anticipate = corners[(edge_start + 2) % 4];
 
-    for(u32 i = 0; i < n; i++) {
-        u32 b = from + (u32)((i / (f32)(n - 1)) * (to - from));
-        pts.push_back(boundary[b % boundary.size()]);
+    s32 dir = 1;
+    for(s32 i = (to + 1) % boundary.size(); i != to; i = (i + 1) % boundary.size()) {
+        if(i == anticipate) {
+            dir = -1;
+            break;
+        } else if(i == from) {
+            dir = +1;
+            break;
+        }
+    }
+
+    if(dir == -1) {
+        f32 dist = 0.0f;
+
+        for(s32 i = from; i != to; i = (i + 1) % boundary.size()) {
+            dist += 1.0f;
+        }
+
+        for(s32 i = 0; i < n; i++) {
+            s32 b = from + (s32)((i / (f32)(n - 1)) * dist);
+            pts.push_back(boundary[b % boundary.size()]);
+        }
+
+        std::reverse(pts.begin(), pts.end());
+    } else {
+        f32 dist = 0.0f;
+        
+        for(s32 i = to; i != from; i = (i + 1) % boundary.size()) {
+            dist += 1.0f;
+        }
+
+        for(s32 i = 0; i < n; i++) {
+            s32 b = to + (s32)((i / (f32)(n - 1)) * dist);
+            pts.push_back(boundary[b % boundary.size()]);
+        }
     }
 
     return pts;
@@ -318,38 +319,69 @@ void mask_mesher::mesh() {
 
     auto contour = find_contours(mask_buffer, mask_size);
 
-    if (contour.size() > 0) {
-        f32 arc_len = arc_length(contour);
-        auto approx_contour = contour_approx(contour, 0, contour.size() - 1, 0.05f * arc_len);
+#if false
+    for(svec2 pt: contour) {
+        mask_buffer[pt.x * mask_size.y + pt.y] = 0.5f;
+    }
+#endif
 
-        if(approx_contour.size() >= 4) {
-            auto corner_pts = find_most_promising_corner_pts(contour, approx_contour);
-            corner_pts = reoder_corner_pts_to_match_direction(contour, corner_pts);
+    exists = flatten_buffer[0] > binarize_threshold;
 
-            auto left = sample_points_from_boundary(contour, corner_pts[0], corner_pts[1], points_per_side);
-            auto top = sample_points_from_boundary(contour, corner_pts[1], corner_pts[2], points_per_side);
-            auto right = sample_points_from_boundary(contour, corner_pts[2], corner_pts[3], points_per_side);
-            auto bottom = sample_points_from_boundary(contour, corner_pts[3], corner_pts[0], points_per_side);
+    if (contour.size() > 0 && exists) {
+#define scale_and_cast(x, y) svec2({(s32)round(x * 64.0), (s32)round(y * 64.0)})
 
-            std::reverse(right.begin(), right.end());
-            std::reverse(bottom.begin(), bottom.end());
+        const svec2 corner_guesses[4] = {
+            scale_and_cast(flatten_buffer[2], flatten_buffer[1]),
+            scale_and_cast(flatten_buffer[4], flatten_buffer[3]),
+            scale_and_cast(flatten_buffer[8], flatten_buffer[7]),
+            scale_and_cast(flatten_buffer[6], flatten_buffer[5])
+        };
 
-            mesh_vertices.clear();
-            for(u32 i = 0; i < points_per_side * points_per_side; i++) 
-                mesh_vertices.push_back({});
-    
-            interpolate_mesh(mesh_vertices.data(), left, top, right, bottom);
+#undef scale_and_cast
+        
+        auto corner_pts = find_most_promising_corner_pts(contour, corner_guesses);
 
-            s32 n = points_per_side;
+        auto left = sample_points_from_boundary(contour, corner_pts, 0, points_per_side);
+        auto top = sample_points_from_boundary(contour, corner_pts, 1, points_per_side);
+        auto right = sample_points_from_boundary(contour, corner_pts, 2, points_per_side);
+        auto bottom = sample_points_from_boundary(contour, corner_pts, 3, points_per_side);
 
-            for(s32 y = 0; y < n; y++) {
-                for(s32 x = 0; x < n; x++) {
-                    vec2& pos = mesh_vertices[x * n + y].pos;
-                    pos = { 1.0f - pos.x, 1.0f - pos.y };
-                }
-            }
-
-            fill_shader_buffer(mesh_buffer, mesh_vertices.data(), mesh_vertices.size() * sizeof(vertex), mesh_indices.data(), mesh_indices.size() * sizeof(u32));
+#if false
+        for(svec2 pt: left) {
+            mask_buffer[pt.x * mask_size.y + pt.y] = 0.2f;
         }
+        
+        for(svec2 pt: top) {
+            mask_buffer[pt.x * mask_size.y + pt.y] = 0.4f;
+        }
+        
+        for(svec2 pt: right) {
+            mask_buffer[pt.x * mask_size.y + pt.y] = 0.6f;
+        }
+        
+        for(svec2 pt: bottom) {
+            mask_buffer[pt.x * mask_size.y + pt.y] = 0.8f;
+        }
+#endif
+
+        std::reverse(left.begin(), left.end());
+        std::reverse(top.begin(), top.end());
+
+        mesh_vertices.clear();
+        for(u32 i = 0; i < points_per_side * points_per_side; i++) 
+            mesh_vertices.push_back({});
+    
+        interpolate_mesh(mesh_vertices.data(), left, top, right, bottom);
+
+        s32 n = points_per_side;
+
+        for(s32 y = 0; y < n; y++) {
+            for(s32 x = 0; x < n; x++) {
+                vec2& pos = mesh_vertices[x * n + y].pos;
+                pos = { 1.0f - pos.x, 1.0f - pos.y };
+            }
+        }
+
+        fill_shader_buffer(mesh_buffer, mesh_vertices.data(), mesh_vertices.size() * sizeof(vertex), mesh_indices.data(), mesh_indices.size() * sizeof(u32));
     }
 }

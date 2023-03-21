@@ -72,15 +72,13 @@ neural_network docscanner::create_neural_network_from_path(file_context* file_ct
     TfLiteInterpreterAllocateTensors(interpreter);
 
     TfLiteTensor* input_tensor = TfLiteInterpreterGetInputTensor(interpreter, 0);
-    const TfLiteTensor* output_tensor = TfLiteInterpreterGetOutputTensor(interpreter, 0);
 
     return {
         .interpreter=interpreter,
         .options = options,
         .model = model,
         .delegate = delegate,
-        .inp_ten = input_tensor,
-        .out_ten = output_tensor
+        .inp_ten = input_tensor
     };
 }
 
@@ -93,12 +91,21 @@ void docscanner::destory_neural_network(const neural_network& nn) {
 
 #include <chrono>
 
-void docscanner::invoke_neural_network_on_data(const neural_network& nn, u8* inp_data, u32 inp_size, u8* out_data, u32 out_size) {
+void docscanner::invoke_neural_network_on_data(const neural_network& nn, u8* inp_data, u32 inp_size, u8** out_datas, u32* out_sizes, u32 out_size) {
     auto start = std::chrono::high_resolution_clock::now();
     
     TfLiteTensorCopyFromBuffer(nn.inp_ten, inp_data, inp_size);
     TfLiteInterpreterInvoke(nn.interpreter);
-    TfLiteTensorCopyToBuffer(nn.out_ten, out_data, out_size);
+
+    u32 got_out_size = TfLiteInterpreterGetOutputTensorCount(nn.interpreter);
+    ASSERT(out_size == got_out_size, "Neural network has wrong amount of output tensors. Expected %u but got %u.", out_size, got_out_size);
+
+    for(s32 i = 0; i < out_size; i++) {
+        const TfLiteTensor* out_ten = TfLiteInterpreterGetOutputTensor(nn.interpreter, i);
+        ASSERT(out_sizes[i] == out_ten->bytes, "Neural network output tensor size is wrong. Expected %u but got %u.", out_sizes[i], (u32)out_ten->bytes);
+
+        TfLiteTensorCopyToBuffer(out_ten, out_datas[i], out_sizes[i]);
+    }
 
     auto end = std::chrono::high_resolution_clock::now();
     auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);

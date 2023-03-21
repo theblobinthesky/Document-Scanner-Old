@@ -10,7 +10,12 @@ import matplotlib.pyplot as plt
 num_examples = 8
 dpi = 50
 circle_radius = 2
-circle_color = (1.0, 0.0, 0.0)
+circle_colors = [
+    (1.0, 0.0, 0.0),
+    (0.0, 1.0, 0.0),
+    (0.0, 0.0, 1.0),
+    (0.5, 0.5, 0.0),
+]
 
 def sample_from_bmap(img, bmap):
     bmap = bmap.clone().permute(0, 2, 3, 1)
@@ -56,10 +61,10 @@ def apply_flatten_to_mask(mask, flatten):
     
     tl, tr, br, bl = get_pt(1), get_pt(3), get_pt(5), get_pt(7)
 
-    cv2.circle(mask, tl, circle_radius, circle_color)
-    cv2.circle(mask, tr, circle_radius, circle_color)
-    cv2.circle(mask, br, circle_radius, circle_color)
-    cv2.circle(mask, bl, circle_radius, circle_color)
+    cv2.circle(mask, tl, circle_radius, circle_colors[0])
+    cv2.circle(mask, tr, circle_radius, circle_colors[1])
+    cv2.circle(mask, br, circle_radius, circle_colors[2])
+    cv2.circle(mask, bl, circle_radius, circle_colors[3])
 
     return mask
 

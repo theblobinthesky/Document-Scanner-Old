@@ -21,8 +21,8 @@ struct cam_preview {
 
     shader_buffer cam_quad_buffer;
 
-    u32 nn_input_buffer_size, nn_output_buffer_size;
-    u8* nn_input_buffer, *nn_output_buffer;
+    u32 nn_input_buffer_size, nn_mask_out_size, nn_flatten_out_size;
+    u8* nn_input_buffer, *nn_mask_out_buff, *nn_flatten_out_buff;
 
     texture* nn_input_tex;
     texture nn_output_tex;

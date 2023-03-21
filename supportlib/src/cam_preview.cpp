@@ -14,6 +14,8 @@ using namespace docscanner;
 #error "Platform not supported yet."
 #endif
 
+constexpr u32 flatten_f32_count = 9;
+
 void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* cam_height) {
     this->preview_size = preview_size;
 
@@ -63,10 +65,15 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx) {
     nn_input_buffer_size = downsampled_size.x * downsampled_size.y * 4 * sizeof(float);
     nn_input_buffer = new u8[nn_input_buffer_size];
 
-    nn_output_buffer_size = downsampled_size.x * downsampled_size.y * 1 * sizeof(float);
-    nn_output_buffer = new u8[nn_output_buffer_size];
+    nn_flatten_out_size = flatten_f32_count * sizeof(f32);
+    nn_mask_out_size = downsampled_size.x * downsampled_size.y * 1 * sizeof(float);
+    nn_flatten_out_buff = new u8[flatten_f32_count * sizeof(f32)];
+    nn_mask_out_buff = new u8[nn_mask_out_size];
     
     nn_output_tex = create_texture(downsampled_size , GL_R32F);
+    glBindTexture(GL_TEXTURE_2D, nn_output_tex.id);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 #if CAM_USES_OES_TEXTURE
     tex_downsampler.init(&programmer, cam_tex_size, downsampled_size, true, null, 2.0);
@@ -74,7 +81,7 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx) {
     tex_downsampler.init(&programmer, cam_tex_size, downsampled_size, false, &cam.cam_tex, 2.0);
 #endif
 
-    mesher.init(&programmer, reinterpret_cast<f32*>(nn_output_buffer), { (s32)downsampled_size.x, (s32)downsampled_size.y }, projection);
+    mesher.init(&programmer, (f32*)nn_mask_out_buff, (f32*)nn_flatten_out_buff, { (s32)downsampled_size.x, (s32)downsampled_size.y }, projection);
 
     auto shader = programmer.compile_and_link(vert_src, frag_debug_src);
 
@@ -109,12 +116,14 @@ void docscanner::cam_preview::render() {
 
     get_framebuffer_data(tex_downsampler.output_fb, tex_downsampler.output_size, nn_input_buffer, nn_input_buffer_size);
     
-    invoke_neural_network_on_data(nn, nn_input_buffer, nn_input_buffer_size, nn_output_buffer, nn_output_buffer_size);
+    constexpr u32 out_size = 2;
+    u8* out_datas[out_size] = { nn_flatten_out_buff, nn_mask_out_buff };
+    u32 out_sizes[out_size] = { nn_flatten_out_size, nn_mask_out_size };
+    invoke_neural_network_on_data(nn, nn_input_buffer, nn_input_buffer_size, out_datas, out_sizes, out_size);
 
     mesher.mesh();
 
-    set_texture_data(nn_output_tex, nn_output_buffer, tex_downsampler.output_size.x, tex_downsampler.output_size.y);
-
+    set_texture_data(nn_output_tex, nn_mask_out_buff, tex_downsampler.output_size.x, tex_downsampler.output_size.y);
 
     canvas c = {
         .bg_color={0, 1, 0}
@@ -131,12 +140,14 @@ void docscanner::cam_preview::render() {
 
     draw(c);
 
-    particles.render();
-    border.render();
+    if(mesher.exists) {
+        particles.render();
+        border.render();
+    }
 
     auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
     auto dur = end - last_time;
-    LOGI("frame time: %ldms", (u64)dur);
+    LOGI("frame time: %ums", (u32)dur);
     last_time = end;
     return;
 }
