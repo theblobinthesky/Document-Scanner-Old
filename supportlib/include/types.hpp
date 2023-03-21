@@ -22,7 +22,13 @@ struct vec2 {
     f32 x, y;
 
     vec2 operator+(vec2 other) const;
+    vec2 operator-(vec2 other) const;
     vec2 operator*(f32 other) const;
+    f32 length() const;
+    f32 length_squared() const;
+
+    static f32 dot(const vec2& a, const vec2& b);
+    static f32 angle_between(const vec2& a, const vec2& b);
 };
 
 struct vec3 {
@@ -38,6 +44,7 @@ struct svec2 {
     svec2 orthogonal() const;
     f32 length() const;
     f32 length_squared() const;
+    s32 area() const;
     
     static vec2 lerp(const svec2& a, const svec2& b, f32 t);
     static f32 dot(const svec2& a, const svec2& b);

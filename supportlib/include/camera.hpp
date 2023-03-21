@@ -22,7 +22,9 @@ void init_camera_capture(const camera& cam, ANativeWindow* texture_window);
 struct camera {
     int fd;
     u8* buffer;
-    
+    u32 buffer_size;
+    f32* f32_buffer;
+
     uvec2 cam_size;
     texture cam_tex;
     

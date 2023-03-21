@@ -6,8 +6,29 @@ vec2 vec2::operator+(vec2 other) const {
     return { x + other.x, y + other.y };
 }
 
+vec2 vec2::operator-(vec2 other) const {
+    return { x - other.x, y - other.y };
+}
+
 vec2 vec2::operator*(f32 other) const {
     return { other * x, other * y };
+}
+
+f32 vec2::length() const {
+    return sqrt(length_squared());
+}
+
+f32 vec2::length_squared() const {
+    return (f32)(x * x + y * y);
+}
+
+f32 vec2::dot(const vec2& a, const vec2& b) {
+    return (f32)(a.x * b.x + a.y * b.y);
+}
+
+f32 vec2::angle_between(const vec2& a, const vec2& b) {
+    f32 cos_angle = std::abs(vec2::dot(a, b)) / (a.length_squared() * b.length_squared());
+    return acosf(cos_angle);
 }
 
 svec2 svec2::operator+(svec2 other) const {
@@ -28,6 +49,10 @@ f32 svec2::length() const {
 
 f32 svec2::length_squared() const {
     return (f32)(x * x + y * y);
+}
+
+s32 svec2::area() const {
+    return x * y;
 }
 
 vec2 svec2::lerp(const svec2& a, const svec2& b, f32 t) {

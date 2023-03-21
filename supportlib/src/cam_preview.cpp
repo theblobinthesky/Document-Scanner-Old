@@ -6,6 +6,14 @@
 
 using namespace docscanner;
 
+#ifdef ANDROID
+#define CAM_USES_OES_TEXTURE true
+#elif defined(LINUX)
+#define CAM_USES_OES_TEXTURE false
+#else
+#error "Platform not supported yet."
+#endif
+
 void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* cam_height) {
     this->preview_size = preview_size;
 
@@ -16,38 +24,10 @@ void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* 
     LOGI("cam_tex_size: (%u, %u)", cam_tex_size.x, cam_tex_size.y);
 }
 
-constexpr const char* vert_src = R"(#version 310 es
-        uniform mat4 projection;
-
-        in vec2 position;
-        in vec2 uvs;
-        out vec2 out_uvs;
-
-        void main() {
-             gl_Position = projection * vec4(position, 0, 1);
-             out_uvs = uvs;
-        }
-)";
-
-constexpr const char* oes_sampler_frag_src = R"(#version 310 es
-        #extension GL_OES_EGL_image_external_essl3 : require
-
-        precision mediump float;
-        uniform layout(binding = 0) samplerExternalOES cam_sampler;
-
-        in vec2 out_uvs;
-        out vec4 out_col;
-
-        void main() {
-             out_col = texture(cam_sampler, out_uvs);
-        }
-)";
-
 void docscanner::cam_preview::init_backend(file_context* file_ctx) {
     LOGI("preview_size: (%u, %u)", preview_size.x, preview_size.y);
 
-    preview_program = compile_and_link_program(vert_src, oes_sampler_frag_src, null, null);
-    ASSERT(preview_program.program, "Preview program could not be compiled.");
+    preview_program = programmer.compile_and_link(vert_src, frag_simple_tex_sampler_src(CAM_USES_OES_TEXTURE, 0));
 
     // buffer stuff
     float p = (cam_tex_size.x / (float) cam_tex_size.y) * (preview_size.x / (float) preview_size.y);
@@ -88,12 +68,24 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx) {
     
     nn_output_tex = create_texture(downsampled_size , GL_R32F);
 
-    tex_downsampler.init(cam_tex_size, downsampled_size, true, null, 2.0);
-    mesher.init(reinterpret_cast<f32*>(nn_output_buffer), { (s32)downsampled_size.x, (s32)downsampled_size.y }, projection);
+#if CAM_USES_OES_TEXTURE
+    tex_downsampler.init(&programmer, cam_tex_size, downsampled_size, true, null, 2.0);
+#else
+    tex_downsampler.init(&programmer, cam_tex_size, downsampled_size, false, &cam.cam_tex, 2.0);
+#endif
 
-    border_program = compile_and_link_program(vert_src, oes_sampler_frag_src, null, null);
-    ASSERT(border_program.program, "Border program could not be compiled.");
+    mesher.init(&programmer, reinterpret_cast<f32*>(nn_output_buffer), { (s32)downsampled_size.x, (s32)downsampled_size.y }, projection);
 
+    auto shader = programmer.compile_and_link(vert_src, frag_debug_src);
+
+    use_program(shader);
+    get_variable(shader, "projection").set_mat4(projection);
+
+    auto buffer = make_shader_buffer();
+
+    border.init(&programmer, mesher.mesh_vertices, mesher.mesh_size, shader, buffer);
+    particles.init(&programmer, mesher.mesh_vertices, mesher.mesh_size, shader, buffer);
+    
     nn = create_neural_network_from_path(file_ctx, "seg_model.tflite", execution_pref::sustained_speed);
 
     is_init = true;
@@ -113,12 +105,6 @@ void docscanner::cam_preview::render() {
     if(!is_init) return;
     cam.get();
 
-    auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-    auto dur = end - last_time;
-    LOGI("frame time: %ldms", (u64)dur);
-    last_time = end;
-    return;
-
     nn_input_tex = tex_downsampler.downsample();
 
     get_framebuffer_data(tex_downsampler.output_fb, tex_downsampler.output_size, nn_input_buffer, nn_input_buffer_size);
@@ -129,6 +115,7 @@ void docscanner::cam_preview::render() {
 
     set_texture_data(nn_output_tex, nn_output_buffer, tex_downsampler.output_size.x, tex_downsampler.output_size.y);
 
+
     canvas c = {
         .bg_color={0, 1, 0}
     };
@@ -138,12 +125,18 @@ void docscanner::cam_preview::render() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glBindVertexArray(cam_quad_buffer.id);
     
-    bind_texture_to_slot(0, nn_output_tex);
-    bind_texture_to_slot(1, *nn_input_tex);
+#if !CAM_USES_OES_TEXTURE
+    bind_texture_to_slot(0, cam.cam_tex);
+#endif
+
     draw(c);
 
-    use_program(mesher.mesh_program);
+    particles.render();
+    border.render();
 
-    glBindVertexArray(mesher.mesh_buffer.id);
-    glDrawElements(GL_TRIANGLES, mesher.mesh_indices.size(), GL_UNSIGNED_INT, null);
+    auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+    auto dur = end - last_time;
+    LOGI("frame time: %ldms", (u64)dur);
+    last_time = end;
+    return;
 }

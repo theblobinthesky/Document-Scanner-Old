@@ -1,96 +1,15 @@
 #if 1
 #include "log.hpp"
 #include "backend.hpp"
-#include <cstdlib>
-#include <csignal>
-#include <string>
-#include <math.h>
+// #include <cstdlib> // todo: uncomment this
+// #include <csignal>
+// #include <string>
 
 #if defined(LINUX)
 #include <cstddef>
 #endif
 
 using namespace docscanner;
-
-constexpr const char* vertex_src = R"(#version 310 es
-        uniform mat4 projection;
-
-        in vec2 position;
-        in vec2 uvs;
-        out vec2 out_uvs;
-
-        void main() {
-             gl_Position = projection * vec4(position, 0, 1);
-             out_uvs = uvs;
-        }
-)";
-
-constexpr const char* vert_instanced_quad_src = R"(#version 310
-    uniform mat4 projection;
-
-    struct quad {
-        vec4 tl, tr, br, bl;
-    };
-
-    uniform vec4 transforms[%u][4];
-
-    layout (location = 0) in vec2 pos;
-    layout (location = 0) in vec2 uv;
-
-    out vec2 out_uv;
-
-    void main() {
-        vec4 pts[4] = transforms[gl_InstanceID];
-        gl_Position = projection * vec4(pos, 0, 1);
-        out_uv = uv;
-    }
-)";
-
-constexpr const char* gauss_blur_frag_src = R"(#version 310 es
-#if %d
-        #extension GL_OES_EGL_image_external_essl3 : require
-        uniform layout(binding = 0) samplerExternalOES sampler;
-#else
-        uniform layout(binding = 0) sampler2D sampler;
-#endif
-
-        precision mediump float;
-        
-        in vec2 out_uvs;
-        out vec4 out_col;
-
-        const int M = %u;
-        const float coeffs[M] = float[M](%s);
-        const vec2 pixel_shift = vec2(%f, %f);
-
-        void main() {
-            vec4 col = coeffs[0] * texture(sampler, out_uvs);
-
-            for(int i = 1; i < M; i += 2) {
-                float w0 = coeffs[i];
-                float w1 = coeffs[i + 1];
-
-                float w = w0 + w1;
-                float t = w1 / w;
-
-                col += w * texture(sampler, out_uvs + (float(i) + t) * pixel_shift);
-                col += w * texture(sampler, out_uvs - (float(i) + t) * pixel_shift);
-            }
-
-            out_col = col;
-        }
-)";
-
-constexpr const char* frag_debug_src = R"(#version 310 es
-        precision mediump float;
-
-        in vec2 out_uvs;
-        out vec4 out_col;
-
-        void main() {
-             out_col = vec4(out_uvs, 1.0, 1.0);
-        }
-)";
 
 void docscanner::check_gl_error(const char* op) {
     for (GLenum error = glGetError(); error; error = glGetError()) {
@@ -106,61 +25,12 @@ void docscanner::variable::set_vec2(const vec2& v) {
     glUniform2f(location, v.x, v.y);
 }
 
-std::string compute_gauss_coefficients(int n) {
-    int m = n / 2 + 1;
-    f32 sigma = (n - 1.0f) / 4.0f;
-    
-    f32 *coeffs = new f32[m];
-    f32 sum = 0.0f;
-
-#define compute_gauss_coeff(i) \
-        const f32 gauss_factor = 1.0 / sqrt(2 * M_PI * sigma); \
-        const f32 x = (f32)(i); \
-        coeffs[i] = gauss_factor * pow(M_E, -(x * x) / (2 * sigma * sigma));
-
-    compute_gauss_coeff(0);        
-
-    for(int i = 1; i < m; i++) {
-        compute_gauss_coeff(i);
-        sum += 2 * coeffs[i];
-    } 
-
-#undef compute_gauss_coeff
-
-    // normalize
-    for(int i = 0; i < m; i++) {
-        coeffs[i] /= sum;
-    }
-
-    std::string ret = "";
-    for(int i = 0; i < m; i++) {
-        ret = ret + std::to_string(coeffs[i]);
-
-        if(i != m - 1) ret = ret + ", ";
-    }
-
-    delete[] coeffs;
-
-    return ret;
-}
-
-char* prepare_gauss_fragment_src(bool sample_from_external, u32 n, vec2 pixel_shift) {
-    std::string gauss_coeffs = compute_gauss_coefficients(n);
-
-    size_t needed = snprintf(null, 0, gauss_blur_frag_src, sample_from_external, n / 2 + 1, gauss_coeffs.c_str(), pixel_shift.x, pixel_shift.y);
-    
-    char* buff = new char[needed];
-    sprintf(buff, gauss_blur_frag_src, sample_from_external, n / 2 + 1, gauss_coeffs.c_str(), pixel_shift.x, pixel_shift.y);
-    return buff;
-}
-
-void docscanner::texture_downsampler::init(uvec2 input_size, uvec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor) {
+void docscanner::texture_downsampler::init(shader_programmer* programmer, uvec2 input_size, uvec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor) {
+    this->programmer = programmer;
     this->input_size = input_size;
     this->output_size = output_size;
     this->input_is_oes_texture = input_is_oes_texture;
     this->input_tex = input_tex;
-
-    ASSERT(input_is_oes_texture, "Input must be OES texture.");
 
 #define EVEN_TO_UNEVEN(n) if ((n) % 2 == 0) { n++; }
 
@@ -180,12 +50,12 @@ void docscanner::texture_downsampler::init(uvec2 input_size, uvec2 output_size, 
     temp_fb = framebuffer_from_texture(temp_tex);
     output_fb = framebuffer_from_texture(output_tex);
     
-    char* gauss_frag_src_x = prepare_gauss_fragment_src(true, req_kernel_size.x, {1.0f / (f32)input_size.x, 0.0f});
-    gauss_blur_x_program = compile_and_link_program(vertex_src, gauss_frag_src_x, null, null);
+    std::string gauss_frag_src_x = frag_gauss_blur_src(input_is_oes_texture, req_kernel_size.x, {1.0f / (f32)input_size.x, 0.0f});
+    gauss_blur_x_program = programmer->compile_and_link(vert_src, gauss_frag_src_x);
     ASSERT(gauss_blur_x_program.program, "gauss_blur_x_program program could not be compiled.");
     
-    char* gauss_frag_src_y = prepare_gauss_fragment_src(false, req_kernel_size.y, {0.0f, 1.0f / (f32)input_size.y});
-    gauss_blur_y_program = compile_and_link_program(vertex_src, gauss_frag_src_y, null, null);
+    std::string gauss_frag_src_y = frag_gauss_blur_src(false, req_kernel_size.y, {0.0f, 1.0f / (f32)input_size.y});
+    gauss_blur_y_program = programmer->compile_and_link(vert_src, gauss_frag_src_y);
     ASSERT(gauss_blur_y_program.program, "gauss_blur_y_program program could not be compiled.");
 
     float projection[16];
@@ -225,6 +95,10 @@ texture* docscanner::texture_downsampler::downsample() {
     use_program(gauss_blur_x_program);
     bind_framebuffer(temp_fb);
 
+    if(!input_is_oes_texture) {
+        bind_texture_to_slot(0, *input_tex);
+    }
+
     glViewport(0, 0, output_size.x, input_size.y);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
     check_gl_error("glDrawElements");
@@ -244,71 +118,184 @@ texture* docscanner::texture_downsampler::downsample() {
     return &output_tex;
 }
 
-void sticky_particle_system::init(const vertex* mesh_vertices, const svec2& mesh_size, float* projection) {
-    this->mesh_vertices = mesh_vertices;
-    this->mesh_size = mesh_size;
+void sticky_particle_system::gen_and_fill_mesh_vertices() {
+    mesh_indices.clear();
+    mesh_vertices.clear();
 
-    size_t needed = snprintf(null, 0, vert_instanced_quad_src, mesh_size.x * mesh_size.y);
-    char* buffer = new char[needed];
-    sprintf(buffer, vert_instanced_quad_src, mesh_size.x * mesh_size.y);
+    for(s32 i = 0; i < (stick_size.x - 1) * (stick_size.y - 1); i++) {
+        s32 offset = i * 4;
+        mesh_indices.push_back(0 + offset);
+        mesh_indices.push_back(1 + offset);
+        mesh_indices.push_back(2 + offset);
 
-    LOGI("buffer: %s", buffer);
+        mesh_indices.push_back(0 + offset);
+        mesh_indices.push_back(2 + offset);
+        mesh_indices.push_back(3 + offset);
+    }
 
-    shader = compile_and_link_program(buffer, frag_debug_src, null, null);
+    for(s32 x = 0; x < stick_size.x - 1; x++) {
+        for(s32 y = 0; y < stick_size.y - 1; y++) {
+            const vec2& tl = (*stick_vertices)[x * stick_size.y + y].pos;
+            const vec2& tr = (*stick_vertices)[(x + 1) * stick_size.y + y].pos;
+            const vec2& br = (*stick_vertices)[(x + 1) * stick_size.y + (y + 1)].pos;
+            const vec2& bl = (*stick_vertices)[x * stick_size.y + (y + 1)].pos;
 
-    use_program(shader);
-    get_variable(shader, "projection").set_mat4(projection);
-    
-    vertex vertices[] = {
-        {{1.f, 0.f}, {1, 0}},
-        {{0.f, 1.f}, {0, 1}},
-        {{1.f, 1.f}, {0, 0}},
-        {{0.f, 0.f}, {1, 1}}
-    };
-
-    u32 indices[] = { 
-        0, 1, 2, 
-        0, 3, 1 
-    };
-
-    quad_buffer = make_shader_buffer();
-    fill_shader_buffer(quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
-}
-
-void sticky_particle_system::render() {
-    use_program(shader);
-    glBindVertexArray(quad_buffer.id);
-
-    glDrawArraysInstanced(GL_TRIANGLES, 1, 6, mesh_size.x * mesh_size.y);
-}
-
-GLuint load_shader(GLenum type, const char* source) {
-    GLuint shader = glCreateShader(type);
-
-    if (shader) {
-        glShaderSource(shader, 1, &source, nullptr);
-        glCompileShader(shader);
-        GLint compiled = 0;
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
-
-        if (!compiled) {
-            GLint infoLen = 0;
-            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen);
-
-            if (infoLen) {
-                char* buf = (char*) malloc((size_t) infoLen);
-                if (buf) {
-                    glGetShaderInfoLog(shader, infoLen, nullptr, buf);
-                    LOGE("Could not compile shader %d:\n%s\n", type, buf);
-                    free(buf);
-                }
-                glDeleteShader(shader);
-                shader = 0;
-            }
+            mesh_vertices.push_back({tl, {0, 1}});
+            mesh_vertices.push_back({tr, {1, 1}});
+            mesh_vertices.push_back({br, {0, 0}});
+            mesh_vertices.push_back({bl, {1, 0}});
         }
     }
 
-    return shader;
+    fill_shader_buffer(buffer, mesh_vertices.data(), mesh_vertices.size() * sizeof(vertex), mesh_indices.data(), mesh_indices.size() * sizeof(u32));
+}
+
+void sticky_particle_system::init(shader_programmer* programmer, const std::vector<vertex>& stick_vertices, const svec2& stick_size, shader_program shader, shader_buffer buffer) {
+    this->stick_vertices = &stick_vertices;
+    this->stick_size = stick_size;
+    this->shader = shader;
+    this->buffer = buffer;
+}
+
+void sticky_particle_system::render() {
+    if(stick_vertices->size() != stick_size.area()) return;
+
+    use_program(shader);
+
+    gen_and_fill_mesh_vertices();
+    glBindVertexArray(buffer.id);
+
+    glDrawElements(GL_TRIANGLES, mesh_indices.size(), GL_UNSIGNED_INT, null);
+}
+
+constexpr f32 small_fac = 0.7;
+constexpr f32 large_fac = 1.3;
+
+void push_border_vertices(std::vector<vertex>& mesh_vertices, const vec2& curr, const vec2& next, const vec2& middle, f32 smallest_length, f32 largest_length) {
+    const vec2 curr_middle = curr - middle;
+    const vec2 next_middle = next - middle;
+
+    const vec2 curr_small = curr_middle * small_fac + middle;
+    const vec2 next_small = next_middle * small_fac + middle;
+    
+    const vec2 curr_large = curr_middle * large_fac + middle;
+    const vec2 next_large = next_middle * large_fac + middle;
+
+#define get_length(len) ((len) - smallest_length) / (largest_length - smallest_length)
+    
+    f32 curr_length = next_middle.length();
+    f32 next_length = next_middle.length();
+
+    f32 curr_small_length = get_length(curr_length * small_fac), curr_large_length = get_length(curr_length * large_fac);
+    f32 next_small_length = get_length(next_length * small_fac), next_large_length = get_length(next_length * large_fac);
+
+    curr_length = get_length(curr_length);
+    next_length = get_length(next_length);
+
+    vec2 ref = { 1.0f, 0.0f };
+    f32 curr_angle = vec2::angle_between(curr, ref);
+    f32 next_angle = vec2::angle_between(curr, ref);
+
+    // inner quad
+    mesh_vertices.push_back({curr, {curr_length, curr_angle}});
+    mesh_vertices.push_back({next, {next_length, next_angle}});
+    mesh_vertices.push_back({next_small, {next_small_length, next_angle}});
+    mesh_vertices.push_back({curr_small, {curr_small_length, curr_angle}});
+
+    // outer quad
+    mesh_vertices.push_back({curr, {curr_length, curr_angle}});
+    mesh_vertices.push_back({next, {next_length, next_angle}});
+    mesh_vertices.push_back({next_large, {next_large_length, next_angle}});
+    mesh_vertices.push_back({curr_large, {curr_large_length, curr_angle}});
+}
+
+void mesh_border::gen_and_fill_mesh_vertices() {
+    mesh_indices.clear();
+    mesh_vertices.clear();
+
+    for(s32 i = 0; i < 4 * (border_size.x - 1) + 4 * (border_size.y - 1); i++) {
+        s32 offset = i * 4;
+        mesh_indices.push_back(0 + offset);
+        mesh_indices.push_back(1 + offset);
+        mesh_indices.push_back(2 + offset);
+
+        mesh_indices.push_back(0 + offset);
+        mesh_indices.push_back(2 + offset);
+        mesh_indices.push_back(3 + offset);
+    }
+
+    vec2 middle = {};
+    for(s32 i = 0; i < border_size.area(); i++) {
+        middle = middle + (*border_vertices)[i].pos;
+    }
+    middle = middle * (1.0f / (f32)border_size.area());
+
+    f32 smallest_length = 999999.0f;
+    f32 largest_length = 0.0f;
+    for(s32 x = 0; x < border_size.x - 1; x++) {
+        const vec2& v0 = (*border_vertices)[x * border_size.y + 0].pos - middle;
+        const vec2& v1 = (*border_vertices)[x * border_size.y + (border_size.y - 1)].pos - middle;
+        const vec2& v2 = (*border_vertices)[0 * border_size.y + x].pos - middle;
+        const vec2& v3 = (*border_vertices)[(border_size.x - 1) * border_size.y + x].pos - middle;
+
+        if(v0.length() < smallest_length) { smallest_length = v0.length(); }
+        if(v1.length() < smallest_length) { smallest_length = v1.length(); }
+        if(v2.length() < smallest_length) { smallest_length = v2.length(); }
+        if(v3.length() < smallest_length) { smallest_length = v3.length(); }
+
+        if(v0.length() > largest_length) { largest_length = v0.length(); }
+        if(v1.length() > largest_length) { largest_length = v1.length(); }
+        if(v2.length() > largest_length) { largest_length = v2.length(); }
+        if(v3.length() > largest_length) { largest_length = v3.length(); }
+    }
+
+    for(s32 x = 0; x < border_size.x - 1; x++) {
+        const vec2& curr = (*border_vertices)[x * border_size.y + 0].pos;
+        const vec2& next = (*border_vertices)[(x + 1) * border_size.y + 0].pos;
+            
+        push_border_vertices(mesh_vertices, curr, next, middle, smallest_length, largest_length);
+    }
+
+    for(s32 x = 0; x < border_size.x - 1; x++) {
+        const vec2& curr = (*border_vertices)[x * border_size.y + (border_size.y - 1)].pos;
+        const vec2& next = (*border_vertices)[(x + 1) * border_size.y + (border_size.y - 1)].pos;
+            
+        push_border_vertices(mesh_vertices, curr, next, middle, smallest_length, largest_length);
+    }
+
+    for(s32 y = 0; y < border_size.y - 1; y++) {
+        const vec2& curr = (*border_vertices)[0 * border_size.y + y].pos;
+        const vec2& next = (*border_vertices)[0 * border_size.y + (y + 1)].pos;
+            
+        push_border_vertices(mesh_vertices, curr, next, middle, smallest_length, largest_length);
+    }
+
+    for(s32 y = 0; y < border_size.y - 1; y++) {
+        const vec2& curr = (*border_vertices)[(border_size.x - 1) * border_size.y + y].pos;
+        const vec2& next = (*border_vertices)[(border_size.x - 1) * border_size.y + (y + 1)].pos;
+            
+        push_border_vertices(mesh_vertices, curr, next, middle, smallest_length, largest_length);
+    }
+
+    fill_shader_buffer(buffer, mesh_vertices.data(), mesh_vertices.size() * sizeof(vertex), mesh_indices.data(), mesh_indices.size() * sizeof(u32));
+}
+
+void mesh_border::init(shader_programmer* programmer, const std::vector<vertex>& border_vertices, const svec2& border_size, shader_program shader, shader_buffer buffer) {
+    this->border_vertices = &border_vertices;
+    this->border_size = border_size;
+    this->shader = shader;
+    this->buffer = buffer;
+}
+
+void mesh_border::render() {
+    if(border_vertices->size() != border_size.area()) return;
+
+    use_program(shader);
+
+    gen_and_fill_mesh_vertices();
+    glBindVertexArray(buffer.id);
+
+    glDrawElements(GL_TRIANGLES, mesh_indices.size(), GL_UNSIGNED_INT, null);
 }
 
 bool link_program(GLuint &program) {
@@ -335,63 +322,74 @@ bool link_program(GLuint &program) {
     }
 }
 
-shader_program docscanner::compile_and_link_program(const char* vert_src, const char* frag_src, GLuint* vert_out, GLuint* frag_out) {
-    GLuint vert_shader = load_shader(GL_VERTEX_SHADER, vert_src);
-    if (!vert_shader) {
-        LOGE_AND_BREAK("Vertex Shader could not be compiled.");
-        return {0};
+u32 docscanner::compile_shader(u32 type, const char* src) {
+    u32 shader = glCreateShader(type);
+
+    if (shader) {
+        glShaderSource(shader, 1, &src, nullptr);
+        glCompileShader(shader);
+        GLint compiled = 0;
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
+
+        if (!compiled) {
+            GLint infoLen = 0;
+            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen);
+
+            if (infoLen) {
+                char* buf = (char*) malloc((size_t) infoLen);
+                if (buf) {
+                    glGetShaderInfoLog(shader, infoLen, nullptr, buf);
+                    LOGE("Could not compile shader %d:\n%s\n", type, buf);
+                    free(buf);
+                }
+                glDeleteShader(shader);
+                shader = 0;
+            }
+        }
     }
 
-    GLuint frag_shader = load_shader(GL_FRAGMENT_SHADER, frag_src);
-    if (!frag_shader) {
-        LOGE_AND_BREAK("Fragment Shader could not be compiled.");
-        return {0};
-    }
+    ASSERT(shader, "Compile shader failed with source: %s", src);
 
+    return shader;
+}
+
+shader_program docscanner::compile_and_link_program(u32 vert_shader, u32 frag_shader) {
     GLuint program = glCreateProgram();
-    if (program) {
-        glAttachShader(program, vert_shader);
-        check_gl_error("glAttachShader");
-        glAttachShader(program, frag_shader);
-        check_gl_error("glAttachShader");
+    ASSERT(program, "Compile program failed.");
 
-        link_program(program);
-
-        glDetachShader(program, vert_shader);
-        glDeleteShader(vert_shader);
-        vert_shader = 0;
-
-        glDetachShader(program, frag_shader);
-        glDeleteShader(frag_shader);
-        frag_shader = 0;
-    }
-
-    if (vert_out) *vert_out = vert_shader;
-    if (frag_out) *frag_out = frag_shader;
-
+    glAttachShader(program, vert_shader);
+    check_gl_error("glAttachShader");
+    glAttachShader(program, frag_shader);
+    check_gl_error("glAttachShader");
+    
+    link_program(program);
+    glDetachShader(program, vert_shader);
+    check_gl_error("glDetachSahder");
+    glDetachShader(program, frag_shader);
+    check_gl_error("glDetachSahder");
+    
     return {program};
 }
 
-shader_program docscanner::compile_and_link_program(const char* comp_src) {
-    GLuint comp_shader = load_shader(GL_COMPUTE_SHADER, comp_src);
-    if (!comp_shader) {
-        LOGE_AND_BREAK("Compute Shader could not be compiled.");
-        return {0};
-    }
-
+shader_program docscanner::compile_and_link_program(u32 comp_shader) {
     GLuint program = glCreateProgram();
-    if (program) {
-        glAttachShader(program, comp_shader);
-        check_gl_error("glAttachShader");
+    ASSERT(program, "Compile program failed.");
 
-        link_program(program);
-
-        glDetachShader(program, comp_shader);
-        glDeleteShader(comp_shader);
-        comp_shader = 0;
-    }
-
+    glAttachShader(program, comp_shader);
+    check_gl_error("glAttachShader");
+    
+    link_program(program);
+    
+    glDetachShader(program, comp_shader);
+    check_gl_error("glDetachSahder");
+    
     return {program};
+}
+
+void delete_shader(u32 id) {
+    if(id) {
+        glDeleteShader(id);
+    }
 }
 
 void docscanner::delete_program(shader_program &program) {
@@ -502,10 +500,6 @@ void docscanner::set_texture_data(const texture &tex, u8* data, int width, int h
     case GL_RGBA32F: { 
         format = GL_RGBA;
         type = GL_FLOAT;
-    } break;
-    case GL_RGBA8: {
-        format = GL_RGBA;
-        type = GL_UNSIGNED_BYTE;
     } break;
     default: LOGE_AND_BREAK("Unsupported texture format in set_texture_data.");
     }

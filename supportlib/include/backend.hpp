@@ -1,5 +1,6 @@
 #pragma once
 #include "types.hpp"
+#include "shader_program.hpp"
 
 #ifdef ANDROID
 #include <GLES3/gl31.h>
@@ -9,6 +10,8 @@
 #include <GL/gl.h>
 #include <GL/glext.h>
 #endif
+
+#include <vector>
 
 NAMESPACE_BEGIN
 
@@ -46,6 +49,8 @@ struct variable {
 };
 
 struct texture_downsampler {
+    shader_programmer* programmer;
+
     uvec2 input_size, output_size;
     bool input_is_oes_texture;
     const texture* input_tex;
@@ -58,27 +63,49 @@ struct texture_downsampler {
 
     shader_buffer gauss_quad_buffer;
 
-    void init(uvec2 input_size, uvec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor);
+    void init(shader_programmer* programmer, uvec2 input_size, uvec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor);
     texture* downsample();
 };
 
 struct sticky_particle_system {
-    const vertex* mesh_vertices;
-    svec2 mesh_size;
+    const std::vector<vertex>* stick_vertices;
+    svec2 stick_size;
+
+    std::vector<vertex> mesh_vertices;
+    std::vector<u32> mesh_indices;
 
     shader_program shader;
+    shader_buffer buffer;
 
-    shader_buffer quad_buffer;
+    void gen_and_fill_mesh_vertices();
+    void init(shader_programmer* programmer, const std::vector<vertex>& stick_vertices, const svec2& stick_size, shader_program shader, shader_buffer buffer);
+    void render();
+};
 
-    void init(const vertex* mesh_vertices, const svec2& mesh_size, float* projection);
+struct mesh_border {
+    const std::vector<vertex>* border_vertices;
+    svec2 border_size;
+
+    std::vector<vertex> mesh_vertices;
+    std::vector<u32> mesh_indices;
+
+    shader_program shader;
+    shader_buffer buffer;
+
+    void gen_and_fill_mesh_vertices();
+    void init(shader_programmer* programmer, const std::vector<vertex>& border_vertices, const svec2& border_size, shader_program shader, shader_buffer buffer);
     void render();
 };
 
 void check_gl_error(const char* op);
 
-shader_program compile_and_link_program(const char* vert_src, const char* frag_src, u32* vert_out, u32* frag_out);
+u32 compile_shader(u32 type, const char* src);
 
-shader_program compile_and_link_program(const char* comp_src);
+shader_program compile_and_link_program(u32 vert_shader, u32 frag_shader);
+
+shader_program compile_and_link_program(u32 comp_shader);
+
+void delete_shader(u32 id);
 
 void delete_program(shader_program &program);
 

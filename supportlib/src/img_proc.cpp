@@ -5,43 +5,15 @@
 
 using namespace docscanner;
 
-constexpr const char vert_src[] = R"(#version 310 es
-        uniform mat4 projection;
-
-        in vec2 position;
-        in vec2 uvs;
-        out vec2 out_uvs;
-
-        void main() {
-             gl_Position = projection * vec4(position, 0, 1);
-             out_uvs = uvs;
-        }
-)";
-
-constexpr const char frag_debug_src[] = R"(#version 310 es
-        precision mediump float;
-
-        in vec2 out_uvs;
-        out vec4 out_col;
-
-        void main() {
-             out_col = vec4(out_uvs, 1.0, 1.0);
-        }
-)";
-
 constexpr f32 binarize_threshold = 0.8f;
 constexpr s32 points_per_side = 10;
 
-void mask_mesher::init(f32* mask_buffer, const svec2& mask_size, float* projection) {
+void mask_mesher::init(shader_programmer* programmer, f32* mask_buffer, const svec2& mask_size, float* projection) {
     this->mask_buffer = mask_buffer;
     this->mask_size = mask_size;
+    this->mesh_size = { points_per_side, points_per_side };
 
     mesh_buffer = make_shader_buffer();
-    mesh_program = compile_and_link_program(vert_src, frag_debug_src, null, null);
-
-    use_program(mesh_program);
-
-    get_variable(mesh_program, "projection").set_mat4(projection);
 
     for(s32 y = 0; y < points_per_side - 1; y++) {
         for(s32 x = 0; x < points_per_side - 1; x++) {
@@ -55,6 +27,10 @@ void mask_mesher::init(f32* mask_buffer, const svec2& mask_size, float* projecti
             mesh_indices.push_back(TO_INDEX(svec2({x + 1, y + 1})));
 #undef TO_INDEX
         }
+    }
+
+    for(s32 i = 0; i < mesh_size.area(); i++) {
+        mesh_vertices.push_back({});
     }
 }
 

@@ -4,6 +4,7 @@
 #include "nn.hpp"
 #include "img_proc.hpp"
 #include "camera.hpp"
+#include "shader_program.hpp"
 
 #include <vector>
 
@@ -13,6 +14,8 @@ struct ANativeWindow;
 NAMESPACE_BEGIN
 
 struct cam_preview {
+    shader_programmer programmer;
+
     shader_program preview_program;
     camera cam;
 
@@ -34,10 +37,8 @@ struct cam_preview {
     
     texture_downsampler tex_downsampler;
     mask_mesher mesher;
-
-    shader_program border_program;
-    std::vector<s32> border_indices;
-    std::vector<vertex> border_vertices;
+    sticky_particle_system particles;
+    mesh_border border;
 
     bool is_init;
 
