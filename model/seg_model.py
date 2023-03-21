@@ -256,10 +256,16 @@ class MultiscaleUp(nn.Module):
         return O
 
 
-class UNetDilatedConv(nn.Module):
-    def __init__(self, inp, out):
+min_finetuning_weight = torch.tensor(1.0, device="cuda")
+max_finetuning_weight = torch.tensor(2.0, device="cuda")
+finetuning_weight_amplitude = max_finetuning_weight - min_finetuning_weight
+
+class PreModel(nn.Module):
+    def __init__(self):
         super().__init__()
 
+        inp = 4
+        out = 1
         depth = [32, 64, 128, 128]
 
         self.cvt_in = DoubleConv(inp, depth[0])
@@ -274,7 +280,13 @@ class UNetDilatedConv(nn.Module):
         self.up2 = MultiscaleUp(depth[3], depth[2])
         self.up1 = MultiscaleUp(depth[2], depth[1])
         self.up0 = MultiscaleUp(depth[1], depth[0])
-    
+
+        self.flatten = nn.Sequential(
+            DoubleConv(depth[3], depth[0]),
+            nn.Flatten(),
+            nn.LazyLinear(1 + 2 * 4)
+        )
+
 
     def forward(self, x):
         x = self.cvt_in(x)
@@ -290,23 +302,12 @@ class UNetDilatedConv(nn.Module):
         y = self.up0(u0, x)
 
         y = self.cvt_out(y)
-        return y
-    
-min_finetuning_weight = torch.tensor(1.0, device="cuda")
-max_finetuning_weight = torch.tensor(2.0, device="cuda")
-finetuning_weight_amplitude = max_finetuning_weight - min_finetuning_weight
+        y = torch.sigmoid(y)
 
-class PreModel(nn.Module):
-    def __init__(self):
-        super().__init__()
+        f = self.flatten(bn)
+        f = torch.sigmoid(f)
 
-        self.unet = UNetDilatedConv(4, 1)
-
-    def forward(self, x):
-        x = self.unet(x)
-        x = torch.sigmoid(x)
-
-        return x
+        return y, f
 
 
     def set_train(self, booleanlol):
@@ -320,28 +321,31 @@ class PreModel(nn.Module):
         a_padding = torch.full((b, 1, h, w), 1.0, device="cuda")
 
         img = torch.cat([img, a_padding], axis=1)
+            
+        mask = dict["uv"][:, 0].unsqueeze(1)
+        flatten = dict["flatten"][:, 0, :, :].reshape(-1, 9)
 
-        if "uv" in dict:
-            mask = dict["uv"][:, 0].unsqueeze(1)
-        else:
-            mask = torch.zeros((b, 1, h, w), device="cuda")
-
-        return img, mask
+        return img, (mask, flatten)
 
 
     def loss(self, pred, dict, weight_metrics):
-        _, label = self.input_and_label_from_dict(dict)
+        mask_pred, flatten_pred = pred
+        _, (mask_label, flatten_label) = self.input_and_label_from_dict(dict)
 
-        loss = F.binary_cross_entropy(pred, label, reduction="none")
-        loss = loss.view(loss.shape[0], -1).mean(1)
-
+        mask_loss = F.binary_cross_entropy(mask_pred, mask_label, reduction="none")
+        mask_loss = mask_loss.view(mask_loss.shape[0], -1).mean(1)
         finetuning = min_finetuning_weight + weight_metrics["finetuning"] * finetuning_weight_amplitude
-        loss = (finetuning * loss).mean()
-        return loss
-
+        exists_label = flatten_label[:, 0].unsqueeze(0)
+        mask_loss = (exists_label * finetuning * mask_loss).mean()
+        
+        exists_loss = F.binary_cross_entropy(flatten_pred[:, 0], flatten_label[:, 0], reduction="mean")
+        corner_loss = (flatten_pred[:, 1:] - flatten_label[:, 1:]).abs().mean()
+        
+        return mask_loss + exists_loss + corner_loss
+        
 
     def eval_metrics(self):
-        return [metric_dice_coefficient, metric_sensitivity, metric_specificity]
+        return [] # todo: reimplement metrics return [metric_dice_coefficient, metric_sensitivity, metric_specificity]
 
 
 def binarize(x):

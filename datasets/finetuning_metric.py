@@ -14,7 +14,7 @@ dir_items = [
     ("Doc3d_64x64/img/2", "Doc3d_64x64/lines/2"),
     ("Doc3d_64x64/img/3", "Doc3d_64x64/lines/3"),
     ("Doc3d_64x64/img/4", "Doc3d_64x64/lines/4"), 
-    ("MitIndoor_64x64", None),
+    ("MitIndoor_64x64/img", None),
 ]
 
 metric = {}

@@ -4,21 +4,22 @@ import Imath
 import OpenEXR
 from torchvision.transforms.functional import to_tensor
 from torchvision.datasets.folder import default_loader
-from torchvision.transforms import Resize, ColorJitter
+from torchvision.transforms import Resize, ColorJitter, Compose
 from torch.utils.data import Dataset, random_split, DataLoader
 from torch import from_numpy
 import torch
 from pathlib import Path
 import os
 
-ndim = 3
 num_workers = 4
 
 def exr_loader(path):
     file = OpenEXR.InputFile(path)
 
-    dw = file.header()['dataWindow']
+    header = file.header()
+    dw = header['dataWindow']
     size = (dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1)
+    ndim = len(header["channels"])
 
     def load_channel(name):
         C = file.channel(name, Imath.PixelType(Imath.PixelType.FLOAT))
@@ -112,7 +113,7 @@ def load_datasets(dir, missing_names, transforms, datasets, weight_metrics, batc
                     if os.path.exists(path):
                         item[name] = path
                     else:
-                        print("missing path is missing")
+                        print(f"missing path '{path}' from '{name}' is missing.")
                         exit()
 
             items.append(item)
@@ -129,21 +130,21 @@ def load_datasets(dir, missing_names, transforms, datasets, weight_metrics, batc
 
     return train_ds, valid_ds, test_ds
 
-
-resize_transform = Resize((64, 64))
-jitter_transform = ColorJitter(brightness=0.1, contrast=0.05, saturation=0.3, hue=0.1)
+color_jitter = ColorJitter(brightness=0.1, contrast=0.05, saturation=0.3, hue=0.1)
 
 def load_pre_dataset(batch_size):
-    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {"uv": "blank_uv.exr"}, {"img": jitter_transform}, [
-        ([("img", "Doc3d_64x64/img/1", "png"), ("uv", "Doc3d_64x64/lines/1", "png")], 5000),
-        ([("img", "Doc3d_64x64/img/2", "png"), ("uv", "Doc3d_64x64/lines/2", "png")], 5000),
-        ([("img", "Doc3d_64x64/img/3", "png"), ("uv", "Doc3d_64x64/lines/3", "png")], 5000),
-        ([("img", "MitIndoor_64x64", "jpg")], 5000)
-    ], {"finetuning": "finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1, global_transform=resize_transform)
+    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {"uv": "blank_uv_64x64.exr", "flatten": "blank_flatten.exr"}, 
+                        {"img": color_jitter}, [
+        ([("img", "Doc3d_64x64/img/1", "png"), ("uv", "Doc3d_64x64/lines/1", "png"), ("flatten", "Doc3d_64x64/flatten/1", "exr")], 5000),
+        ([("img", "Doc3d_64x64/img/2", "png"), ("uv", "Doc3d_64x64/lines/2", "png"), ("flatten", "Doc3d_64x64/flatten/2", "exr")], 5000),
+        ([("img", "Doc3d_64x64/img/3", "png"), ("uv", "Doc3d_64x64/lines/3", "png"), ("flatten", "Doc3d_64x64/flatten/3", "exr")], 5000),
+        ([("img", "MitIndoor_64x64/img", "jpg")], 5000)
+    ], {"finetuning": "finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1)
 
 def load_bm_dataset(batch_size):
-    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [], {"img_masked": jitter_transform}, [
+    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [],
+                         {"img_masked": color_jitter}, [
         ([("img_masked", "img_masked/1", "png"), ("bm", "bm/1exr", "exr"), ("uv", "uv/1", "exr")], 5000),
         ([("img_masked", "img_masked/2", "png"), ("bm", "bm/2exr", "exr"), ("uv", "uv/2", "exr")], 5000),
         ([("img_masked", "img_masked/3", "png"), ("bm", "bm/3exr", "exr"), ("uv", "uv/3", "exr")], 5000)
-    ], batch_size=batch_size, valid_perc=0.1, test_perc=0.1, global_transform=resize_transform)
+    ], batch_size=batch_size, valid_perc=0.1, test_perc=0.1)

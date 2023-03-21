@@ -17,7 +17,7 @@ dir_items = [
     ("Doc3d/img/3", "Doc3d_64x64/img/3"), ("Doc3d/img/4", "Doc3d_64x64/img/4"),
     ("Doc3d/lines/1", "Doc3d_64x64/lines/1"), ("Doc3d/lines/2", "Doc3d_64x64/lines/2"), 
     ("Doc3d/lines/3", "Doc3d_64x64/lines/3"), ("Doc3d/lines/4", "Doc3d_64x64/lines/4"), 
-    ("MitIndoor", "MitIndoor_64x64"),
+    ("MitIndoor/img", "MitIndoor_64x64/img"),
 ]
 
 def make_dir(dir):

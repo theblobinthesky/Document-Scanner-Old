@@ -1,14 +1,16 @@
 #!/usr/bin/python3
+from model import binarize_threshold
 from data import load_pre_dataset, load_bm_dataset
 from torchvision.transforms import Resize
 import torch
 import numpy as np
+import cv2
 import matplotlib.pyplot as plt
 
-bmap_padding = 1e-2
 num_examples = 8
-
 dpi = 50
+circle_radius = 2
+circle_color = (1.0, 0.0, 0.0)
 
 def sample_from_bmap(img, bmap):
     bmap = bmap.clone().permute(0, 2, 3, 1)
@@ -23,8 +25,11 @@ transform = Resize((128, 128))
 def filter(list):
     return [list[0], list[len(list) // 2], list[-1]]
 
-def cpu(ten):
-    return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1]).squeeze(axis=0)
+def cpu(ten, only_detach=False):
+    if only_detach:
+        return ten.detach().cpu().numpy()
+    else:
+        return np.transpose(ten.detach().cpu().numpy(), [0, 2, 3, 1]).squeeze(axis=0)
 
 def pad_if_necessary(ten):
     channels = ten.shape[-1]
@@ -38,6 +43,25 @@ def pad_if_necessary(ten):
         print("error invalid channel number")
         exit()
 
+def apply_flatten_to_mask(mask, flatten):
+    mask = mask.repeat(3, axis=-1)
+
+    exists = flatten[0, 0]
+    if exists < binarize_threshold:
+        return np.zeros(mask.shape, dtype=np.float32)
+
+    def get_pt(start):
+        pt = (flatten[0, start:start+2] * 64.0).astype("int32")
+        return (pt[1], pt[0])
+    
+    tl, tr, br, bl = get_pt(1), get_pt(3), get_pt(5), get_pt(7)
+
+    cv2.circle(mask, tl, circle_radius, circle_color)
+    cv2.circle(mask, tr, circle_radius, circle_color)
+    cv2.circle(mask, br, circle_radius, circle_color)
+    cv2.circle(mask, bl, circle_radius, circle_color)
+
+    return mask
 
 def benchmark_plt_pre(model):
     _, _, ds, = load_pre_dataset(1)
@@ -49,24 +73,29 @@ def benchmark_plt_pre(model):
         for key in dict.keys():
             dict[key] = dict[key].to("cuda")
 
-        x, y = model.input_and_label_from_dict(dict)
+        x, (mask_label, flatten_label) = model.input_and_label_from_dict(dict)
 
-        pred = model(x)
+        mask_pred, flatten_pred = model(x)
 
-        x, y, pred = cpu(x), cpu(y), cpu(pred)
-        x, y, pred = pad_if_necessary(x), pad_if_necessary(y), pad_if_necessary(pred)
-
+        x, mask_label, flatten_label, mask_pred, flatten_pred = cpu(x), cpu(mask_label), cpu(flatten_label, True), cpu(mask_pred), cpu(flatten_pred, True)
+        
         xs.append(x)
-        ys.append(y)
-        preds.append(pred)
+        ys.append((flatten_label, mask_label))
+        preds.append((flatten_pred, mask_pred))
 
-    title = ["image", "mask label", "mask pred"]
+    title = ["image", "mask pred", "mask label"]
 
     fig = plt.figure(figsize=(25, 25), dpi=dpi)
     i = 0
 
     for e in range(num_examples):
-        list = [xs[e], preds[e], ys[e]]
+        mask_label, flatten_label = ys[e]
+        mask_pred, flatten_pred = preds[e]
+
+        mask_label = apply_flatten_to_mask(flatten_label, mask_label)
+        mask_pred = apply_flatten_to_mask(flatten_pred, mask_pred)
+
+        list = [xs[e], mask_pred, mask_label]
         
         for t, arr in enumerate(list):
             plt.subplot(num_examples, len(title), i + 1)
