@@ -51,7 +51,7 @@ struct cam_preview {
     void init_cam();
 #endif
 
-    void render();
+    void render(f32 time);
 };
 
 NAMESPACE_END

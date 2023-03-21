@@ -14,12 +14,21 @@ vec2 vec2::operator*(f32 other) const {
     return { other * x, other * y };
 }
 
+vec2 vec2::orthogonal() const {
+    return { -y, x };
+}
+
 f32 vec2::length() const {
     return sqrt(length_squared());
 }
 
 f32 vec2::length_squared() const {
     return (f32)(x * x + y * y);
+}
+
+vec2 vec2::normalize() const {
+    f32 len = length();
+    return { x / len, y / len };
 }
 
 f32 vec2::dot(const vec2& a, const vec2& b) {

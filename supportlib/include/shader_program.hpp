@@ -7,6 +7,7 @@ NAMESPACE_BEGIN
 struct shader_program;
 
 #define version_head "#version 310 es\n"
+#define PI_define "#define M_PI 3.1415926535897932384626433832795\n"
 #define num_to_str(num) #num
 
 constexpr const char* vert_src = version_head R"(uniform mat4 projection;
@@ -45,12 +46,47 @@ constexpr const char* vert_instanced_quad_src = version_head R"(uniform mat4 pro
 std::string frag_gauss_blur_src(bool use_oes, u32 N, const vec2& pixel_shift);
 
 constexpr const char* frag_debug_src = version_head R"(precision mediump float;
-
         in vec2 out_uvs;
         out vec4 out_col;
 
         void main() {
              out_col = vec4(out_uvs, 1.0, 1.0);
+        }
+)";
+
+constexpr const char* frag_border_src = version_head PI_define R"(precision mediump float;
+        in vec2 out_uvs;
+        out vec4 out_col;
+
+        const float border_fadeout = 0.03;
+        const float border_pos = 0.5;
+        const vec2 border_core_min_max = vec2(0.05, 0.1);
+        const float border_interval = 0.5;
+
+        uniform float time;
+
+        void main() {
+            float offset = 0.5 * sin(M_PI * time / border_interval) + 1.0;
+            float border_core = mix(border_core_min_max.x, border_core_min_max.y, offset);
+            
+            float inner_core = border_pos - border_core / 2.0;
+            float outer_core = border_pos + border_core / 2.0;
+            
+            float alpha = smoothstep(inner_core - border_fadeout, inner_core, out_uvs.x); 
+            alpha -= smoothstep(outer_core, outer_core + border_fadeout, out_uvs.x);
+
+            out_col = vec4(1.0, 1.0, 1.0, alpha);
+        }
+)";
+
+constexpr const char* frag_particle_src = version_head R"(precision mediump float;
+        in vec2 out_uvs;
+        out vec4 out_col;
+
+        void main() {
+            float opacity = length(out_uvs - vec2(0.5));
+            float alpha = step(1.0 / sqrt(2.0), 1.0 - opacity);
+            out_col = vec4(1.0, 1.0, 1.0, alpha);
         }
 )";
 

@@ -5,6 +5,8 @@ NAMESPACE_BEGIN
 
 struct pipeline {
     cam_preview cam_preview_screen;
+    u64 start_time;
+    f32 time;
 
     void pre_init(uvec2 preview_size, int* cam_width, int* cam_height);
 

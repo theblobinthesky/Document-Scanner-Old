@@ -24,8 +24,10 @@ struct vec2 {
     vec2 operator+(vec2 other) const;
     vec2 operator-(vec2 other) const;
     vec2 operator*(f32 other) const;
+    vec2 orthogonal() const;
     f32 length() const;
     f32 length_squared() const;
+    vec2 normalize() const;
 
     static f32 dot(const vec2& a, const vec2& b);
     static f32 angle_between(const vec2& a, const vec2& b);

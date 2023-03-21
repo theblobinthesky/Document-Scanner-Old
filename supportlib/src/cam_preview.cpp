@@ -22,12 +22,11 @@ void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* 
     cam = find_and_open_back_camera(preview_size, cam_tex_size);
     *cam_width = (int) cam_tex_size.x;
     *cam_height = (int) cam_tex_size.y;
-
-    LOGI("cam_tex_size: (%u, %u)", cam_tex_size.x, cam_tex_size.y);
 }
 
 void docscanner::cam_preview::init_backend(file_context* file_ctx) {
-    LOGI("preview_size: (%u, %u)", preview_size.x, preview_size.y);
+    glEnable(GL_BLEND);  
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
 
     preview_program = programmer.compile_and_link(vert_src, frag_simple_tex_sampler_src(CAM_USES_OES_TEXTURE, 0));
 
@@ -83,15 +82,10 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx) {
 
     mesher.init(&programmer, (f32*)nn_mask_out_buff, (f32*)nn_flatten_out_buff, { (s32)downsampled_size.x, (s32)downsampled_size.y }, projection);
 
-    auto shader = programmer.compile_and_link(vert_src, frag_debug_src);
-
-    use_program(shader);
-    get_variable(shader, "projection").set_mat4(projection);
-
     auto buffer = make_shader_buffer();
 
-    border.init(&programmer, mesher.mesh_vertices, mesher.mesh_size, shader, buffer);
-    particles.init(&programmer, mesher.mesh_vertices, mesher.mesh_size, shader, buffer);
+    particles.init(&programmer, mesher.mesh_vertices, mesher.mesh_size, projection, buffer);
+    border.init(&programmer, mesher.mesh_vertices, mesher.mesh_size, projection, buffer);
     
     nn = create_neural_network_from_path(file_ctx, "seg_model.tflite", execution_pref::sustained_speed);
 
@@ -108,7 +102,7 @@ void docscanner::cam_preview::init_cam() {
 }
 #endif
 
-void docscanner::cam_preview::render() {
+void docscanner::cam_preview::render(f32 time) {
     if(!is_init) return;
     cam.get();
 
@@ -142,7 +136,7 @@ void docscanner::cam_preview::render() {
 
     if(mesher.exists) {
         particles.render();
-        border.render();
+        border.render(time);
     }
 
     auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();

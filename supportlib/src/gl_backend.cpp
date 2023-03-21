@@ -17,6 +17,10 @@ void docscanner::check_gl_error(const char* op) {
     }
 }
 
+void docscanner::variable::set_f32(f32 v) {
+    glUniform1f(location, v);
+}
+
 void docscanner::variable::set_mat4(float* data) {
     glUniformMatrix4fv(location, 1, GL_FALSE, data);
 }
@@ -140,21 +144,32 @@ void sticky_particle_system::gen_and_fill_mesh_vertices() {
             const vec2& br = (*stick_vertices)[(x + 1) * stick_size.y + (y + 1)].pos;
             const vec2& bl = (*stick_vertices)[x * stick_size.y + (y + 1)].pos;
 
-            mesh_vertices.push_back({tl, {0, 1}});
-            mesh_vertices.push_back({tr, {1, 1}});
-            mesh_vertices.push_back({br, {0, 0}});
-            mesh_vertices.push_back({bl, {1, 0}});
+            const vec2 middle = (tl + tr + br + bl) * (1.0f / 4.0f);
+
+#define particle_scale 0.3
+#define rescale_particle(pt) ((pt - middle) * particle_scale + middle)
+
+            mesh_vertices.push_back({rescale_particle(tl), {0, 0}});
+            mesh_vertices.push_back({rescale_particle(tr), {1, 0}});
+            mesh_vertices.push_back({rescale_particle(br), {1, 1}});
+            mesh_vertices.push_back({rescale_particle(bl), {0, 1}});
+        
+#undef rescale_particle
         }
     }
 
     fill_shader_buffer(buffer, mesh_vertices.data(), mesh_vertices.size() * sizeof(vertex), mesh_indices.data(), mesh_indices.size() * sizeof(u32));
 }
 
-void sticky_particle_system::init(shader_programmer* programmer, const std::vector<vertex>& stick_vertices, const svec2& stick_size, shader_program shader, shader_buffer buffer) {
+void sticky_particle_system::init(shader_programmer* programmer, const std::vector<vertex>& stick_vertices, const svec2& stick_size, float* projection, shader_buffer buffer) {
     this->stick_vertices = &stick_vertices;
     this->stick_size = stick_size;
-    this->shader = shader;
     this->buffer = buffer;
+
+    shader = programmer->compile_and_link(vert_src, frag_particle_src);
+
+    use_program(shader);
+    get_variable(shader, "projection").set_mat4(projection);
 }
 
 void sticky_particle_system::render() {
@@ -168,132 +183,121 @@ void sticky_particle_system::render() {
     glDrawElements(GL_TRIANGLES, mesh_indices.size(), GL_UNSIGNED_INT, null);
 }
 
-constexpr f32 small_fac = 0.7;
-constexpr f32 large_fac = 1.3;
+constexpr f32 thickness = 0.1f;
+constexpr f32 half_thickness = thickness / 2.0f;
 
-void push_border_vertices(std::vector<vertex>& mesh_vertices, const vec2& curr, const vec2& next, const vec2& middle, f32 smallest_length, f32 largest_length) {
-    const vec2 curr_middle = curr - middle;
-    const vec2 next_middle = next - middle;
+void push_border_vertices(std::vector<vertex>& mesh_vertices, const std::vector<vertex>& border_vertices,
+                          s32 start_index, s32 stride, s32 end_index, s32 i) {
+    const vec2& curr = border_vertices[i].pos;
+    const vec2& last = (i - stride < start_index) ? curr : border_vertices[i - stride].pos;
+    const vec2& next = (i + stride > end_index) ? curr : border_vertices[i + stride].pos;
+            
+    const vec2 normal = ((curr - last) * 0.5 + (next - curr) * 0.5).orthogonal().normalize();
+    const vec2 half_border = normal * half_thickness;
 
-    const vec2 curr_small = curr_middle * small_fac + middle;
-    const vec2 next_small = next_middle * small_fac + middle;
-    
-    const vec2 curr_large = curr_middle * large_fac + middle;
-    const vec2 next_large = next_middle * large_fac + middle;
-
-#define get_length(len) ((len) - smallest_length) / (largest_length - smallest_length)
-    
-    f32 curr_length = next_middle.length();
-    f32 next_length = next_middle.length();
-
-    f32 curr_small_length = get_length(curr_length * small_fac), curr_large_length = get_length(curr_length * large_fac);
-    f32 next_small_length = get_length(next_length * small_fac), next_large_length = get_length(next_length * large_fac);
-
-    curr_length = get_length(curr_length);
-    next_length = get_length(next_length);
+    const vec2 curr_small = curr - half_border;
+    const vec2 curr_large = curr + half_border;
 
     vec2 ref = { 1.0f, 0.0f };
     f32 curr_angle = vec2::angle_between(curr, ref);
-    f32 next_angle = vec2::angle_between(curr, ref);
 
-    // inner quad
-    mesh_vertices.push_back({curr, {curr_length, curr_angle}});
-    mesh_vertices.push_back({next, {next_length, next_angle}});
-    mesh_vertices.push_back({next_small, {next_small_length, next_angle}});
-    mesh_vertices.push_back({curr_small, {curr_small_length, curr_angle}});
+    mesh_vertices.push_back({curr, {0.5f, curr_angle}});
+    mesh_vertices.push_back({curr_small, {0.0f, curr_angle}});
+    mesh_vertices.push_back({curr_large, {1.0f, curr_angle}});
+}
 
-    // outer quad
-    mesh_vertices.push_back({curr, {curr_length, curr_angle}});
-    mesh_vertices.push_back({next, {next_length, next_angle}});
-    mesh_vertices.push_back({next_large, {next_large_length, next_angle}});
-    mesh_vertices.push_back({curr_large, {curr_large_length, curr_angle}});
+void push_border_vertices_forward(std::vector<vertex>& mesh_vertices, const std::vector<vertex>& border_vertices,
+                                  s32 start_index, s32 stride, s32 end_index) {
+    for(s32 i = start_index; i <= end_index; i += stride) {
+        push_border_vertices(mesh_vertices, border_vertices, start_index, stride, end_index, i);
+    }
+}
+
+void push_border_vertices_backward(std::vector<vertex>& mesh_vertices, const std::vector<vertex>& border_vertices,
+                                   s32 start_index, s32 stride, s32 end_index) {
+    for(s32 i = end_index; i >= start_index; i -= stride) {
+        push_border_vertices(mesh_vertices, border_vertices, start_index, stride, end_index, i);
+    }
 }
 
 void mesh_border::gen_and_fill_mesh_vertices() {
     mesh_indices.clear();
     mesh_vertices.clear();
 
-    for(s32 i = 0; i < 4 * (border_size.x - 1) + 4 * (border_size.y - 1); i++) {
-        s32 offset = i * 4;
-        mesh_indices.push_back(0 + offset);
-        mesh_indices.push_back(1 + offset);
-        mesh_indices.push_back(2 + offset);
+    for(s32 i = 0; i < 2 * border_size.x + 2 * border_size.y - 1; i++) {
+        s32 offset_1 = i * 3;
+        s32 offset_2 = i * 3 + 3;
 
-        mesh_indices.push_back(0 + offset);
-        mesh_indices.push_back(2 + offset);
-        mesh_indices.push_back(3 + offset);
+        // inner quad
+        mesh_indices.push_back(0 + offset_1);
+        mesh_indices.push_back(1 + offset_1);
+        mesh_indices.push_back(3 + offset_1);
+
+        mesh_indices.push_back(1 + offset_1);
+        mesh_indices.push_back(3 + offset_1);
+        mesh_indices.push_back(1 + offset_2);
+    
+        // outer quad
+        mesh_indices.push_back(0 + offset_1);
+        mesh_indices.push_back(2 + offset_1);
+        mesh_indices.push_back(0 + offset_2);
+
+        mesh_indices.push_back(2 + offset_1);
+        mesh_indices.push_back(0 + offset_2);
+        mesh_indices.push_back(2 + offset_2);
     }
 
-    vec2 middle = {};
-    for(s32 i = 0; i < border_size.area(); i++) {
-        middle = middle + (*border_vertices)[i].pos;
-    }
-    middle = middle * (1.0f / (f32)border_size.area());
+    // to make it seem complete
 
-    f32 smallest_length = 999999.0f;
-    f32 largest_length = 0.0f;
-    for(s32 x = 0; x < border_size.x - 1; x++) {
-        const vec2& v0 = (*border_vertices)[x * border_size.y + 0].pos - middle;
-        const vec2& v1 = (*border_vertices)[x * border_size.y + (border_size.y - 1)].pos - middle;
-        const vec2& v2 = (*border_vertices)[0 * border_size.y + x].pos - middle;
-        const vec2& v3 = (*border_vertices)[(border_size.x - 1) * border_size.y + x].pos - middle;
+    push_border_vertices_forward(mesh_vertices, *border_vertices, 
+        0, 
+        border_size.y, 
+        (border_size.x - 1) * border_size.y
+    );
 
-        if(v0.length() < smallest_length) { smallest_length = v0.length(); }
-        if(v1.length() < smallest_length) { smallest_length = v1.length(); }
-        if(v2.length() < smallest_length) { smallest_length = v2.length(); }
-        if(v3.length() < smallest_length) { smallest_length = v3.length(); }
+    push_border_vertices_forward(mesh_vertices, *border_vertices, 
+        (border_size.x - 1) * border_size.y, 
+        1, 
+        (border_size.y - 1) + (border_size.x - 1) * border_size.y
+    );
+    
+    push_border_vertices_backward(mesh_vertices, *border_vertices, 
+        (border_size.y - 1), 
+        border_size.y, 
+        (border_size.y - 1) + (border_size.x - 1) * border_size.y
+    );
 
-        if(v0.length() > largest_length) { largest_length = v0.length(); }
-        if(v1.length() > largest_length) { largest_length = v1.length(); }
-        if(v2.length() > largest_length) { largest_length = v2.length(); }
-        if(v3.length() > largest_length) { largest_length = v3.length(); }
-    }
-
-    for(s32 x = 0; x < border_size.x - 1; x++) {
-        const vec2& curr = (*border_vertices)[x * border_size.y + 0].pos;
-        const vec2& next = (*border_vertices)[(x + 1) * border_size.y + 0].pos;
-            
-        push_border_vertices(mesh_vertices, curr, next, middle, smallest_length, largest_length);
-    }
-
-    for(s32 x = 0; x < border_size.x - 1; x++) {
-        const vec2& curr = (*border_vertices)[x * border_size.y + (border_size.y - 1)].pos;
-        const vec2& next = (*border_vertices)[(x + 1) * border_size.y + (border_size.y - 1)].pos;
-            
-        push_border_vertices(mesh_vertices, curr, next, middle, smallest_length, largest_length);
-    }
-
-    for(s32 y = 0; y < border_size.y - 1; y++) {
-        const vec2& curr = (*border_vertices)[0 * border_size.y + y].pos;
-        const vec2& next = (*border_vertices)[0 * border_size.y + (y + 1)].pos;
-            
-        push_border_vertices(mesh_vertices, curr, next, middle, smallest_length, largest_length);
-    }
-
-    for(s32 y = 0; y < border_size.y - 1; y++) {
-        const vec2& curr = (*border_vertices)[(border_size.x - 1) * border_size.y + y].pos;
-        const vec2& next = (*border_vertices)[(border_size.x - 1) * border_size.y + (y + 1)].pos;
-            
-        push_border_vertices(mesh_vertices, curr, next, middle, smallest_length, largest_length);
-    }
+    push_border_vertices_backward(mesh_vertices, *border_vertices, 
+        0, 
+        1, 
+        (border_size.y - 1)
+    );
 
     fill_shader_buffer(buffer, mesh_vertices.data(), mesh_vertices.size() * sizeof(vertex), mesh_indices.data(), mesh_indices.size() * sizeof(u32));
 }
 
-void mesh_border::init(shader_programmer* programmer, const std::vector<vertex>& border_vertices, const svec2& border_size, shader_program shader, shader_buffer buffer) {
+void mesh_border::init(shader_programmer* programmer, const std::vector<vertex>& border_vertices, const svec2& border_size, float* projection, shader_buffer buffer) {
     this->border_vertices = &border_vertices;
     this->border_size = border_size;
-    this->shader = shader;
     this->buffer = buffer;
+
+    shader = programmer->compile_and_link(vert_src, frag_border_src);
+
+    use_program(shader);
+    get_variable(shader, "projection").set_mat4(projection);
+
+    time_var = get_variable(shader, "time");
 }
 
-void mesh_border::render() {
+void mesh_border::render(f32 time) {
     if(border_vertices->size() != border_size.area()) return;
 
     use_program(shader);
 
     gen_and_fill_mesh_vertices();
     glBindVertexArray(buffer.id);
+
+    time_var.set_f32(time);
 
     glDrawElements(GL_TRIANGLES, mesh_indices.size(), GL_UNSIGNED_INT, null);
 }
@@ -509,7 +513,10 @@ void docscanner::set_texture_data(const texture &tex, u8* data, int width, int h
 }
 
 variable docscanner::get_variable(const shader_program& program, const char* name) {
-    return {glGetUniformLocation(program.program, name)};
+    int location = glGetUniformLocation(program.program, name);
+    check_gl_error("glGetUniformLocation");
+
+    return { location };
 }
 
 void docscanner::draw(const canvas &canvas) {

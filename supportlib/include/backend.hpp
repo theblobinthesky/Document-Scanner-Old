@@ -44,6 +44,7 @@ struct canvas {
 struct variable {
     int location;
 
+    void set_f32(f32 v);
     void set_mat4(float* data);
     void set_vec2(const vec2& v);
 };
@@ -78,7 +79,7 @@ struct sticky_particle_system {
     shader_buffer buffer;
 
     void gen_and_fill_mesh_vertices();
-    void init(shader_programmer* programmer, const std::vector<vertex>& stick_vertices, const svec2& stick_size, shader_program shader, shader_buffer buffer);
+    void init(shader_programmer* programmer, const std::vector<vertex>& stick_vertices, const svec2& stick_size, float* projection, shader_buffer buffer);
     void render();
 };
 
@@ -92,9 +93,11 @@ struct mesh_border {
     shader_program shader;
     shader_buffer buffer;
 
+    variable time_var;
+
     void gen_and_fill_mesh_vertices();
-    void init(shader_programmer* programmer, const std::vector<vertex>& border_vertices, const svec2& border_size, shader_program shader, shader_buffer buffer);
-    void render();
+    void init(shader_programmer* programmer, const std::vector<vertex>& border_vertices, const svec2& border_size, float* projection, shader_buffer buffer);
+    void render(f32 time);
 };
 
 void check_gl_error(const char* op);

@@ -183,13 +183,13 @@ std::vector<svec2> sample_points_from_boundary(const std::vector<svec2>& boundar
     return pts;
 }
 
-vec2* interpolate_lines(const std::vector<svec2>& start, const std::vector<svec2>& end, s32 n) {
-    ASSERT(start.size() == end.size(), "Two lines of different lengths can't be interpolated.");
+vec2* interpolate_lines(const std::vector<svec2>& start_reversed, const std::vector<svec2>& end, s32 n) {
+    ASSERT(start_reversed.size() == end.size(), "Two lines of different lengths can't be interpolated.");
 
-    vec2* positions = new vec2[start.size() * n];
+    vec2* positions = new vec2[start_reversed.size() * n];
 
-    for(u32 y = 0; y < start.size(); y++) {
-        const svec2& s = start[y];
+    for(u32 y = 0; y < start_reversed.size(); y++) {
+        const svec2& s = start_reversed[start_reversed.size() - 1 - y];
         const svec2& e = end[y];
 
         for(u32 x = 0; x < n; x++) {
@@ -226,13 +226,6 @@ void mask_mesher::mesh() {
     }
 
     auto contour = find_contours(mask_buffer, mask_size);
-
-#if false
-    for(svec2 pt: contour) {
-        mask_buffer[pt.x * mask_size.y + pt.y] = 0.5f;
-    }
-#endif
-
     exists = flatten_buffer[0] > binarize_threshold;
 
     if (contour.size() > 0 && exists) {
@@ -253,27 +246,6 @@ void mask_mesher::mesh() {
         auto top = sample_points_from_boundary(contour, corner_pts, 1, points_per_side);
         auto right = sample_points_from_boundary(contour, corner_pts, 2, points_per_side);
         auto bottom = sample_points_from_boundary(contour, corner_pts, 3, points_per_side);
-
-#if false
-        for(svec2 pt: left) {
-            mask_buffer[pt.x * mask_size.y + pt.y] = 0.2f;
-        }
-        
-        for(svec2 pt: top) {
-            mask_buffer[pt.x * mask_size.y + pt.y] = 0.4f;
-        }
-        
-        for(svec2 pt: right) {
-            mask_buffer[pt.x * mask_size.y + pt.y] = 0.6f;
-        }
-        
-        for(svec2 pt: bottom) {
-            mask_buffer[pt.x * mask_size.y + pt.y] = 0.8f;
-        }
-#endif
-
-        std::reverse(left.begin(), left.end());
-        std::reverse(top.begin(), top.end());
 
         mesh_vertices.clear();
         for(u32 i = 0; i < points_per_side * points_per_side; i++) 

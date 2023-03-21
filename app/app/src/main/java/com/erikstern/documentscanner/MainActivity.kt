@@ -39,7 +39,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         init {
-            System.loadLibrary("documentscanner")
+            System.loadLibrary("documentscanner");
         }
     }
 }
