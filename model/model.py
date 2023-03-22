@@ -7,6 +7,7 @@ from tqdm import tqdm
 l2_weight = 0.3
 grad_weight = 0.3
 binarize_threshold = 0.5
+device = torch.device("cuda")
 
 class Conv(nn.Module):
     def __init__(self, inp, out, kernel_size=3, padding=1, dilation=1, stride=1, activation="none"):
@@ -82,6 +83,12 @@ class MultiscaleBlock(nn.Module):
         return torch.cat([c0, c1, c2, c3, c4], axis=1) + skip
 
 
+def metric_l1_f(pred, label):
+    pred, label = pred.detach(), label.detach()
+    
+    return (pred - label).abs().mean()
+
+
 def metric_dice_coefficient_f(pred, label):
     pred, label = pred.detach(), label.detach()
     
@@ -124,6 +131,7 @@ def metric_line_distortion_f(pred, label):
     return stdx.mean() + stdy.mean()
 
 
+metric_l1 = ("l1", metric_l1_f)
 metric_dice_coefficient = ("dice", metric_dice_coefficient_f)
 metric_sensitivity = ("sensitivity", metric_specificity_f)
 metric_specificity = ("specificity", metric_specificity_f)

@@ -132,12 +132,20 @@ def load_datasets(dir, missing_names, transforms, datasets, weight_metrics, batc
 
 color_jitter = ColorJitter(brightness=0.1, contrast=0.05, saturation=0.3, hue=0.1)
 
-def load_pre_dataset(batch_size):
-    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {"uv": "blank_uv_64x64.exr", "flatten": "blank_flatten.exr"}, 
-                        {"img": color_jitter}, [
-        ([("img", "Doc3d_64x64/img/1", "png"), ("uv", "Doc3d_64x64/lines/1", "png"), ("flatten", "Doc3d_64x64/flatten/1", "exr")], 5000),
-        ([("img", "Doc3d_64x64/img/2", "png"), ("uv", "Doc3d_64x64/lines/2", "png"), ("flatten", "Doc3d_64x64/flatten/2", "exr")], 5000),
-        ([("img", "Doc3d_64x64/img/3", "png"), ("uv", "Doc3d_64x64/lines/3", "png"), ("flatten", "Doc3d_64x64/flatten/3", "exr")], 5000),
+def load_seg_dataset(batch_size):
+    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {"uv": "blank_uv_64x64.exr"}, {"img": color_jitter}, [
+        ([("img", "Doc3d_64x64/img/1", "png"), ("uv", "Doc3d_64x64/lines/1", "png")], 5000),
+        ([("img", "Doc3d_64x64/img/2", "png"), ("uv", "Doc3d_64x64/lines/2", "png")], 5000),
+        ([("img", "Doc3d_64x64/img/3", "png"), ("uv", "Doc3d_64x64/lines/3", "png")], 5000),
+        ([("img", "Doc3d_64x64/img/4", "png"), ("uv", "Doc3d_64x64/lines/4", "png")], 5000)
+    ], {"finetuning": "finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1)
+
+def load_contour_dataset(batch_size):
+    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {"flatten": "blank_flatten.exr"}, {"img": color_jitter}, [
+        ([("img", "Doc3d_64x64/img/1", "png"), ("flatten", "Doc3d_64x64/flatten/1", "exr")], 5000),
+        ([("img", "Doc3d_64x64/img/2", "png"), ("flatten", "Doc3d_64x64/flatten/2", "exr")], 5000),
+        ([("img", "Doc3d_64x64/img/3", "png"), ("flatten", "Doc3d_64x64/flatten/3", "exr")], 5000),
+        ([("img", "Doc3d_64x64/img/4", "png"), ("flatten", "Doc3d_64x64/flatten/4", "exr")], 5000),
         ([("img", "MitIndoor_64x64/img", "jpg")], 5000)
     ], {"finetuning": "finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1)
 

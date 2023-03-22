@@ -1,33 +1,44 @@
 #!/usr/bin/python3
-from model import save_model, eval_loss_on_batches, eval_loss_and_metrics_on_batches, count_params
-from data import load_pre_dataset, load_bm_dataset
+from model import save_model, eval_loss_on_batches, eval_loss_and_metrics_on_batches, count_params, device
+from data import load_seg_dataset, load_contour_dataset, load_bm_dataset
 import torch
 import torch.optim.lr_scheduler as lr_scheduler
 import datetime
 from itertools import cycle
 from tqdm import tqdm
-from benchmark import benchmark_plt_pre, benchmark_plt_bm
+from benchmark import benchmark_plt_seg, benchmark_plt_contour, benchmark_plt_bm
+from enum import Enum
 
 warmup_lr = 1e-5
 lr = 1e-3
 steps_per_epoch = 40
 batch_size = 12
-device = torch.device("cuda")
 
-mask_epochs = 85 - 2
-bm_epochs = 85 - 2 # to make sure you catch the minimum
-warmup_epochs = 15
 T_0 = 10
 T_mul = 2
+warmup_epochs = 15
+
+def epochs_from_iters(iters):
+    # - 2 epochs just makes sure you catch the local minimum
+    return warmup_epochs + T_0 * sum([T_mul ** i for i in range(iters)]) - 2
+
+seg_epochs = epochs_from_iters(4)
+contour_epochs = epochs_from_iters(3)
+bm_epochs = epochs_from_iters(5)
 min_learning_rate_before_early_termination = 1e-7
 lr_plateau_patience = 3
 valid_batch_count = 16
 valid_eval_every = 4
 lam = 0.85
 
-mask_time_in_hours = 2.0
+seg_time_in_hours = 2.0
+contour_time_in_hours = 2.0
 bm_time_in_hours = 4.0
 
+class Model(Enum):
+    SEG = 0
+    CONTOUR = 1
+    BM = 2
 
 def cycle(iterable):
     while True:
@@ -64,118 +75,123 @@ class CosineAnnealingWarmRestartsWithWarmup(lr_scheduler.CosineAnnealingWarmRest
 
 
 
-def train_model(model, model_path, epochs, time_in_hours, ds, is_pre, summary_writer):
-    # optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
-    # scheduler = CosineAnnealingWarmRestartsWithWarmup(optim, T_0, T_mul, warmup_lr, warmup_epochs)
+def train_model(model, model_path, epochs, time_in_hours, ds, model_type, summary_writer):
+    optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
+    scheduler = CosineAnnealingWarmRestartsWithWarmup(optim, T_0, T_mul, warmup_lr, warmup_epochs)
 
-    # start_time = datetime.datetime.now()
+    start_time = datetime.datetime.now()
 
-    # train_ds, valid_ds, test_ds = ds
-    # trainds_iter = iter(cycle(train_ds))
-    # valid_iter = iter(cycle(valid_ds))
-    # test_iter = iter(test_ds)
+    train_ds, valid_ds, test_ds = ds
+    trainds_iter = iter(cycle(train_ds))
+    valid_iter = iter(cycle(valid_ds))
+    test_iter = iter(test_ds)
 
-    # pbar = tqdm(total=epochs)
-    # pbar.set_description("initializing training and running first epoch")
+    pbar = tqdm(total=epochs)
+    pbar.set_description("initializing training and running first epoch")
     
-    # for epoch in range(epochs):
-    #     train_loss = 0.0
+    for epoch in range(epochs):
+        train_loss = 0.0
 
-    #     for _ in range(steps_per_epoch):
-    #         dict, weight_metrics = next(trainds_iter)
+        for _ in range(steps_per_epoch):
+            dict, weight_metrics = next(trainds_iter)
 
-    #         def dict_to_device(dict):
-    #             return { key: value.to(device) for key, value in dict.items() }
+            def dict_to_device(dict):
+                return { key: value.to(device) for key, value in dict.items() }
             
-    #         dict, weight_metrics = dict_to_device(dict), dict_to_device(weight_metrics)
+            dict, weight_metrics = dict_to_device(dict), dict_to_device(weight_metrics)
                 
-    #         x, _ = model.input_and_label_from_dict(dict)
+            x, _ = model.input_and_label_from_dict(dict)
 
-    #         optim.zero_grad(set_to_none=True)
+            optim.zero_grad(set_to_none=True)
 
-    #         if is_pre:
-    #             pred = model(x)
-    #             loss = model.loss(pred, dict, weight_metrics)
-    #         else:
-    #             preds = model.forward_all(x)
+            if model_type == Model.SEG:
+                pred = model(x)
+                loss = model.loss(pred, dict, weight_metrics)
+            elif model_type == Model.CONTOUR or model_type == Model.BM:
+                preds = model.forward_all(x)
                 
-    #             loss = 0.0
+                loss = 0.0
 
-    #             for i, pred in enumerate(preds):
-    #                 fac = lam ** (len(preds) - 1 - i)
-    #                 loss += fac * model.loss(pred, dict, weight_metrics)
+                for i, pred in enumerate(preds):
+                    fac = lam ** (len(preds) - 1 - i)
+                    loss += fac * model.loss(pred, dict, weight_metrics)
 
-    #             loss /= float(len(preds))
-            
-    #         loss.backward()
+                loss /= float(len(preds))
+                
+            loss.backward()
 
-    #         optim.step()
+            optim.step()
 
-    #         train_loss += loss.detach().cpu().item()
+            train_loss += loss.detach().cpu().item()
 
-    #     train_loss /= steps_per_epoch
+        train_loss /= steps_per_epoch
 
-    #     if epoch % valid_eval_every == 0:
-    #         valid_loss = eval_loss_on_batches(model, valid_iter, valid_batch_count, device)
-    #         summary_writer.add_scalar("Loss/valid", valid_loss, epoch)
+        if epoch % valid_eval_every == 0:
+            valid_loss = eval_loss_on_batches(model, valid_iter, valid_batch_count, device)
+            summary_writer.add_scalar("Loss/valid", valid_loss, epoch)
 
-    #     scheduler.step()
+        scheduler.step()
 
 
-    #     now = datetime.datetime.now()
-    #     hours_passed = (now - start_time).seconds / (60.0 * 60.0)
-    #     learning_rate = optim.param_groups[-1]['lr']
+        now = datetime.datetime.now()
+        hours_passed = (now - start_time).seconds / (60.0 * 60.0)
+        learning_rate = optim.param_groups[-1]['lr']
 
-    #     summary_writer.add_scalar("Loss/train", train_loss, epoch)
-    #     summary_writer.add_scalar("Learning rate", learning_rate, epoch)
+        summary_writer.add_scalar("Loss/train", train_loss, epoch)
+        summary_writer.add_scalar("Learning rate", learning_rate, epoch)
 
-    #     pbar.update(1)
-    #     pbar.set_description(f"epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. training loss: {train_loss:.4f}, validation loss: {valid_loss:.4f}, learning rate: {learning_rate:.6f}")
+        pbar.update(1)
+        pbar.set_description(f"epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. training loss: {train_loss:.4f}, validation loss: {valid_loss:.4f}, learning rate: {learning_rate:.6f}")
 
-    #     if hours_passed > time_in_hours:
-    #         pbar.close()
-    #         print(f"hour limit of {time_in_hours:.4f}h passed")
-    #         break
+        if hours_passed > time_in_hours:
+            pbar.close()
+            print(f"hour limit of {time_in_hours:.4f}h passed")
+            break
 
-    #     if learning_rate < min_learning_rate_before_early_termination:
-    #         pbar.close()
-    #         print(f"learning rate {learning_rate} is smaller than {min_learning_rate_before_early_termination}. no further learning progress can be made")
-    #         break
+        if learning_rate < min_learning_rate_before_early_termination:
+            pbar.close()
+            print(f"learning rate {learning_rate} is smaller than {min_learning_rate_before_early_termination}. no further learning progress can be made")
+            break
 
-    # save_model(model, model_path)
+    save_model(model, model_path)
 
-    # pbar.close()
+    pbar.close()
 
-    # model.set_train(False)
+    model.set_train(False)
 
-    # test_loss, metrics = eval_loss_and_metrics_on_batches(model, test_iter, batch_size, device)
+    test_loss, metrics = eval_loss_and_metrics_on_batches(model, test_iter, batch_size, device)
 
-    # hparams = {"parameter_count": count_params(model)}
+    hparams = {"parameter_count": count_params(model)}
 
-    # metric_dict = {"Loss/test": test_loss}
-    # for (name, item) in metrics:
-    #     metric_dict[name] = item
+    metric_dict = {"Loss/test": test_loss}
+    for (name, item) in metrics:
+        metric_dict[name] = item
 
-    # summary_writer.add_hparams(hparams, metric_dict)
+    summary_writer.add_hparams(hparams, metric_dict)
 
-    if is_pre:
-        plt = benchmark_plt_pre(model)
-    else:
+    if model_type == Model.SEG:
+        plt = benchmark_plt_seg(model)
+    elif model_type == Model.CONTOUR:
+        plt = benchmark_plt_contour(model)
+    elif model_type == Model.BM:
         plt = benchmark_plt_bm(model)
 
     summary_writer.add_figure("benchmark", plt)
     
-    # print(f"test loss: {test_loss:.4f}")
+    print(f"test loss: {test_loss:.4f}")
 
 
-def train_pre_model(model, model_path, summary_writer):
-    ds = load_pre_dataset(batch_size)
-    train_model(model, model_path, mask_epochs, mask_time_in_hours, ds, True, summary_writer)
+def train_seg_model(model, model_path, summary_writer):
+    ds = load_seg_dataset(batch_size)
+    train_model(model, model_path, seg_epochs, seg_time_in_hours, ds, Model.SEG, summary_writer)
 
+def train_contour_model(model, model_path, summary_writer):
+    ds = load_contour_dataset(batch_size)
+    train_model(model, model_path, contour_epochs, contour_time_in_hours, ds, Model.CONTOUR, summary_writer)
 
 def train_bm_model(model, model_path, summary_writer):
     ds = load_bm_dataset(batch_size)
-    train_model(model, model_path, bm_epochs, bm_time_in_hours, ds, False, summary_writer)
+    train_model(model, model_path, bm_epochs, bm_time_in_hours, ds, Model.BM, summary_writer)
 
 
 if __name__ == "__main__":
@@ -184,13 +200,21 @@ if __name__ == "__main__":
     from torch.utils.tensorboard import SummaryWriter
     import seg_model, bm_model
 
-    print("training segmentation model")
+    # print()
+    # print("training segmentation model")
 
-    writer = SummaryWriter("runs/seg_model_new")
-    model = seg_model.PreModel()
-    model.load_state_dict(torch.load("models/seg_model_new.pth"))
+    # writer = SummaryWriter("runs/seg_model_new4")
+    # model = seg_model.PreModel()
+    # model = model_to_device(model)
+    # train_seg_model(model, "models/seg_model.pth", summary_writer=writer)
+    # writer.flush()
+
+    print("training contour model")
+
+    writer = SummaryWriter("runs/contour_model_2")
+    model = seg_model.ContourModel()
     model = model_to_device(model)
-    train_pre_model(model, "models/seg_model_new.pth", summary_writer=writer)
+    train_contour_model(model, "models/contour_model.pth", summary_writer=writer)
     writer.flush()
 
     # print()
@@ -199,5 +223,5 @@ if __name__ == "__main__":
     # writer = SummaryWriter("runs/main_bm_model_x2_10")
     # model = bm_model.BMModel(True, False)
     # model = model_to_device(model)
-    # train_bm_model(model, "models/main_bm_model_x2_10.pth", summary_writer=writer)
+    # train_bm_model(model, "models/bm_model.pth", summary_writer=writer)
     # writer.flush()

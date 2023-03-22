@@ -2,8 +2,14 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from model import device, l2_weight
 from model import Conv, conv1x1, DoubleConv, MultiscaleBlock
-from model import binarize_threshold, metric_dice_coefficient, metric_sensitivity, metric_specificity
+from model import binarize_threshold, metric_l1, metric_dice_coefficient, metric_sensitivity, metric_specificity
+
+min_finetuning_weight = torch.tensor(0.0, device=device)
+max_finetuning_weight = torch.tensor(2.0, device=device)
+finetuning_weight_amplitude = max_finetuning_weight - min_finetuning_weight
+flatten_size = 1 + 2 * 4
 
 # UNet Transformer based on:
 # https://arxiv.org/pdf/2103.06104.pdf
@@ -44,7 +50,7 @@ def positional_encode(ten):
                          "odd dimension (got dim={:d})".format(d_model))
     pe = torch.zeros(d_model, height, width)
     try:
-        pe = pe.to(torch.device("cuda:0"))
+        pe = pe.to(device)
     except RuntimeError:
         pass
     # Each dimension use half of d_model
@@ -255,12 +261,7 @@ class MultiscaleUp(nn.Module):
 
         return O
 
-
-min_finetuning_weight = torch.tensor(1.0, device="cuda")
-max_finetuning_weight = torch.tensor(2.0, device="cuda")
-finetuning_weight_amplitude = max_finetuning_weight - min_finetuning_weight
-
-class PreModel(nn.Module):
+class SegModel(nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -281,12 +282,6 @@ class PreModel(nn.Module):
         self.up1 = MultiscaleUp(depth[2], depth[1])
         self.up0 = MultiscaleUp(depth[1], depth[0])
 
-        self.flatten = nn.Sequential(
-            DoubleConv(depth[3], depth[0]),
-            nn.Flatten(),
-            nn.LazyLinear(1 + 2 * 4)
-        )
-
 
     def forward(self, x):
         x = self.cvt_in(x)
@@ -304,10 +299,7 @@ class PreModel(nn.Module):
         y = self.cvt_out(y)
         y = torch.sigmoid(y)
 
-        f = self.flatten(bn)
-        f = torch.sigmoid(f)
-
-        return y, f
+        return y
 
 
     def set_train(self, booleanlol):
@@ -318,34 +310,171 @@ class PreModel(nn.Module):
         img = dict["img"]
 
         b, _, h, w = img.shape
-        a_padding = torch.full((b, 1, h, w), 1.0, device="cuda")
+        a_padding = torch.full((b, 1, h, w), 1.0, device=device)
 
         img = torch.cat([img, a_padding], axis=1)
-            
         mask = dict["uv"][:, 0].unsqueeze(1)
-        flatten = dict["flatten"][:, 0, :, :].reshape(-1, 9)
 
-        return img, (mask, flatten)
+        return img, mask
 
 
     def loss(self, pred, dict, weight_metrics):
-        mask_pred, flatten_pred = pred
-        _, (mask_label, flatten_label) = self.input_and_label_from_dict(dict)
+        mask_pred, _ = pred
+        _, mask_label = self.input_and_label_from_dict(dict)
 
         mask_loss = F.binary_cross_entropy(mask_pred, mask_label, reduction="none")
         mask_loss = mask_loss.view(mask_loss.shape[0], -1).mean(1)
+        
         finetuning = min_finetuning_weight + weight_metrics["finetuning"] * finetuning_weight_amplitude
-        exists_label = flatten_label[:, 0].unsqueeze(0)
-        mask_loss = (exists_label * finetuning * mask_loss).mean()
-        
-        exists_loss = F.binary_cross_entropy(flatten_pred[:, 0], flatten_label[:, 0], reduction="mean")
-        corner_loss = (flatten_pred[:, 1:] - flatten_label[:, 1:]).abs().mean()
-        
-        return mask_loss + exists_loss + corner_loss
+        mask_loss = (finetuning * mask_loss).mean()
+    
+        return mask_loss
         
 
     def eval_metrics(self):
         return [] # todo: reimplement metrics return [metric_dice_coefficient, metric_sensitivity, metric_specificity]
+    
+
+class ContourEnd(nn.Module):
+    def __init__(self, inp, hidden_channels, size):
+        super().__init__()
+        
+        self.flatten = nn.Sequential(
+            DoubleConv(inp, hidden_channels),
+            nn.Flatten(),
+            nn.Linear(size[0] * size[1] * hidden_channels, flatten_size),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        return self.flatten(x)
+
+
+class ContourAdd(nn.Module):
+    def __init__(self, inp, hidden_channels, size):
+        super().__init__()
+
+        features = 128
+
+        self.encoder = nn.Sequential(
+            DoubleConv(inp, hidden_channels),
+            nn.Flatten(),
+        )
+
+        self.process = nn.Sequential(
+            nn.Linear(size[0] * size[1] * hidden_channels + flatten_size, features),
+            nn.ReLU(True),
+            nn.Linear(features, features),
+            nn.ReLU(True),
+            nn.Linear(features, features),
+            nn.ReLU(True),
+            nn.Linear(features, flatten_size)
+        )
+
+    # def forward(self, x, c):
+    #     e = self.encoder(x)
+        
+    #     b, _  = c.shape
+    #     features = F.grid_sample(e, (c[:, 1:].flip(dims=[-1],) * 2.0 - 1.0).reshape(b, -1, 1, 2))
+    #     features = features.reshape(b, -1)
+    #     e = torch.cat([c, features], axis=-1)
+
+    #     y = self.process(e) + c
+    #     return torch.sigmoid(y)
+    
+    def forward(self, x, c):
+        return c
+    
+        e = self.encoder(x)
+        
+        e = torch.cat([e, c], axis=-1)
+
+        y = self.process(e) + c
+        return torch.sigmoid(y)
+
+
+class ContourModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        inp, hidden_channels = 4, 16
+        depth = [32, 64, 128, 256]
+
+        self.cvt_in = DoubleConv(inp, depth[0])
+
+        self.down0 = MultiscaleDown(depth[0], depth[1])
+        self.down1 = MultiscaleDown(depth[1], depth[2])
+        self.down2 = MultiscaleDown(depth[2], depth[3])
+        
+        self.bottle = nn.Sequential(
+            MultiscaleBlock(depth[3], depth[3]),
+            MultiscaleBlock(depth[3], depth[3])
+        )
+        self.contour = ContourEnd(depth[3], hidden_channels, (8, 8))
+
+        # self.merge1 = ContourAdd(depth[2], hidden_channels, (16, 16))
+        # self.merge0 = ContourAdd(depth[1], hidden_channels, (32, 32))
+        
+    def forward_all(self, x):
+        x = self.cvt_in(x)
+
+        d0 = self.down0(x)
+        d1 = self.down1(d0)
+        d2 = self.down2(d1)
+
+        bn = self.bottle(d2)
+        m2 = self.contour(bn)
+
+        # m1 = self.merge1(d1, m2)
+        # m0 = self.merge0(d0, m1)
+
+        return [m2]
+
+    def forward(self, x):
+        return self.forward_all(x)[-1]
+
+
+    def set_train(self, booleanlol):
+        pass
+
+
+    def input_and_label_from_dict(self, dict):
+        img = dict["img"]
+
+        b, _, h, w = img.shape
+        a_padding = torch.full((b, 1, h, w), 1.0, device=device)
+
+        img = torch.cat([img, a_padding], axis=1)    
+        flatten = dict["flatten"][:, 0, :, :].reshape(-1, 9)
+
+        return img, flatten
+
+
+    def loss(self, flatten_pred, dict, weight_metrics):
+        _, flatten_label = self.input_and_label_from_dict(dict)
+
+        exists_label = flatten_label[:, 0].unsqueeze(0)
+        finetuning = min_finetuning_weight + weight_metrics["finetuning"] * finetuning_weight_amplitude
+        corner_loss_weight = exists_label * finetuning
+
+        b, _ = flatten_pred.shape
+
+        def mean_around_batch(ten):
+            return ten.view(b, -1).mean(axis=1)
+
+        exists_loss = mean_around_batch(F.binary_cross_entropy(flatten_pred[:, 0], flatten_label[:, 0], reduction="none"))
+
+        corner_diff = flatten_pred[:, 1:] - flatten_label[:, 1:]
+        corner_loss = mean_around_batch(corner_diff.abs())
+
+        exists_loss = (finetuning * exists_loss).mean()
+        corner_loss = (corner_loss_weight * corner_loss).mean()
+        
+        return exists_loss + corner_loss
+        
+
+    def eval_metrics(self):
+        return [metric_l1] # todo: reimplement metrics return [metric_dice_coefficient, metric_sensitivity, metric_specificity]
 
 
 def binarize(x):

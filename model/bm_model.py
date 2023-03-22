@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from model import device
 from model import Conv, conv1x1, MultiscaleBlock, DoubleConv
 from model import loss_smooth, loss_circle_consistency, metric_local_distortion
 
@@ -157,11 +158,11 @@ class ProgressiveModel(nn.Module):
         b, _, h, w = x.size()
 
         bm = torch.cartesian_prod(
-            torch.linspace(0.0, 1.0, h, device="cuda"), 
-            torch.linspace(0.0, 1.0, w, device="cuda")
+            torch.linspace(0.0, 1.0, h, device=device), 
+            torch.linspace(0.0, 1.0, w, device=device)
         ).reshape(1, h, w, 2).permute(0, 3, 1, 2).repeat(b, 1, 1, 1)
 
-        Lhs = [torch.zeros((b, h_chs, 32, 32), device="cuda")]
+        Lhs = [torch.zeros((b, h_chs, 32, 32), device=device)]
         bms = [bm]
 
         for _ in range(iters):
