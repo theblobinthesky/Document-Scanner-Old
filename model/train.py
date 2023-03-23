@@ -104,10 +104,10 @@ def train_model(model, model_path, epochs, time_in_hours, ds, model_type, summar
 
             optim.zero_grad(set_to_none=True)
 
-            if model_type == Model.SEG:
+            if model_type == Model.SEG or model_type == Model.CONTOUR:
                 pred = model(x)
                 loss = model.loss(pred, dict, weight_metrics)
-            elif model_type == Model.CONTOUR or model_type == Model.BM:
+            elif model_type == Model.BM:
                 preds = model.forward_all(x)
                 
                 loss = 0.0
@@ -178,7 +178,7 @@ def train_model(model, model_path, epochs, time_in_hours, ds, model_type, summar
 
     summary_writer.add_figure("benchmark", plt)
     
-    print(f"test loss: {test_loss:.4f}")
+    print(f"Test loss: {test_loss:.4f}")
 
 
 def train_seg_model(model, model_path, summary_writer):
@@ -211,7 +211,7 @@ if __name__ == "__main__":
 
     print("training contour model")
 
-    writer = SummaryWriter("runs/contour_model_2")
+    writer = SummaryWriter("runs/contour_model_full_contour")
     model = seg_model.ContourModel()
     model = model_to_device(model)
     train_contour_model(model, "models/contour_model.pth", summary_writer=writer)

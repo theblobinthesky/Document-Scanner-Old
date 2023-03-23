@@ -9,7 +9,10 @@ from model import binarize_threshold, metric_l1, metric_dice_coefficient, metric
 min_finetuning_weight = torch.tensor(0.0, device=device)
 max_finetuning_weight = torch.tensor(2.0, device=device)
 finetuning_weight_amplitude = max_finetuning_weight - min_finetuning_weight
-flatten_size = 1 + 2 * 4
+points_per_side_incl_start_corner = 4
+points_per_contour = points_per_side_incl_start_corner * 4
+contour_size = 2 * points_per_contour
+flatten_size = 1 + contour_size
 
 # UNet Transformer based on:
 # https://arxiv.org/pdf/2103.06104.pdf
@@ -335,62 +338,19 @@ class SegModel(nn.Module):
         return [] # todo: reimplement metrics return [metric_dice_coefficient, metric_sensitivity, metric_specificity]
     
 
-class ContourEnd(nn.Module):
-    def __init__(self, inp, hidden_channels, size):
+class FlattenEnd(nn.Module):
+    def __init__(self, inp, hidden_channels, out, size):
         super().__init__()
         
         self.flatten = nn.Sequential(
             DoubleConv(inp, hidden_channels),
             nn.Flatten(),
-            nn.Linear(size[0] * size[1] * hidden_channels, flatten_size),
+            nn.Linear(size[0] * size[1] * hidden_channels, out),
             nn.Sigmoid()
         )
 
     def forward(self, x):
         return self.flatten(x)
-
-
-class ContourAdd(nn.Module):
-    def __init__(self, inp, hidden_channels, size):
-        super().__init__()
-
-        features = 128
-
-        self.encoder = nn.Sequential(
-            DoubleConv(inp, hidden_channels),
-            nn.Flatten(),
-        )
-
-        self.process = nn.Sequential(
-            nn.Linear(size[0] * size[1] * hidden_channels + flatten_size, features),
-            nn.ReLU(True),
-            nn.Linear(features, features),
-            nn.ReLU(True),
-            nn.Linear(features, features),
-            nn.ReLU(True),
-            nn.Linear(features, flatten_size)
-        )
-
-    # def forward(self, x, c):
-    #     e = self.encoder(x)
-        
-    #     b, _  = c.shape
-    #     features = F.grid_sample(e, (c[:, 1:].flip(dims=[-1],) * 2.0 - 1.0).reshape(b, -1, 1, 2))
-    #     features = features.reshape(b, -1)
-    #     e = torch.cat([c, features], axis=-1)
-
-    #     y = self.process(e) + c
-    #     return torch.sigmoid(y)
-    
-    def forward(self, x, c):
-        return c
-    
-        e = self.encoder(x)
-        
-        e = torch.cat([e, c], axis=-1)
-
-        y = self.process(e) + c
-        return torch.sigmoid(y)
 
 
 class ContourModel(nn.Module):
@@ -410,12 +370,13 @@ class ContourModel(nn.Module):
             MultiscaleBlock(depth[3], depth[3]),
             MultiscaleBlock(depth[3], depth[3])
         )
-        self.contour = ContourEnd(depth[3], hidden_channels, (8, 8))
 
-        # self.merge1 = ContourAdd(depth[2], hidden_channels, (16, 16))
-        # self.merge0 = ContourAdd(depth[1], hidden_channels, (32, 32))
+        # todo: remove the (8, 8) hack to allow for more resolution independence
+        self.exists = FlattenEnd(depth[3], hidden_channels, 1, (8, 8))
+        self.contour = FlattenEnd(depth[3], hidden_channels, contour_size, (8, 8))
         
-    def forward_all(self, x):
+        
+    def forward(self, x):
         x = self.cvt_in(x)
 
         d0 = self.down0(x)
@@ -423,15 +384,11 @@ class ContourModel(nn.Module):
         d2 = self.down2(d1)
 
         bn = self.bottle(d2)
-        m2 = self.contour(bn)
 
-        # m1 = self.merge1(d1, m2)
-        # m0 = self.merge0(d0, m1)
+        ex = self.exists(bn)
+        ct = self.contour(bn)
 
-        return [m2]
-
-    def forward(self, x):
-        return self.forward_all(x)[-1]
+        return (ex, ct)
 
 
     def set_train(self, booleanlol):
@@ -445,36 +402,41 @@ class ContourModel(nn.Module):
         a_padding = torch.full((b, 1, h, w), 1.0, device=device)
 
         img = torch.cat([img, a_padding], axis=1)    
-        flatten = dict["flatten"][:, 0, :, :].reshape(-1, 9)
+        flatten = dict["flatten"][:, 0, :, :].reshape(-1, flatten_size)
+        exists = flatten[:, 0].unsqueeze(1)
+        contour = flatten[:, 1:]
 
-        return img, flatten
+        return img, (exists, contour)
 
 
     def loss(self, flatten_pred, dict, weight_metrics):
-        _, flatten_label = self.input_and_label_from_dict(dict)
+        _, (exists_label, contour_label) = self.input_and_label_from_dict(dict)
+        exists_pred, contour_pred = flatten_pred
+        b, _ = exists_pred.shape
 
-        exists_label = flatten_label[:, 0].unsqueeze(0)
         finetuning = min_finetuning_weight + weight_metrics["finetuning"] * finetuning_weight_amplitude
         corner_loss_weight = exists_label * finetuning
-
-        b, _ = flatten_pred.shape
 
         def mean_around_batch(ten):
             return ten.view(b, -1).mean(axis=1)
 
-        exists_loss = mean_around_batch(F.binary_cross_entropy(flatten_pred[:, 0], flatten_label[:, 0], reduction="none"))
-
-        corner_diff = flatten_pred[:, 1:] - flatten_label[:, 1:]
-        corner_loss = mean_around_batch(corner_diff.abs())
-
+        exists_loss = mean_around_batch(F.binary_cross_entropy(exists_pred, exists_label, reduction="none"))
         exists_loss = (finetuning * exists_loss).mean()
+
+        corner_diff = contour_pred - contour_label
+        corner_loss = mean_around_batch(corner_diff.abs())
         corner_loss = (corner_loss_weight * corner_loss).mean()
         
         return exists_loss + corner_loss
         
 
-    def eval_metrics(self):
-        return [metric_l1] # todo: reimplement metrics return [metric_dice_coefficient, metric_sensitivity, metric_specificity]
+    def eval_metrics(self, pred, label):
+        exists_pred, contour_pred = pred
+        exists_label, contour_label = label
+
+        return {
+            "l1": metric_l1(contour_pred, contour_label)
+        }
 
 
 def binarize(x):

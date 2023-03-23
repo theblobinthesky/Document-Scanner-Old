@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 from model import binarize_threshold, device
 from data import load_seg_dataset, load_contour_dataset, load_bm_dataset
+from seg_model import points_per_contour
 from torchvision.transforms import Resize
 import torch
 import numpy as np
@@ -10,12 +11,7 @@ import matplotlib.pyplot as plt
 num_examples = 8
 dpi = 50
 circle_radius = 2
-circle_colors = [
-    (1.0, 0.0, 0.0),
-    (0.0, 1.0, 0.0),
-    (0.0, 0.0, 1.0),
-    (0.5, 0.5, 0.0),
-]
+circle_color = (1.0, 0.0, 0.0)
 
 transform = Resize((128, 128))
 
@@ -79,23 +75,22 @@ def benchmark_plt_seg(model):
     return fig
 
 def apply_flatten_to_image(img, flatten):
-    exists = flatten[0, 0]
-    if exists < binarize_threshold:
+    exists, contour = flatten
+
+    if exists[0, 0] < binarize_threshold:
         return img
 
     img = np.ascontiguousarray(img.copy())
 
     def get_pt(start):
-        pt = (flatten[0, start:start+2] * 64.0).astype("int32")
+        pt = (contour[0, start:start+2] * 64.0).astype("int32")
         return (pt[1], pt[0])
     
-    tl, tr, br, bl = get_pt(1), get_pt(3), get_pt(5), get_pt(7)
+    contour = [ get_pt(i * 2) for i in range(points_per_contour) ]
 
-    cv2.circle(img, tl, circle_radius, circle_colors[0])
-    cv2.circle(img, tr, circle_radius, circle_colors[1])
-    cv2.circle(img, br, circle_radius, circle_colors[2])
-    cv2.circle(img, bl, circle_radius, circle_colors[3])
-
+    for pt in contour:
+        cv2.circle(img, pt, circle_radius, circle_color)
+        
     return img
 
 def benchmark_plt_contour(model):
@@ -108,20 +103,23 @@ def benchmark_plt_contour(model):
         for key in dict.keys():
             dict[key] = dict[key].to(device)
 
-        x, flatten_label = model.input_and_label_from_dict(dict)
+        x, (exists_label, contour_label) = model.input_and_label_from_dict(dict)
 
-        flatten_pred = model(x)
+        (exists_pred, contour_pred) = model(x)
 
-        x, flatten_label, flatten_pred = cpu(x), cpu(flatten_label, True), cpu(flatten_pred, True)
+        x = cpu(x)
+        exists_label, contour_label = cpu(exists_label, True), cpu(contour_label, True)
+        exists_pred, contour_pred = cpu(exists_pred, True), cpu(contour_pred, True)
         
         xs.append(x)
-        ys.append(flatten_label)
-        preds.append(flatten_pred)
+        ys.append((exists_label, contour_label))
+        preds.append((exists_pred, contour_pred))
 
     title = ["contour pred", "contour label"]
 
     fig = plt.figure(figsize=(25, 25), dpi=dpi)
     i = 0
+
 
     for e in range(num_examples):
         img = xs[e][:, :, :3]

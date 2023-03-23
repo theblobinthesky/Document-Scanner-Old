@@ -83,27 +83,27 @@ class MultiscaleBlock(nn.Module):
         return torch.cat([c0, c1, c2, c3, c4], axis=1) + skip
 
 
-def metric_l1_f(pred, label):
+def metric_l1(pred, label):
     pred, label = pred.detach(), label.detach()
     
     return (pred - label).abs().mean()
 
 
-def metric_dice_coefficient_f(pred, label):
+def metric_dice_coefficient(pred, label):
     pred, label = pred.detach(), label.detach()
     
     # todo: account for resizing. the label isnt quite right now
     return MF.dice(pred, label.int(), threshold=binarize_threshold).item()
 
 
-def metric_specificity_f(pred, label):
+def metric_specificity(pred, label):
     pred, label = pred.detach(), label.detach()
     
     # todo: account for resizing. the label isnt quite right now
     return MF.specificity(pred, label.int(), task="binary", threshold=binarize_threshold).item()
 
 
-def metric_sensitivity_f(pred, label):
+def metric_sensitivity(pred, label):
     pred, label = pred.detach(), label.detach()
     
     thresh = (pred > binarize_threshold).float()
@@ -113,13 +113,13 @@ def metric_sensitivity_f(pred, label):
     return tp / (tp + fp).item()
 
 
-def metric_local_distortion_f(pred, label):
+def metric_local_distortion(pred, label):
     pred, label = pred.detach(), label.detach()
 
     return (pred - label).abs().mean()
 
 
-def metric_line_distortion_f(pred, label):
+def metric_line_distortion(pred, label):
     pred, label = pred.detach(), label.detach()
 
     local_distortion = (pred - label).abs()
@@ -129,14 +129,6 @@ def metric_line_distortion_f(pred, label):
     stdy = torch.std(dy, dim=1, unbiased=False)
 
     return stdx.mean() + stdy.mean()
-
-
-metric_l1 = ("l1", metric_l1_f)
-metric_dice_coefficient = ("dice", metric_dice_coefficient_f)
-metric_sensitivity = ("sensitivity", metric_specificity_f)
-metric_specificity = ("specificity", metric_specificity_f)
-metric_local_distortion = ("local_distortion", metric_local_distortion_f)
-metric_line_distortion = ("line_distortion", metric_line_distortion_f)
 
 
 def eval_loss_on_batches(model, iter, batch_count, device):
@@ -164,8 +156,7 @@ def eval_loss_on_batches(model, iter, batch_count, device):
 def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
     loss = 0.0
     count = 0
-    eval_metrics = model.eval_metrics()
-    metrics = [0.0 for _ in eval_metrics]
+    metrics = {}
 
     with torch.no_grad():
         for dict, weight_metrics in tqdm(iter, desc="Evaluating test loss and metrics"):
@@ -178,13 +169,18 @@ def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
             pred = model(x)
     
             loss += model.loss(pred, dict, weight_metrics).item()
+
+            batch_metrics = model.eval_metrics(pred, y)
+            for name, value in batch_metrics.items():
+                if not name in metrics:
+                    metrics[name] = 0.0
+
+                metrics[name] += value
+
             count += 1
 
-            for i, (_, func) in enumerate(eval_metrics):
-                metrics[i] += func(pred, y)
-
     loss /= float(count)
-    metrics = [(name, metrics[i] / float(count)) for i, (name, _) in enumerate(eval_metrics)]
+    metrics = [(name, value / float(count)) for (name, value) in metrics.items()]
 
     return loss, metrics
 

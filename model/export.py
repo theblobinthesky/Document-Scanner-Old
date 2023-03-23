@@ -12,7 +12,7 @@ from onnx2keras import onnx_to_keras
 import io
 
 size = (64, 64)
-name = "seg_model_new"
+name = "contour_model"
 
 dummy_input = torch.randn(1, 4, size[0], size[1])
 
@@ -22,7 +22,7 @@ def export(model, tflite_path):
     onxx_file = io.BytesIO()
     torch.onnx.export(model, dummy_input, onxx_file, opset_version=9, input_names=['input'], output_names=['output'])
     # opset_version=9 is required since Upsampling is replaced by Resize in more recent versions.
-    # Also there seem to be some other nontrivial changes.
+    # Also there seem to be other nontrivial changes.
 
     onnx_model = onnx.load_model_from_string(onxx_file.getvalue())
     keras_model = onnx_to_keras(onnx_model, ["input"], verbose=False, name_policy='renumerate', change_ordering=True)
@@ -36,22 +36,12 @@ def export(model, tflite_path):
     with open(tflite_path, "wb") as f:
         f.write(tflite_model)
 
-from seg_model import PreModel
+from seg_model import ContourModel
 
-class PreModelWrapper(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.model = PreModel()
-        self.model.load_state_dict(torch.load(f"models/{name}.pth"))
-
-    def forward(self, x):
-        x = self.model(x)
-
-        return x
-
-
-model = PreModelWrapper()
+model = ContourModel()
+model.load_state_dict(torch.load(f"models/{name}.pth"))
 export(model, f"exports/{name}.tflite")
+exit()
 
 import cv2
 import numpy as np
