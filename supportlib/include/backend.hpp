@@ -1,17 +1,9 @@
 #pragma once
 #include "types.hpp"
 #include "shader_program.hpp"
-
-#ifdef ANDROID
-#include <GLES3/gl31.h>
-#include <GLES2/gl2ext.h>
-#elif defined(LINUX)
-#define GL_GLEXT_PROTOTYPES
-#include <GL/gl.h>
-#include <GL/glext.h>
-#endif
-
 #include <vector>
+
+#define DEBUG
 
 NAMESPACE_BEGIN
 
@@ -45,13 +37,45 @@ struct variable {
     int location;
 
     void set_f32(f32 v);
-    void set_mat4(float* data);
+    void set_mat4(const mat4& mat);
     void set_vec2(const vec2& v);
+    void set_vec3(const vec3& v);
+    void set_vec4(const vec2& a, const vec2& b);
+};
+
+#ifdef DEBUG
+struct DEBUG_marker {
+    vec2 pos;
+    vec3 color;
+};
+#endif
+
+struct engine_backend {
+    std::unordered_map<u64, u32> shader_map;
+    std::unordered_map<u64, u32> program_map;
+    mat4 projection_mat;
+    
+    shader_buffer quad_buffer;
+
+#ifdef DEBUG
+    shader_program DEBUG_marker_program;
+    std::vector<DEBUG_marker> DEBUG_marker_queue;
+#endif
+
+    void init(mat4 projection_mat);
+
+    shader_program compile_and_link(const std::string& vert_src, const std::string& frag_src);
+    shader_program compile_and_link(const std::string& comp_src);
+
+    void draw_quad(const vec2& pos, const vec2& size);
+
+#ifdef DEBUG
+    void DEBUG_draw_marker(const vec2& pt, const vec3& col);
+    void DEBUG_draw();
+#endif
 };
 
 struct texture_downsampler {
-    shader_programmer* programmer;
-
     uvec2 input_size, output_size;
     bool input_is_oes_texture;
     const texture* input_tex;
@@ -64,12 +88,12 @@ struct texture_downsampler {
 
     shader_buffer gauss_quad_buffer;
 
-    void init(shader_programmer* programmer, uvec2 input_size, uvec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor);
+    void init(engine_backend* backend, uvec2 input_size, uvec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor);
     texture* downsample();
 };
 
 struct sticky_particle_system {
-    const std::vector<vertex>* stick_vertices;
+    const vertex* stick_vertices;
     svec2 stick_size;
 
     std::vector<vertex> mesh_vertices;
@@ -79,13 +103,13 @@ struct sticky_particle_system {
     shader_buffer buffer;
 
     void gen_and_fill_mesh_vertices();
-    void init(shader_programmer* programmer, const std::vector<vertex>& stick_vertices, const svec2& stick_size, float* projection, shader_buffer buffer);
+    void init(engine_backend* backend, const vertex* vertices, const svec2& stick_size, shader_buffer buffer);
     void render();
 };
 
 struct mesh_border {
-    const std::vector<vertex>* border_vertices;
-    svec2 border_size;
+    const vec2* left_border, *top_border, *right_border, *bottom_border;
+    s32 border_size;
 
     std::vector<vertex> mesh_vertices;
     std::vector<u32> mesh_indices;
@@ -96,7 +120,7 @@ struct mesh_border {
     variable time_var;
 
     void gen_and_fill_mesh_vertices();
-    void init(shader_programmer* programmer, const std::vector<vertex>& border_vertices, const svec2& border_size, float* projection, shader_buffer buffer);
+    void init(engine_backend* backend, const vec2* left_border, const vec2* top_border, const vec2* right_border, const vec2* bottom_border, s32 border_size, shader_buffer buffer);
     void render(f32 time);
 };
 
@@ -118,6 +142,8 @@ void dispatch_compute_program(const uvec2 size, u32 depth);
 
 shader_buffer make_shader_buffer();
 
+void bind_shader_buffer(const shader_buffer& buff);
+
 void fill_shader_buffer(const shader_buffer& buff, vertex* vertices, u32 vertices_size, u32* indices, u32 indices_size);
 
 texture create_texture(uvec2 size, u32 format);
@@ -127,6 +153,8 @@ void bind_image_to_slot(u32 slot, const texture &tex);
 void bind_texture_to_slot(u32 slot, const texture &tex);
 
 void bind_framebuffer(const frame_buffer &fb);
+
+void unbind_framebuffer();
 
 frame_buffer framebuffer_from_texture(const texture& tex);
 

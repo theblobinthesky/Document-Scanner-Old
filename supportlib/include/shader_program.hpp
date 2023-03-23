@@ -21,6 +21,20 @@ constexpr const char* vert_src = version_head R"(uniform mat4 projection;
         }
 )";
 
+constexpr const char* vert_quad_src = version_head R"(uniform mat4 projection;
+        in vec2 position;
+        in vec2 uvs;
+        out vec2 out_uvs;
+
+        uniform vec4 transform;
+
+        void main() {
+            vec2 real_position = transform.xy + position * transform.zw;
+            gl_Position = projection * vec4(real_position, 0, 1);
+            out_uvs = uvs;
+        }
+)";
+
 std::string frag_simple_tex_sampler_src(bool oes_input, u32 binding_slot);
 
 constexpr const char* vert_instanced_quad_src = version_head R"(uniform mat4 projection;
@@ -51,6 +65,19 @@ constexpr const char* frag_debug_src = version_head R"(precision mediump float;
 
         void main() {
              out_col = vec4(out_uvs, 1.0, 1.0);
+        }
+)";
+
+constexpr const char* frag_DEBUG_marker_src = version_head R"(precision mediump float;
+        in vec2 out_uvs;
+        out vec4 out_col;
+
+        uniform vec3 color;
+
+        void main() {
+            float opacity = length(out_uvs - vec2(0.5));
+            float alpha = step(1.0 / sqrt(2.0), 1.0 - opacity);
+            out_col = vec4(color, alpha);
         }
 )";
 
@@ -89,13 +116,5 @@ constexpr const char* frag_particle_src = version_head R"(precision mediump floa
             out_col = vec4(1.0, 1.0, 1.0, alpha);
         }
 )";
-
-struct shader_programmer {
-    std::unordered_map<u64, u32> shader_map;
-    std::unordered_map<u64, u32> program_map;
-
-    shader_program compile_and_link(const std::string& vert_src, const std::string& frag_src);
-    shader_program compile_and_link(const std::string& comp_src);
-};
 
 NAMESPACE_END

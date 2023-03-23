@@ -195,15 +195,13 @@ def benchmark_plt_bm(model, ds):
     return fig
 
 
-from data import load_bm_dataset
-import bm_model
+from data import load_contour_dataset
+from seg_model import ContourModel
 
 if __name__ == "__main__":
-    ds = load_bm_dataset()
-  
-    model = bm_model.BMModel(True)
-    model.load_state_dict(torch.load("models/bm_progressive_baseline.pth"))
-    model = model.cuda()
+    model = ContourModel()
+    model.load_state_dict(torch.load("models/contour_model.pth"))
+    model = model.to(device=device)
 
-    fig = benchmark_plt_bm(model, ds)
-    fig.savefig("docs/fig.png", dpi=90)
+    fig = benchmark_plt_contour(model)
+    fig.savefig("fig.png", dpi=90)

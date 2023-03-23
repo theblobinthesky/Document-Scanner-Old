@@ -211,7 +211,7 @@ if __name__ == "__main__":
 
     print("training contour model")
 
-    writer = SummaryWriter("runs/contour_model_full_contour")
+    writer = SummaryWriter("runs/contour_model_large")
     model = seg_model.ContourModel()
     model = model_to_device(model)
     train_contour_model(model, "models/contour_model.pth", summary_writer=writer)

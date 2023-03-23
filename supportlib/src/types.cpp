@@ -31,6 +31,11 @@ vec2 vec2::normalize() const {
     return { x / len, y / len };
 }
 
+vec2 vec2::lerp(const vec2& a, const vec2& b, f32 t) {
+    f32 it = 1.0f - t;
+    return { a.x * t + b.x * it, a.y * t + b.y * it };
+}
+
 f32 vec2::dot(const vec2& a, const vec2& b) {
     return (f32)(a.x * b.x + a.y * b.y);
 }

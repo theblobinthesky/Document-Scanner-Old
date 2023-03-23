@@ -109,5 +109,5 @@ void docscanner::invoke_neural_network_on_data(const neural_network& nn, u8* inp
 
     auto end = std::chrono::high_resolution_clock::now();
     auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    LOGI("duration of nn inference: %lldms", dur.count());
+    LOGI("Duration of nn inference: %lldms", dur.count());
 }

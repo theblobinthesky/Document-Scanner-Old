@@ -358,7 +358,7 @@ class ContourModel(nn.Module):
         super().__init__()
 
         inp, hidden_channels = 4, 16
-        depth = [32, 64, 128, 256]
+        depth = [64, 128, 256, 512]
 
         self.cvt_in = DoubleConv(inp, depth[0])
 

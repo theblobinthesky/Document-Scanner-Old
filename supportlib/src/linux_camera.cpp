@@ -106,7 +106,7 @@ camera docscanner::find_and_open_back_camera(const uvec2& min_size, uvec2& size)
     }
 
     cam.f32_buffer = new f32[size.x * size.y * 4];
-    cam.cam_tex = create_texture(size, GL_RGBA32F);
+    cam.cam_tex = create_texture(size, 0x8814);
 
     return cam;
 }

@@ -1,15 +1,23 @@
 #if 1
 #include "log.hpp"
 #include "backend.hpp"
-// #include <cstdlib> // todo: uncomment this
-// #include <csignal>
-// #include <string>
 
 #if defined(LINUX)
 #include <cstddef>
 #endif
 
+#ifdef ANDROID
+#include <GLES3/gl31.h>
+#include <GLES2/gl2ext.h>
+#elif defined(LINUX)
+#define GL_GLEXT_PROTOTYPES
+#include <GL/gl.h>
+#include <GL/glext.h>
+#endif
+
 using namespace docscanner;
+
+constexpr vec2 DEBUG_marker_size = { 0.02f, 0.02f };
 
 void docscanner::check_gl_error(const char* op) {
     for (GLenum error = glGetError(); error; error = glGetError()) {
@@ -21,16 +29,124 @@ void docscanner::variable::set_f32(f32 v) {
     glUniform1f(location, v);
 }
 
-void docscanner::variable::set_mat4(float* data) {
-    glUniformMatrix4fv(location, 1, GL_FALSE, data);
+void docscanner::variable::set_mat4(const mat4& mat) {
+    glUniformMatrix4fv(location, 1, GL_FALSE, mat.data);
 }
 
 void docscanner::variable::set_vec2(const vec2& v) {
     glUniform2f(location, v.x, v.y);
 }
 
-void docscanner::texture_downsampler::init(shader_programmer* programmer, uvec2 input_size, uvec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor) {
-    this->programmer = programmer;
+void docscanner::variable::set_vec3(const vec3& v) {
+    glUniform3f(location, v.x, v.y, v.z);
+}
+
+void docscanner::variable::set_vec4(const vec2& a, const vec2& b) {
+    glUniform4f(location, a.x, a.y, b.x, b.y);
+}
+
+void docscanner::engine_backend::init(mat4 projection_mat) {
+    this->projection_mat = projection_mat;
+
+    glEnable(GL_BLEND);  
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    u32 indices[6] = { 
+        0, 1, 2, 
+        0, 2, 3 
+    };
+
+    vec2 pos = {0.5f, 0.5f};
+    vertex vertices[5] = {
+        {{0, 0}, {0, 0}},
+        {{1, 0}, {1, 0}},
+        {{1, 1}, {1, 1}},
+        {{0, 1}, {0, 1}}
+    };
+
+    quad_buffer = make_shader_buffer();
+    fill_shader_buffer(quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
+
+#ifdef DEBUG
+    DEBUG_marker_program = compile_and_link(vert_quad_src, frag_DEBUG_marker_src);
+#endif
+}
+
+u32 find_or_insert_shader(std::unordered_map<u64, u32>& map, u32 type, const std::string& src) {   
+    u64 hash = (u64)std::hash<std::string>()(src);
+    auto found = map.find(hash);
+
+    if(true || found == map.end()) {
+        u32 shader = compile_shader(type, src.c_str());
+        map.emplace(hash, shader);
+        return shader;
+    } else {
+        return found->second;
+    }
+}
+
+shader_program docscanner::engine_backend::compile_and_link(const std::string& vert_src, const std::string& frag_src) {
+    u32 vert_shader = find_or_insert_shader(shader_map, GL_VERTEX_SHADER, vert_src);
+    u32 frag_shader = find_or_insert_shader(shader_map, GL_FRAGMENT_SHADER, frag_src);
+
+    u64 program_id = ((u64)vert_shader << 32) | (u64)frag_shader;
+    auto program_found = program_map.find(program_id);
+    if(true || program_found == program_map.end()) {
+        shader_program program = compile_and_link_program(vert_shader, frag_shader);
+        program_map.emplace(program_id, program.program);
+
+        use_program(program);
+        get_variable(program, "projection").set_mat4(projection_mat);
+
+        return program;
+    } else {
+        return {program_found->second};
+    }
+}
+
+
+shader_program docscanner::engine_backend::compile_and_link(const std::string& comp_src) {
+    u32 comp_shader = find_or_insert_shader(shader_map, GL_COMPUTE_SHADER, comp_src);
+
+    u64 program_id = (u64)comp_shader;
+    auto program_found = program_map.find(program_id);
+    if(program_found == program_map.end()) {
+        shader_program program = compile_and_link_program(comp_shader);
+        program_map.emplace(program_id, program.program);
+        return program;
+    } else {
+        return {program_found->second};
+    }
+}
+
+void docscanner::engine_backend::draw_quad(const vec2& pos, const vec2& size) {
+    bind_shader_buffer(quad_buffer);
+
+    get_variable(DEBUG_marker_program, "transform").set_vec4(pos, size);
+
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
+    check_gl_error("glDrawElements");
+}
+
+#ifdef DEBUG
+void docscanner::engine_backend::DEBUG_draw_marker(const vec2& pt, const vec3& col) {
+    DEBUG_marker_queue.push_back({pt, col});
+}
+
+void docscanner::engine_backend::DEBUG_draw() {
+    LOGI("DEBUG_draw %u markers.", (u32)DEBUG_marker_queue.size());
+    use_program(DEBUG_marker_program);
+
+    for(const DEBUG_marker& marker: DEBUG_marker_queue) {
+        get_variable(DEBUG_marker_program, "color").set_vec3(marker.color);
+        draw_quad(marker.pos - DEBUG_marker_size * 0.5, DEBUG_marker_size);
+    }
+
+    DEBUG_marker_queue.clear();
+}
+#endif
+
+void docscanner::texture_downsampler::init(engine_backend* backend, uvec2 input_size, uvec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor) {
     this->input_size = input_size;
     this->output_size = output_size;
     this->input_is_oes_texture = input_is_oes_texture;
@@ -55,23 +171,23 @@ void docscanner::texture_downsampler::init(shader_programmer* programmer, uvec2 
     output_fb = framebuffer_from_texture(output_tex);
     
     std::string gauss_frag_src_x = frag_gauss_blur_src(input_is_oes_texture, req_kernel_size.x, {1.0f / (f32)input_size.x, 0.0f});
-    gauss_blur_x_program = programmer->compile_and_link(vert_src, gauss_frag_src_x);
+    gauss_blur_x_program = backend->compile_and_link(vert_src, gauss_frag_src_x);
     ASSERT(gauss_blur_x_program.program, "gauss_blur_x_program program could not be compiled.");
     
     std::string gauss_frag_src_y = frag_gauss_blur_src(false, req_kernel_size.y, {0.0f, 1.0f / (f32)input_size.y});
-    gauss_blur_y_program = programmer->compile_and_link(vert_src, gauss_frag_src_y);
+    gauss_blur_y_program = backend->compile_and_link(vert_src, gauss_frag_src_y);
     ASSERT(gauss_blur_y_program.program, "gauss_blur_y_program program could not be compiled.");
 
-    float projection[16];
-    mat4f_load_ortho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f, projection);
+    mat4 projection_mat;
+    mat4f_load_ortho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f, projection_mat.data);
 
     use_program(gauss_blur_x_program);
     auto proj_matrix_x_var = get_variable(gauss_blur_x_program, "projection");
-    proj_matrix_x_var.set_mat4(projection);
+    proj_matrix_x_var.set_mat4(projection_mat);
 
     use_program(gauss_blur_y_program);
     auto proj_matrix_y_var = get_variable(gauss_blur_y_program, "projection");    
-    proj_matrix_y_var.set_mat4(projection);
+    proj_matrix_y_var.set_mat4(projection_mat);
 
     vertex vertices[] = {
         {{1.f, 0.f}, {1, 0}},
@@ -139,10 +255,10 @@ void sticky_particle_system::gen_and_fill_mesh_vertices() {
 
     for(s32 x = 0; x < stick_size.x - 1; x++) {
         for(s32 y = 0; y < stick_size.y - 1; y++) {
-            const vec2& tl = (*stick_vertices)[x * stick_size.y + y].pos;
-            const vec2& tr = (*stick_vertices)[(x + 1) * stick_size.y + y].pos;
-            const vec2& br = (*stick_vertices)[(x + 1) * stick_size.y + (y + 1)].pos;
-            const vec2& bl = (*stick_vertices)[x * stick_size.y + (y + 1)].pos;
+            const vec2& tl = stick_vertices[x * stick_size.y + y].pos;
+            const vec2& tr = stick_vertices[(x + 1) * stick_size.y + y].pos;
+            const vec2& br = stick_vertices[(x + 1) * stick_size.y + (y + 1)].pos;
+            const vec2& bl = stick_vertices[x * stick_size.y + (y + 1)].pos;
 
             const vec2 middle = (tl + tr + br + bl) * (1.0f / 4.0f);
 
@@ -161,20 +277,15 @@ void sticky_particle_system::gen_and_fill_mesh_vertices() {
     fill_shader_buffer(buffer, mesh_vertices.data(), mesh_vertices.size() * sizeof(vertex), mesh_indices.data(), mesh_indices.size() * sizeof(u32));
 }
 
-void sticky_particle_system::init(shader_programmer* programmer, const std::vector<vertex>& stick_vertices, const svec2& stick_size, float* projection, shader_buffer buffer) {
-    this->stick_vertices = &stick_vertices;
+void sticky_particle_system::init(engine_backend* backend, const vertex* vertices, const svec2& stick_size, shader_buffer buffer) {
+    this->stick_vertices = vertices;
     this->stick_size = stick_size;
     this->buffer = buffer;
 
-    shader = programmer->compile_and_link(vert_src, frag_particle_src);
-
-    use_program(shader);
-    get_variable(shader, "projection").set_mat4(projection);
+    shader = backend->compile_and_link(vert_src, frag_particle_src);
 }
 
 void sticky_particle_system::render() {
-    if(stick_vertices->size() != stick_size.area()) return;
-
     use_program(shader);
 
     gen_and_fill_mesh_vertices();
@@ -186,11 +297,10 @@ void sticky_particle_system::render() {
 constexpr f32 thickness = 0.1f;
 constexpr f32 half_thickness = thickness / 2.0f;
 
-void push_border_vertices(std::vector<vertex>& mesh_vertices, const std::vector<vertex>& border_vertices,
-                          s32 start_index, s32 stride, s32 end_index, s32 i) {
-    const vec2& curr = border_vertices[i].pos;
-    const vec2& last = (i - stride < start_index) ? curr : border_vertices[i - stride].pos;
-    const vec2& next = (i + stride > end_index) ? curr : border_vertices[i + stride].pos;
+void push_border_vertices(std::vector<vertex>& mesh_vertices, const vec2* border_pts, s32 border_size, s32 i) {
+    const vec2& curr = border_pts[i];
+    const vec2& last = (i - 1 < 0) ? curr : border_pts[i - 1];
+    const vec2& next = (i + 1 > border_size) ? curr : border_pts[i + 1];
             
     const vec2 normal = ((curr - last) * 0.5 + (next - curr) * 0.5).orthogonal().normalize();
     const vec2 half_border = normal * half_thickness;
@@ -206,17 +316,15 @@ void push_border_vertices(std::vector<vertex>& mesh_vertices, const std::vector<
     mesh_vertices.push_back({curr_large, {1.0f, curr_angle}});
 }
 
-void push_border_vertices_forward(std::vector<vertex>& mesh_vertices, const std::vector<vertex>& border_vertices,
-                                  s32 start_index, s32 stride, s32 end_index) {
-    for(s32 i = start_index; i <= end_index; i += stride) {
-        push_border_vertices(mesh_vertices, border_vertices, start_index, stride, end_index, i);
+void push_border_vertices_forward(std::vector<vertex>& mesh_vertices, const vec2* border_pts, s32 border_size) {
+    for(s32 i = 0; i < border_size; i++) {
+        push_border_vertices(mesh_vertices, border_pts, border_size, i);
     }
 }
 
-void push_border_vertices_backward(std::vector<vertex>& mesh_vertices, const std::vector<vertex>& border_vertices,
-                                   s32 start_index, s32 stride, s32 end_index) {
-    for(s32 i = end_index; i >= start_index; i -= stride) {
-        push_border_vertices(mesh_vertices, border_vertices, start_index, stride, end_index, i);
+void push_border_vertices_backward(std::vector<vertex>& mesh_vertices, const vec2* border_pts, s32 border_size) {
+    for(s32 i = border_size - 1; i >= 0; i--) {
+        push_border_vertices(mesh_vertices, border_pts, border_size, i);
     }
 }
 
@@ -224,7 +332,7 @@ void mesh_border::gen_and_fill_mesh_vertices() {
     mesh_indices.clear();
     mesh_vertices.clear();
 
-    for(s32 i = 0; i < 2 * border_size.x + 2 * border_size.y - 1; i++) {
+    for(s32 i = 0; i < 4 * border_size - 1; i++) {
         s32 offset_1 = i * 3;
         s32 offset_2 = i * 3 + 3;
 
@@ -249,49 +357,42 @@ void mesh_border::gen_and_fill_mesh_vertices() {
 
     // to make it seem complete
 
-    push_border_vertices_forward(mesh_vertices, *border_vertices, 
-        0, 
-        border_size.y, 
-        (border_size.x - 1) * border_size.y
-    );
-
-    push_border_vertices_forward(mesh_vertices, *border_vertices, 
-        (border_size.x - 1) * border_size.y, 
-        1, 
-        (border_size.y - 1) + (border_size.x - 1) * border_size.y
-    );
+    push_border_vertices_forward(mesh_vertices, left_border, border_size);
+    push_border_vertices_forward(mesh_vertices, top_border, border_size);
+    push_border_vertices_forward(mesh_vertices, right_border, border_size);
+    push_border_vertices_forward(mesh_vertices, bottom_border, border_size);
     
-    push_border_vertices_backward(mesh_vertices, *border_vertices, 
+    #if false
+    push_border_vertices_backward(mesh_vertices, border_vertices, 
         (border_size.y - 1), 
         border_size.y, 
         (border_size.y - 1) + (border_size.x - 1) * border_size.y
     );
 
-    push_border_vertices_backward(mesh_vertices, *border_vertices, 
+    push_border_vertices_backward(mesh_vertices, border_vertices, 
         0, 
         1, 
         (border_size.y - 1)
     );
+    #endif
 
     fill_shader_buffer(buffer, mesh_vertices.data(), mesh_vertices.size() * sizeof(vertex), mesh_indices.data(), mesh_indices.size() * sizeof(u32));
 }
 
-void mesh_border::init(shader_programmer* programmer, const std::vector<vertex>& border_vertices, const svec2& border_size, float* projection, shader_buffer buffer) {
-    this->border_vertices = &border_vertices;
-    this->border_size = border_size;
+void docscanner::mesh_border::init(engine_backend* backend, const vec2* left_border, const vec2* top_border, const vec2* right_border, const vec2* bottom_border, s32 border_size, shader_buffer buffer) {
+    this->left_border = left_border;
+    this->top_border = top_border;
+    this->right_border = right_border;
+    this->bottom_border = bottom_border;
+    this->border_size = border_size;    
     this->buffer = buffer;
 
-    shader = programmer->compile_and_link(vert_src, frag_border_src);
-
-    use_program(shader);
-    get_variable(shader, "projection").set_mat4(projection);
+    shader = backend->compile_and_link(vert_src, frag_border_src);
 
     time_var = get_variable(shader, "time");
 }
 
 void mesh_border::render(f32 time) {
-    if(border_vertices->size() != border_size.area()) return;
-
     use_program(shader);
 
     gen_and_fill_mesh_vertices();
@@ -385,7 +486,7 @@ shader_program docscanner::compile_and_link_program(u32 comp_shader) {
     link_program(program);
     
     glDetachShader(program, comp_shader);
-    check_gl_error("glDetachSahder");
+    check_gl_error("glDetachShader");
     
     return {program};
 }
@@ -444,9 +545,21 @@ shader_buffer docscanner::make_shader_buffer() {
 }
 
 void docscanner::fill_shader_buffer(const shader_buffer& buff, vertex* vertices, u32 vertices_size, u32* indices, u32 indices_size) {
+    ASSERT(vertices || indices, "Neither vertices nor indices can be updated.");
+
     glBindVertexArray(buff.id);
-    glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_STATIC_DRAW);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_STATIC_DRAW);
+
+    if(vertices) {
+        glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_STATIC_DRAW);
+    }
+        
+    if(indices) {
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_STATIC_DRAW);
+    }
+}
+
+void docscanner::bind_shader_buffer(const shader_buffer& buff) {
+    glBindVertexArray(buff.id);
 }
 
 texture docscanner::create_texture(uvec2 size, u32 format) {
@@ -471,6 +584,11 @@ void docscanner::bind_texture_to_slot(u32 slot, const texture &tex) {
 
 void docscanner::bind_framebuffer(const frame_buffer& fb) {
     glBindFramebuffer(GL_FRAMEBUFFER, fb.id);
+    check_gl_error("glBindFramebuffer");
+}
+
+void docscanner::unbind_framebuffer() {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     check_gl_error("glBindFramebuffer");
 }
 

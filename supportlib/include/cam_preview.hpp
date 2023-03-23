@@ -13,25 +13,26 @@ struct ANativeWindow;
 
 NAMESPACE_BEGIN
 
+extern const s32 points_per_side_incl_start_corner;
+
 struct cam_preview {
-    shader_programmer programmer;
+    engine_backend backend;
 
     shader_program preview_program;
     camera cam;
 
     shader_buffer cam_quad_buffer;
 
-    u32 nn_input_buffer_size, nn_mask_out_size, nn_flatten_out_size;
-    u8* nn_input_buffer, *nn_mask_out_buff, *nn_flatten_out_buff;
+    u32 nn_input_buffer_size, nn_contour_out_size;
+    f32 nn_exists_out;
+    u8* nn_input_buffer, *nn_contour_out;
 
     texture* nn_input_tex;
-    texture nn_output_tex;
 
     neural_network nn;
 
     uvec2 cam_tex_size;
     uvec2 preview_size;
-    f32 cam_tex_left, cam_tex_right;
 
     u64 last_time;
     

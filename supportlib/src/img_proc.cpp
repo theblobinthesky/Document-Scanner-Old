@@ -3,212 +3,73 @@
 #include <algorithm>
 #include <math.h>
 
+#include "cam_preview.hpp"
+
 using namespace docscanner;
 
 constexpr f32 binarize_threshold = 0.8f;
 constexpr s32 points_per_side = 10;
 
-void mask_mesher::init(shader_programmer* programmer, f32* mask_buffer, f32* flatten_buffer, const svec2& mask_size, float* projection) {
-    this->mask_buffer = mask_buffer;
-    this->flatten_buffer = flatten_buffer;
-    this->mask_size = mask_size;
+void mask_mesher::init(const f32* exists, vec2* contour, s32 contour_size) {
+    this->exists = exists;
+    this->contour = contour;
+    this->contour_size = contour_size;
     this->mesh_size = { points_per_side, points_per_side };
-
-    mesh_buffer = make_shader_buffer();
-
-    for(s32 y = 0; y < points_per_side - 1; y++) {
-        for(s32 x = 0; x < points_per_side - 1; x++) {
-#define TO_INDEX(pt) pt.x * points_per_side + pt.y
-            mesh_indices.push_back(TO_INDEX(svec2({x, y})));
-            mesh_indices.push_back(TO_INDEX(svec2({x, y + 1})));
-            mesh_indices.push_back(TO_INDEX(svec2({x + 1, y})));
-
-            mesh_indices.push_back(TO_INDEX(svec2({x + 1, y})));
-            mesh_indices.push_back(TO_INDEX(svec2({x, y + 1})));
-            mesh_indices.push_back(TO_INDEX(svec2({x + 1, y + 1})));
-#undef TO_INDEX
-        }
-    }
-
-    for(s32 i = 0; i < mesh_size.area(); i++) {
-        mesh_vertices.push_back({});
-    }
-}
-
-bool is_in_list(std::vector<svec2> list, svec2 pt) {
-    for(svec2 lpt: list) {
-        if(lpt.x == pt.x && lpt.y == pt.y) return true;
-    }
-
-    return false;
-}
-
-bool is_surrounded(const f32* buff, const svec2& size, svec2 pt) {
-#define get_at(pt) buff[pt.x * size.y + pt.y] 
-    f32 sum = 0.0;
-    sum += get_at(svec2({pt.x - 1, pt.y}));
-    sum += get_at(svec2({pt.x + 1, pt.y}));
-    sum += get_at(svec2({pt.x, pt.y - 1}));
-    sum += get_at(svec2({pt.x, pt.y + 1}));
-    sum += get_at(svec2({pt.x - 1, pt.y + 1}));
-    sum += get_at(svec2({pt.x + 1, pt.y + 1}));
-    sum += get_at(svec2({pt.x - 1, pt.y - 1}));
-    sum += get_at(svec2({pt.x + 1, pt.y - 1}));
-#undef get_at
-
-    return sum == 8.0;
-}
-
-std::vector<svec2> find_contours(const f32* buff, const svec2& size) {
-    svec2 start_pt = { -1, -1 };
-    // figure out a starting point on the contour
-    for(s32 x = 0; x < size.x; x++) {
-        for(s32 y = 0; y < size.y; y++) {
-            s32 i = x * size.y + y;
-            if (buff[i] == 1.0f) {
-                start_pt = { x, y };
-                break;
-            }
-        }
-    }
-
-    // return empty contour
-    std::vector<svec2> pts;
-    if (start_pt.x == -1) return pts;
-
-    // follow contour now
-    svec2 pt = start_pt;
-
-    do {
-        pts.push_back(pt); \
     
-#define check_and_follow(index, new_pt) \
-        s32 i_##index = new_pt.x * size.y + new_pt.y; \
-        if (buff[i_##index] == 1.0f && !is_in_list(pts, new_pt) && !is_surrounded(buff, size, new_pt)) { \
-            pt = new_pt; \
-            continue; \
-        }    
-
-        check_and_follow(0, svec2({pt.x, pt.y + 1}));
-        check_and_follow(1, svec2({pt.x + 1, pt.y}));
-        check_and_follow(2, svec2({pt.x, pt.y - 1}));
-        check_and_follow(3, svec2({pt.x - 1, pt.y}));
-
-#undef check_and_follow
-
-        break;
-    } while (pt.x != start_pt.x || pt.y != start_pt.y);
-
-    return pts;
+    top_contour = new vec2[points_per_side];
+    right_contour = new vec2[points_per_side];
+    bottom_contour = new vec2[points_per_side];
+    left_contour = new vec2[points_per_side];
+    vertices = new vertex[mesh_size.area()];
 }
 
+void sample_points_from_contour(vec2* pts, const vec2* contour, s32 contour_size, s32 corner_idx, s32 n) {
+    s32 points_per_part = (s32)ceil(n / (f32)points_per_side_incl_start_corner);
+    s32 pt_idx = 0;
+    s32 points_left = n - 1;
 
-// An implementation of the Ramer–Douglas–Peucker algorithm.
-f32 perpendicular_distance(svec2 start, svec2 end, svec2 p) {
-    f32 a = (end.x - start.x) * (start.y - p.y) - (start.x - p.x) * (end.y - start.y);
-    f32 b = sqrt((end.x - start.x) * (end.x - start.x) + (end.y - start.y) * (end.y - start.y));
-    return std::abs(a) / b;
-}
+    corner_idx *= points_per_side_incl_start_corner;
 
-s32 find_closest_point_to(const std::vector<svec2>& boundary, const svec2& to) {
-    s32 min_index = 0;
-    f32 min_dist_sqred = 9999999.0f;
-
-    for(s32 i = 0; i < boundary.size(); i++) {
-        const svec2& cmp = boundary[i];
-        f32 dist_sqred = (cmp - to).length_squared();
+    for(s32 i = 0; i < points_per_side_incl_start_corner; i++) {
+        s32 c_start = corner_idx + i;
+        s32 c_end = c_start + 1;
     
-        if(dist_sqred < min_dist_sqred) {
-            min_index = i;
-            min_dist_sqred = dist_sqred;
+        for(s32 p = 0; p < std::min(points_per_part, points_left); p++) {
+            f32 t = p / (f32)(points_per_part - 1);
+            vec2 pt = contour[c_end] * t + contour[c_start] * (1.0f - t);
+            pts[pt_idx++] = pt;
+
+            points_left--;
         }
     }
 
-    return min_index;
+    pts[pt_idx++] = contour[(corner_idx + points_per_side_incl_start_corner) % contour_size];
 }
 
-std::vector<s32> find_most_promising_corner_pts(const std::vector<svec2>& boundary, const svec2 corner_guesses[4]) {
-    return {
-        find_closest_point_to(boundary, corner_guesses[0]),
-        find_closest_point_to(boundary, corner_guesses[1]),
-        find_closest_point_to(boundary, corner_guesses[2]),
-        find_closest_point_to(boundary, corner_guesses[3])
-    };
-}
+vec2* interpolate_lines(const vec2* start, const vec2* end_backwards) {
+    vec2* positions = new vec2[points_per_side * points_per_side];
 
-std::vector<svec2> sample_points_from_boundary(const std::vector<svec2>& boundary, const std::vector<s32>& corners, s32 edge_start, s32 n) {
-    std::vector<svec2> pts;
+    for(u32 y = 0; y < points_per_side; y++) {
+        const vec2& s = start[y];
+        const vec2& e = end_backwards[points_per_side - 1 - y];
 
-    s32 from = corners[edge_start];
-    s32 to = corners[(edge_start + 1) % 4];
-    s32 anticipate = corners[(edge_start + 2) % 4];
-
-    s32 dir = 1;
-    for(s32 i = (to + 1) % boundary.size(); i != to; i = (i + 1) % boundary.size()) {
-        if(i == anticipate) {
-            dir = -1;
-            break;
-        } else if(i == from) {
-            dir = +1;
-            break;
-        }
-    }
-
-    if(dir == -1) {
-        f32 dist = 0.0f;
-
-        for(s32 i = from; i != to; i = (i + 1) % boundary.size()) {
-            dist += 1.0f;
-        }
-
-        for(s32 i = 0; i < n; i++) {
-            s32 b = from + (s32)((i / (f32)(n - 1)) * dist);
-            pts.push_back(boundary[b % boundary.size()]);
-        }
-
-        std::reverse(pts.begin(), pts.end());
-    } else {
-        f32 dist = 0.0f;
-        
-        for(s32 i = to; i != from; i = (i + 1) % boundary.size()) {
-            dist += 1.0f;
-        }
-
-        for(s32 i = 0; i < n; i++) {
-            s32 b = to + (s32)((i / (f32)(n - 1)) * dist);
-            pts.push_back(boundary[b % boundary.size()]);
-        }
-    }
-
-    return pts;
-}
-
-vec2* interpolate_lines(const std::vector<svec2>& start_reversed, const std::vector<svec2>& end, s32 n) {
-    ASSERT(start_reversed.size() == end.size(), "Two lines of different lengths can't be interpolated.");
-
-    vec2* positions = new vec2[start_reversed.size() * n];
-
-    for(u32 y = 0; y < start_reversed.size(); y++) {
-        const svec2& s = start_reversed[start_reversed.size() - 1 - y];
-        const svec2& e = end[y];
-
-        for(u32 x = 0; x < n; x++) {
-            positions[x * n + y] = svec2::lerp(s, e, x / (f32)(n - 1));
+        for(u32 x = 0; x < points_per_side; x++) {
+            positions[x * points_per_side + y] = vec2::lerp(s, e, x / (f32)(points_per_side - 1));
         }
     }
 
     return positions;
 }
 
-void interpolate_mesh(vertex* vertices, const std::vector<svec2>& left, const std::vector<svec2>& top, const std::vector<svec2>& right, const std::vector<svec2>& bottom) {
-    s32 n = points_per_side;
-    auto left_right = interpolate_lines(left, right, n);
-    auto top_bottom = interpolate_lines(top, bottom, n);
+void interpolate_mesh(vertex* vertices, const vec2* left, const vec2* top, const vec2* right, const vec2* bottom) {
+    auto left_right = interpolate_lines(left, right);
+    auto top_bottom = interpolate_lines(top, bottom);
 
+    const s32 n = points_per_side;
     for(s32 y = 0; y < n; y++) {
         for(s32 x = 0; x < n; x++) {
             vertex vert = {
-                .pos = (left_right[y * n + x] * 0.5f + top_bottom[x * n + (n - 1 - y)] * 0.5f) * (1.0f / 64.0f),
+                .pos = left_right[y * n + x] * 0.5f + top_bottom[x * n + (n - 1 - y)] * 0.5f,
                 .uv = { x / (f32)(n - 1), y / (f32)(n - 1) }
             };
 
@@ -220,48 +81,22 @@ void interpolate_mesh(vertex* vertices, const std::vector<svec2>& left, const st
     delete top_bottom;
 }
 
-void mask_mesher::mesh() {
-    for(s32 i = 0; i < mask_size.x * mask_size.y; i++) {
-        mask_buffer[i] = (mask_buffer[i] > binarize_threshold) ? 1.0f : 0.0f;
-    }
-
-    auto contour = find_contours(mask_buffer, mask_size);
-    exists = flatten_buffer[0] > binarize_threshold;
-
-    if (contour.size() > 0 && exists) {
-#define scale_and_cast(x, y) svec2({(s32)round(x * 64.0), (s32)round(y * 64.0)})
-
-        const svec2 corner_guesses[4] = {
-            scale_and_cast(flatten_buffer[2], flatten_buffer[1]),
-            scale_and_cast(flatten_buffer[4], flatten_buffer[3]),
-            scale_and_cast(flatten_buffer[8], flatten_buffer[7]),
-            scale_and_cast(flatten_buffer[6], flatten_buffer[5])
-        };
-
-#undef scale_and_cast
-        
-        auto corner_pts = find_most_promising_corner_pts(contour, corner_guesses);
-
-        auto left = sample_points_from_boundary(contour, corner_pts, 0, points_per_side);
-        auto top = sample_points_from_boundary(contour, corner_pts, 1, points_per_side);
-        auto right = sample_points_from_boundary(contour, corner_pts, 2, points_per_side);
-        auto bottom = sample_points_from_boundary(contour, corner_pts, 3, points_per_side);
-
-        mesh_vertices.clear();
-        for(u32 i = 0; i < points_per_side * points_per_side; i++) 
-            mesh_vertices.push_back({});
-    
-        interpolate_mesh(mesh_vertices.data(), left, top, right, bottom);
-
-        s32 n = points_per_side;
-
-        for(s32 y = 0; y < n; y++) {
-            for(s32 x = 0; x < n; x++) {
-                vec2& pos = mesh_vertices[x * n + y].pos;
-                pos = { 1.0f - pos.x, 1.0f - pos.y };
-            }
+void mask_mesher::mesh(engine_backend* backend) {
+    if ((*exists) > binarize_threshold) {
+        for(s32 i = 0; i < contour_size; i++) {
+            vec2& pt = contour[i];
+            pt = { 1.0f - pt.x, 1.0f - pt.y };
         }
 
-        fill_shader_buffer(mesh_buffer, mesh_vertices.data(), mesh_vertices.size() * sizeof(vertex), mesh_indices.data(), mesh_indices.size() * sizeof(u32));
+        sample_points_from_contour(top_contour, contour, contour_size, 0, points_per_side);
+        sample_points_from_contour(right_contour, contour, contour_size, 1, points_per_side);
+        sample_points_from_contour(bottom_contour, contour, contour_size, 2, points_per_side);
+        sample_points_from_contour(left_contour, contour, contour_size, 3, points_per_side);
+    
+        interpolate_mesh(vertices, left_contour, top_contour, right_contour, bottom_contour);
     }
+}
+
+bool mask_mesher::does_mesh_exist() const {
+    return (*exists) >= binarize_threshold;
 }

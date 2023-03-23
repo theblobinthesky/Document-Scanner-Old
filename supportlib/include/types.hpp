@@ -29,6 +29,7 @@ struct vec2 {
     f32 length_squared() const;
     vec2 normalize() const;
 
+    static vec2 lerp(const vec2& a, const vec2& b, f32 t);
     static f32 dot(const vec2& a, const vec2& b);
     static f32 angle_between(const vec2& a, const vec2& b);
 };
@@ -57,6 +58,10 @@ struct svec2 {
 struct uvec2 {
     u32 x;
     u32 y;
+};
+
+struct mat4 {
+    f32 data[16];
 };
 
 #define NAMESPACE_BEGIN namespace docscanner {

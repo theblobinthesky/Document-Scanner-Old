@@ -38,6 +38,5 @@ void docscanner::pipeline::init_backend() {
 
 void docscanner::pipeline::render() {
     get_time(start_time, time);
-    LOGI("time: %f", time);
     cam_preview_screen.render(time);
 }
