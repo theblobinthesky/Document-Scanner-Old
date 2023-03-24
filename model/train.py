@@ -12,7 +12,9 @@ from enum import Enum
 warmup_lr = 1e-5
 lr = 1e-3
 steps_per_epoch = 40
-batch_size = 12
+seg_batch_size = 32
+contour_batch_size = 32
+bm_batch_size = 12
 
 T_0 = 10
 T_mul = 2
@@ -75,7 +77,24 @@ class CosineAnnealingWarmRestartsWithWarmup(lr_scheduler.CosineAnnealingWarmRest
 
 
 
-def train_model(model, model_path, epochs, time_in_hours, ds, model_type, summary_writer):
+def train_model(model, model_path, model_type, summary_writer):
+    if model_type == Model.SEG:
+        epochs = seg_epochs
+        time_in_hours = seg_time_in_hours
+        batch_size = seg_batch_size
+        ds = load_seg_dataset(batch_size)
+    elif model_type == Model.CONTOUR:
+        epochs = contour_epochs
+        time_in_hours = contour_time_in_hours
+        batch_size = contour_batch_size
+        ds = load_contour_dataset(batch_size)
+    elif model_type == Model.BM:
+        epochs = bm_epochs
+        time_in_hours = bm_time_in_hours
+        batch_siez = bm_batch_size
+        ds = load_bm_dataset(batch_size)
+
+
     optim = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
     scheduler = CosineAnnealingWarmRestartsWithWarmup(optim, T_0, T_mul, warmup_lr, warmup_epochs)
 
@@ -181,19 +200,6 @@ def train_model(model, model_path, epochs, time_in_hours, ds, model_type, summar
     print(f"Test loss: {test_loss:.4f}")
 
 
-def train_seg_model(model, model_path, summary_writer):
-    ds = load_seg_dataset(batch_size)
-    train_model(model, model_path, seg_epochs, seg_time_in_hours, ds, Model.SEG, summary_writer)
-
-def train_contour_model(model, model_path, summary_writer):
-    ds = load_contour_dataset(batch_size)
-    train_model(model, model_path, contour_epochs, contour_time_in_hours, ds, Model.CONTOUR, summary_writer)
-
-def train_bm_model(model, model_path, summary_writer):
-    ds = load_bm_dataset(batch_size)
-    train_model(model, model_path, bm_epochs, bm_time_in_hours, ds, Model.BM, summary_writer)
-
-
 if __name__ == "__main__":
     import os
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -211,10 +217,10 @@ if __name__ == "__main__":
 
     print("training contour model")
 
-    writer = SummaryWriter("runs/contour_model_large")
+    writer = SummaryWriter("runs/contour_model_1")
     model = seg_model.ContourModel()
     model = model_to_device(model)
-    train_contour_model(model, "models/contour_model.pth", summary_writer=writer)
+    train_model(model, "models/contour_model.pth", Model.CONTOUR, summary_writer=writer)
     writer.flush()
 
     # print()
