@@ -36,11 +36,24 @@ def exr_loader(path):
         print("incorrect number of channels.")
         exit()
 
-def load(path):
-    if not path.endswith("exr"):
-        return to_tensor(default_loader(path))
+
+def npy_loader(name, path):
+    npy = np.load(path, allow_pickle=True)
+
+    if isinstance(npy.item(), dict):
+        return { f"{name}/{npy_name}": key for npy_name, key in npy.item().items() }
     else:
-        return from_numpy(exr_loader(path))
+        return { name: from_numpy(npy) }
+
+
+def load(name, path):
+    if path.endswith("exr"):
+        return { name: from_numpy(exr_loader(path)) }
+    elif path.endswith("npy"):
+        return npy_loader(name, path)
+    else:
+        return { name: to_tensor(default_loader(path)) }
+
 
 class ImageDataSet(Dataset):
     def __init__(self, items, inst0_name, dir_len, weight_metrics, transforms, global_transform):
@@ -55,11 +68,14 @@ class ImageDataSet(Dataset):
         return len(self.items)
         
     def __getitem__(self, index):
-        item = self.items[index]
-        key = item[self.inst0_name][self.dir_len + 1:]
-        weight_metrics = {name: torch.tensor(weight_metric[key]) for name, weight_metric in self.weight_metrics.items()}
-        item = {name: load(path) for name, path in item.items()}
+        item_with_path = self.items[index]
+        key = item_with_path[self.inst0_name][self.dir_len + 1:]
+        weight_metrics = {name: torch.tensor(weight_metric[key], dtype=torch.float32) for name, weight_metric in self.weight_metrics.items()}
         
+        item = {}
+        for name, path in item_with_path.items():
+            item.update(load(name, path))
+            
         out = {}
         for name, ten in item.items():
             if self.global_transform != None:
@@ -141,12 +157,12 @@ def load_seg_dataset(batch_size):
     ], {"finetuning": "finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1)
 
 def load_contour_dataset(batch_size):
-    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {"flatten": "blank_flatten.exr"}, {"img": color_jitter}, [
-        ([("img", "Doc3d_64x64/img/1", "png"), ("flatten", "Doc3d_64x64/flatten/1", "exr")], 5000),
-        ([("img", "Doc3d_64x64/img/2", "png"), ("flatten", "Doc3d_64x64/flatten/2", "exr")], 5000),
-        ([("img", "Doc3d_64x64/img/3", "png"), ("flatten", "Doc3d_64x64/flatten/3", "exr")], 5000),
-        ([("img", "Doc3d_64x64/img/4", "png"), ("flatten", "Doc3d_64x64/flatten/4", "exr")], 5000),
-        ([("img", "MitIndoor_64x64/img", "jpg")], 5000)
+    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {}, {"img": color_jitter}, [
+        ([("img", "Doc3d_64x64/img/1", "png"), ("contour_feature", "Doc3d_64x64/contour_feature/1", "npy")], 5000),
+        ([("img", "Doc3d_64x64/img/2", "png"), ("contour_feature", "Doc3d_64x64/contour_feature/2", "npy")], 5000),
+        ([("img", "Doc3d_64x64/img/3", "png"), ("contour_feature", "Doc3d_64x64/contour_feature/3", "npy")], 5000),
+        ([("img", "Doc3d_64x64/img/4", "png"), ("contour_feature", "Doc3d_64x64/contour_feature/4", "npy")], 5000),
+        # ([("img", "MitIndoor_64x64/img", "jpg")], 5000)
     ], {"finetuning": "finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1)
 
 def load_bm_dataset(batch_size):

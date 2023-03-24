@@ -10,9 +10,8 @@ min_finetuning_weight = torch.tensor(0.0, device=device)
 max_finetuning_weight = torch.tensor(2.0, device=device)
 finetuning_weight_amplitude = max_finetuning_weight - min_finetuning_weight
 points_per_side_incl_start_corner = 4
-points_per_contour = points_per_side_incl_start_corner * 4
-contour_size = 2 * points_per_contour
-flatten_size = 1 + contour_size
+contour_size = 4 * points_per_side_incl_start_corner * 3
+feature_depth = 4 + 4 * points_per_side_incl_start_corner * 3 + 1
 
 # UNet Transformer based on:
 # https://arxiv.org/pdf/2103.06104.pdf
@@ -338,6 +337,8 @@ class SegModel(nn.Module):
         return [] # todo: reimplement metrics return [metric_dice_coefficient, metric_sensitivity, metric_specificity]
     
 
+# The Contour Model implements a modified much smaller version of a YOLOv3 object detector.
+
 class FlattenEnd(nn.Module):
     def __init__(self, inp, hidden_channels, out, size):
         super().__init__()
@@ -351,7 +352,6 @@ class FlattenEnd(nn.Module):
 
     def forward(self, x):
         return self.flatten(x)
-
 
 class ContourModel(nn.Module):
     def __init__(self):
@@ -372,8 +372,9 @@ class ContourModel(nn.Module):
         )
 
         # todo: remove the (8, 8) hack to allow for more resolution independence
-        self.exists = FlattenEnd(depth[3], hidden_channels, 1, (8, 8))
-        self.contour = FlattenEnd(depth[3], hidden_channels, contour_size, (8, 8))
+        # self.exists = FlattenEnd(depth[3], hidden_channels, 1, (8, 8))
+        self.feature = conv1x1(depth[3], feature_depth, activation="none")
+        # self.contour = FlattenEnd(depth[3], hidden_channels, contour_size, (8, 8))
         
         
     def forward(self, x):
@@ -385,10 +386,23 @@ class ContourModel(nn.Module):
 
         bn = self.bottle(d2)
 
-        ex = self.exists(bn)
-        ct = self.contour(bn)
+        # ex = self.exists(bn)
+        ft = self.feature(bn)
 
-        return (ex, ct)
+        # sigmoid center pt
+        ft[:, 0:2, :, :] = torch.sigmoid(ft[:, 0:2, :, :]) 
+
+        # sigmoid size
+        ft[:, 2:4, :, :] = torch.exp(ft[:, 2:4, :, :]) 
+
+        # sigmoid contour pt confidence
+        contour_confidence_idx = [i for i in range(6, feature_depth - 2, 3)]
+        ft[:, contour_confidence_idx, :, :] = torch.sigmoid(ft[:, contour_confidence_idx, :, :])
+
+        # sigmoid objectness
+        ft[:, -1, :, :] = torch.sigmoid(ft[:, -1, :, :])
+
+        return ft
 
 
     def set_train(self, booleanlol):
@@ -402,40 +416,49 @@ class ContourModel(nn.Module):
         a_padding = torch.full((b, 1, h, w), 1.0, device=device)
 
         img = torch.cat([img, a_padding], axis=1)    
-        flatten = dict["flatten"][:, 0, :, :].reshape(-1, flatten_size)
-        exists = flatten[:, 0].unsqueeze(1)
-        contour = flatten[:, 1:]
-
-        return img, (exists, contour)
-
-
-    def loss(self, flatten_pred, dict, weight_metrics):
-        _, (exists_label, contour_label) = self.input_and_label_from_dict(dict)
-        exists_pred, contour_pred = flatten_pred
-        b, _ = exists_pred.shape
-
-        finetuning = min_finetuning_weight + weight_metrics["finetuning"] * finetuning_weight_amplitude
-        corner_loss_weight = exists_label * finetuning
-
-        def mean_around_batch(ten):
-            return ten.view(b, -1).mean(axis=1)
-
-        exists_loss = mean_around_batch(F.binary_cross_entropy(exists_pred, exists_label, reduction="none"))
-        exists_loss = (finetuning * exists_loss).mean()
-
-        corner_diff = contour_pred - contour_label
-        corner_loss = mean_around_batch(corner_diff.abs())
-        corner_loss = (corner_loss_weight * corner_loss).mean()
         
-        return exists_loss + corner_loss
+        feature = dict["contour_feature/feature_map"]    
+        cell = dict["contour_feature/cell"]
+        
+        return img, (feature, cell)
+
+
+    def unpack_feature(self, feature):
+        center_rel_to_cell = feature[:, 0:2, :, :]
+        size = feature[:, 2:4, :, :]
+        contour = feature[:, 4:-1, :, :]
+        objectness = feature[:, -1, :, :].unsqueeze(1)
+
+        return [center_rel_to_cell, size, contour, objectness]
+
+
+    def loss(self, feature_pred, dict, weight_metrics):
+        _, (feature_label, cell_label) = self.input_and_label_from_dict(dict)
+
+        [center_rel_to_cell_label, size_label, contour_label, objectness_label] = self.unpack_feature(feature_label)
+        [center_rel_to_cell_pred, size_pred, contour_pred, objectness_pred] = self.unpack_feature(feature_pred)
+        
+        center_loss = (center_rel_to_cell_label - center_rel_to_cell_pred).abs()
+        size_loss = (size_label - size_pred).abs()
+        contour_loss = (contour_label - contour_pred).abs()
+        objectness_loss = F.binary_cross_entropy(objectness_pred, objectness_label).mean()
+
+        def get_at_cell(ten):
+            batch_indices = torch.arange(ten.shape[0])
+            return ten[batch_indices, :, cell_label[:, 0], cell_label[:, 1]]
+        
+        coord_loss = get_at_cell(center_loss + size_loss).mean()
+        contour_loss = get_at_cell(contour_loss).mean()
+
+        return coord_loss + contour_loss + objectness_loss
         
 
     def eval_metrics(self, pred, label):
-        exists_pred, contour_pred = pred
-        exists_label, contour_label = label
+        feature_pred = pred
+        feature_label = label
 
         return {
-            "l1": metric_l1(contour_pred, contour_label)
+            "l1": 0.0 # metric_l1(contour_pred, contour_label)
         }
 
 

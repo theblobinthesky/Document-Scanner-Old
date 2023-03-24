@@ -25,7 +25,7 @@ def epochs_from_iters(iters):
     return warmup_epochs + T_0 * sum([T_mul ** i for i in range(iters)]) - 2
 
 seg_epochs = epochs_from_iters(4)
-contour_epochs = epochs_from_iters(3)
+contour_epochs = epochs_from_iters(6)
 bm_epochs = epochs_from_iters(5)
 min_learning_rate_before_early_termination = 1e-7
 lr_plateau_patience = 3
@@ -106,7 +106,7 @@ def train_model(model, model_path, model_type, summary_writer):
     test_iter = iter(test_ds)
 
     pbar = tqdm(total=epochs)
-    pbar.set_description("initializing training and running first epoch")
+    pbar.set_description("Initializing training and running first epoch")
     
     for epoch in range(epochs):
         train_loss = 0.0
@@ -160,16 +160,16 @@ def train_model(model, model_path, model_type, summary_writer):
         summary_writer.add_scalar("Learning rate", learning_rate, epoch)
 
         pbar.update(1)
-        pbar.set_description(f"epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. training loss: {train_loss:.4f}, validation loss: {valid_loss:.4f}, learning rate: {learning_rate:.6f}")
+        pbar.set_description(f"Epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. Loss/train: {train_loss:.4f}, Loss/valid: {valid_loss:.4f}, LR: {learning_rate:.6f}")
 
         if hours_passed > time_in_hours:
             pbar.close()
-            print(f"hour limit of {time_in_hours:.4f}h passed")
+            print(f"Hour limit of {time_in_hours:.4f}h passed.")
             break
 
         if learning_rate < min_learning_rate_before_early_termination:
             pbar.close()
-            print(f"learning rate {learning_rate} is smaller than {min_learning_rate_before_early_termination}. no further learning progress can be made")
+            print(f"Learning rate {learning_rate} is smaller than {min_learning_rate_before_early_termination}. no further learning progress can be made")
             break
 
     save_model(model, model_path)
@@ -195,7 +195,8 @@ def train_model(model, model_path, model_type, summary_writer):
     elif model_type == Model.BM:
         plt = benchmark_plt_bm(model)
 
-    summary_writer.add_figure("benchmark", plt)
+    plt.savefig("fig.png")
+    # summary_writer.add_figure("benchmark", plt)
     
     print(f"Test loss: {test_loss:.4f}")
 
@@ -207,7 +208,7 @@ if __name__ == "__main__":
     import seg_model, bm_model
 
     # print()
-    # print("training segmentation model")
+    # print("Training segmentation model")
 
     # writer = SummaryWriter("runs/seg_model_new4")
     # model = seg_model.PreModel()
@@ -215,16 +216,16 @@ if __name__ == "__main__":
     # train_seg_model(model, "models/seg_model.pth", summary_writer=writer)
     # writer.flush()
 
-    print("training contour model")
+    print("Training contour model")
 
-    writer = SummaryWriter("runs/contour_model_1")
+    writer = SummaryWriter("runs/contour_model_6")
     model = seg_model.ContourModel()
     model = model_to_device(model)
     train_model(model, "models/contour_model.pth", Model.CONTOUR, summary_writer=writer)
     writer.flush()
 
     # print()
-    # print("training bm model")
+    # print("Training bm model")
 
     # writer = SummaryWriter("runs/main_bm_model_x2_10")
     # model = bm_model.BMModel(True, False)
