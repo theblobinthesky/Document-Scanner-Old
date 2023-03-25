@@ -14,8 +14,6 @@ circle_radius = 2
 rect_color = (0.0, 1.0, 0.0)
 circle_color = (1.0, 0.0, 0.0)
 
-transform = Resize((128, 128))
-
 def filter(list):
     return [list[0], list[len(list) // 2], list[-1]]
 
@@ -151,7 +149,7 @@ def benchmark_plt_contour(model):
         center_rel_to_cell_pred, size_pred, contour_pred, objectness_pred = unpack_pred[0], unpack_pred[1], unpack_pred[2], unpack_pred[3]
         
         list = [
-            apply_feature_to_image(img, center_rel_to_cell_pred, size_pred, contour_pred, objectness_pred), 
+            apply_feature_to_image(img, center_rel_to_cell_pred, size_pred, contour_pred, objectness_pred),
             apply_feature_to_image(img, center_rel_to_cell_label, size_label, contour_label, objectness_label)
         ]
         

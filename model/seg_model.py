@@ -388,20 +388,22 @@ class ContourModel(nn.Module):
 
         # ex = self.exists(bn)
         ft = self.feature(bn)
+        [center_rel_to_cell, size, contour, objectness] = self.unpack_feature(ft)
 
         # sigmoid center pt
-        ft[:, 0:2, :, :] = torch.sigmoid(ft[:, 0:2, :, :]) 
+        center_rel_to_cell[:] = torch.sigmoid(center_rel_to_cell)
 
-        # sigmoid size
-        ft[:, 2:4, :, :] = torch.exp(ft[:, 2:4, :, :]) 
+        # exp size
+        size[:] = torch.exp(size)
 
         # sigmoid contour pt confidence
-        contour_confidence_idx = [i for i in range(6, feature_depth - 2, 3)]
-        ft[:, contour_confidence_idx, :, :] = torch.sigmoid(ft[:, contour_confidence_idx, :, :])
+        b, _, w, h = contour.shape
+        contour = contour.reshape(b, -1, 3, w, h)
+        contour[:, :, 2, :, :] = torch.sigmoid(contour[:, :, 2, :, :])
 
         # sigmoid objectness
-        ft[:, -1, :, :] = torch.sigmoid(ft[:, -1, :, :])
-
+        objectness[:] = torch.sigmoid(objectness)
+        
         return ft
 
 
@@ -419,7 +421,7 @@ class ContourModel(nn.Module):
         
         feature = dict["contour_feature/feature_map"]    
         cell = dict["contour_feature/cell"]
-        
+
         return img, (feature, cell)
 
 
@@ -440,7 +442,15 @@ class ContourModel(nn.Module):
         
         center_loss = (center_rel_to_cell_label - center_rel_to_cell_pred).abs()
         size_loss = (size_label - size_pred).abs()
-        contour_loss = (contour_label - contour_pred).abs()
+
+        b, _, w, h = contour_label.shape
+        contour_label = contour_label.reshape(b, -1, 3, w, h)
+        contour_pred = contour_pred.reshape(b, -1, 3, w, h)
+
+        contour_loss = (contour_label - contour_pred).reshape(b, -1, w, h).abs()
+        # contour_loss = (contour_label[:, :, 0:2, :, :] - contour_pred[:, :, 0:2, :, :]).reshape(b, -1, w, h).abs()
+        # contour_confidence_loss = F.binary_cross_entropy(contour_pred[:, :, 2, :, :], contour_label[:, :, 2, :, :], reduction="none")
+
         objectness_loss = F.binary_cross_entropy(objectness_pred, objectness_label).mean()
 
         def get_at_cell(ten):
@@ -449,6 +459,7 @@ class ContourModel(nn.Module):
         
         coord_loss = get_at_cell(center_loss + size_loss).mean()
         contour_loss = get_at_cell(contour_loss).mean()
+        # contour_confidence_loss = get_at_cell(contour_confidence_loss).mean()
 
         return coord_loss + contour_loss + objectness_loss
         

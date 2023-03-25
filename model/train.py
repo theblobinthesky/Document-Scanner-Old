@@ -16,7 +16,7 @@ seg_batch_size = 32
 contour_batch_size = 32
 bm_batch_size = 12
 
-T_0 = 10
+T_0 = 15
 T_mul = 2
 warmup_epochs = 15
 
@@ -25,7 +25,7 @@ def epochs_from_iters(iters):
     return warmup_epochs + T_0 * sum([T_mul ** i for i in range(iters)]) - 2
 
 seg_epochs = epochs_from_iters(4)
-contour_epochs = epochs_from_iters(6)
+contour_epochs = epochs_from_iters(5)
 bm_epochs = epochs_from_iters(5)
 min_learning_rate_before_early_termination = 1e-7
 lr_plateau_patience = 3
@@ -195,8 +195,7 @@ def train_model(model, model_path, model_type, summary_writer):
     elif model_type == Model.BM:
         plt = benchmark_plt_bm(model)
 
-    plt.savefig("fig.png")
-    # summary_writer.add_figure("benchmark", plt)
+    summary_writer.add_figure("benchmark", plt)
     
     print(f"Test loss: {test_loss:.4f}")
 
@@ -218,7 +217,7 @@ if __name__ == "__main__":
 
     print("Training contour model")
 
-    writer = SummaryWriter("runs/contour_model_6")
+    writer = SummaryWriter("runs/contour_model_7")
     model = seg_model.ContourModel()
     model = model_to_device(model)
     train_model(model, "models/contour_model.pth", Model.CONTOUR, summary_writer=writer)
