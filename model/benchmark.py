@@ -229,7 +229,7 @@ def benchmark_cam_contour_model(model):
     screen = pygame.display.set_mode((640, 480))
 
     # Initialize the video capture device
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(2)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
@@ -272,9 +272,11 @@ if __name__ == "__main__":
     from seg_model import ContourModel
 
     model = ContourModel()
-    model.load_state_dict(torch.load("models/contour_model.pth"))
+    # model.load_state_dict(torch.load("models/contour_model.pth"))
     model = model.to(device=device)
 
-    benchmark_cam_contour_model(model)
-    # fig = benchmark_plt_contour(model)
-    # fig.savefig("fig.png")
+    if False:
+        benchmark_cam_contour_model(model)
+    else:
+        fig = benchmark_plt_contour(model)
+        fig.savefig("fig.png")
