@@ -52,12 +52,12 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx) {
     cam_quad_buffer = make_shader_buffer();
     fill_shader_buffer(cam_quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
 
-    uvec2 downsampled_size = {64, 64};
+    svec2 downsampled_size = {64, 64};
 
-    nn_input_buffer_size = downsampled_size.x * downsampled_size.y * 4 * sizeof(f32);
+    nn_input_buffer_size = downsampled_size.area() * 4 * sizeof(f32);
     nn_input_buffer = new u8[nn_input_buffer_size];
 
-    nn_contour_out_size = contour_size * sizeof(vec2);
+    nn_contour_out_size = downsampled_size.area() * contour_size * sizeof(f32);
     nn_contour_out = new u8[nn_contour_out_size];
 
 #if CAM_USES_OES_TEXTURE
@@ -66,7 +66,7 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx) {
     tex_downsampler.init(&backend, cam_tex_size, downsampled_size, false, &cam.cam_tex, 2.0);
 #endif
 
-    mesher.init(&nn_exists_out, (vec2*)nn_contour_out, contour_size);
+    mesher.init(&nn_exists_out, (f32*)nn_contour_out, contour_size, downsampled_size);
 
     auto buffer = make_shader_buffer();
 
@@ -96,9 +96,9 @@ void docscanner::cam_preview::render(f32 time) {
 
     get_framebuffer_data(tex_downsampler.output_fb, tex_downsampler.output_size, nn_input_buffer, nn_input_buffer_size);
     
-    constexpr u32 out_size = 2;
-    u8* out_datas[out_size] = { nn_contour_out, (u8*)&nn_exists_out };
-    u32 out_sizes[out_size] = { nn_contour_out_size, sizeof(f32) };
+    constexpr u32 out_size = 1; // 2;
+    u8* out_datas[out_size] = { nn_contour_out }; //, (u8*)&nn_exists_out };
+    u32 out_sizes[out_size] = { nn_contour_out_size }; // , sizeof(f32) };
     invoke_neural_network_on_data(nn, nn_input_buffer, nn_input_buffer_size, out_datas, out_sizes, out_size);
 
     mesher.mesh(&backend);

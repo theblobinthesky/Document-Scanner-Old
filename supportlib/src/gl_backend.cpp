@@ -146,7 +146,7 @@ void docscanner::engine_backend::DEBUG_draw() {
 }
 #endif
 
-void docscanner::texture_downsampler::init(engine_backend* backend, uvec2 input_size, uvec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor) {
+void docscanner::texture_downsampler::init(engine_backend* backend, uvec2 input_size, svec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor) {
     this->input_size = input_size;
     this->output_size = output_size;
     this->input_is_oes_texture = input_is_oes_texture;
@@ -164,8 +164,8 @@ void docscanner::texture_downsampler::init(engine_backend* backend, uvec2 input_
 
 #undef EVEN_TO_UNEVEN
 
-    temp_tex = create_texture({output_size.x, input_size.y}, GL_RGBA16F);
-    output_tex = create_texture(output_size, GL_RGBA32F);
+    temp_tex = create_texture({(u32)output_size.x, (u32)input_size.y}, GL_RGBA16F);
+    output_tex = create_texture({(u32)output_size.x, (u32)output_size.y}, GL_RGBA32F);
     
     temp_fb = framebuffer_from_texture(temp_tex);
     output_fb = framebuffer_from_texture(output_tex);
@@ -604,7 +604,7 @@ frame_buffer docscanner::framebuffer_from_texture(const texture& tex) {
     return {fb};
 }
 
-void docscanner::get_framebuffer_data(const frame_buffer &fb, const uvec2 &size, u8* &data, u32 data_size) { 
+void docscanner::get_framebuffer_data(const frame_buffer &fb, const svec2 &size, u8* &data, u32 data_size) { 
     bind_framebuffer(fb);
     glReadPixels(0, 0, size.x, size.y, GL_RGBA, GL_FLOAT, data);
     check_gl_error("glReadPixels");

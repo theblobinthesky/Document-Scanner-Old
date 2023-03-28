@@ -10,11 +10,12 @@ using namespace docscanner;
 constexpr f32 binarize_threshold = 0.8f;
 constexpr s32 points_per_side = 10;
 
-void mask_mesher::init(const f32* exists, vec2* contour, s32 contour_size) {
+void mask_mesher::init(const f32* exists, f32* heatmap, s32 contour_size, const svec2& heatmap_size) {
     this->exists = exists;
-    this->contour = contour;
+    this->heatmap = heatmap;
     this->contour_size = contour_size;
     this->mesh_size = { points_per_side, points_per_side };
+    this->heatmap_size = heatmap_size;
     
     top_contour = new vec2[points_per_side];
     right_contour = new vec2[points_per_side];
@@ -82,7 +83,27 @@ void interpolate_mesh(vertex* vertices, const vec2* left, const vec2* top, const
 }
 
 void mask_mesher::mesh(engine_backend* backend) {
-    if ((*exists) > binarize_threshold) {
+    if (does_mesh_exist()) {
+        vec2 contour[contour_size];
+        for(s32 c = 0; c < contour_size; c++) {
+            f32 max_value = 0.0f;
+            s32 max_x = -1, max_y = -1;
+        
+            for(s32 x = 0; x < heatmap_size.x; x++) {
+                for(s32 y = 0; y < heatmap_size.y; y++) {
+                    s32 i = x * heatmap_size.y * contour_size + y * contour_size + c;
+
+                    if(heatmap[i] > max_value) {
+                        max_value = heatmap[i];
+                        max_x = x;
+                        max_y = y;
+                    }
+                }
+            }
+
+            contour[c] = { max_x / (f32)(heatmap_size.x - 1), max_y / (f32)(heatmap_size.y - 1) };
+        }
+
         for(s32 i = 0; i < contour_size; i++) {
             vec2& pt = contour[i];
             pt = { 1.0f - pt.x, 1.0f - pt.y };
@@ -98,5 +119,5 @@ void mask_mesher::mesh(engine_backend* backend) {
 }
 
 bool mask_mesher::does_mesh_exist() const {
-    return (*exists) >= binarize_threshold;
+    return true; // (*exists) >= binarize_threshold;
 }

@@ -11,10 +11,10 @@ import select
 import sys
 
 warmup_lr = 1e-5
-lr = 1e-3
+lr = 1e-4
 steps_per_epoch = 40
 seg_batch_size = 32
-contour_batch_size = 6
+contour_batch_size = 32
 bm_batch_size = 12
 
 T_0 = 15
@@ -167,6 +167,7 @@ def train_model(model, model_path, model_type, summary_writer):
                 
                 plt = benchmark_plt_model(model, model_type)
                 summary_writer.add_figure("benchmark", plt)
+                summary_writer.flush()
             elif input_str == "q": break
 
 
@@ -220,10 +221,12 @@ if __name__ == "__main__":
 
     print("Training contour model")
 
-    writer = SummaryWriter("runs/heatmap_5")
+    name = "heatmap_6"
+    writer = SummaryWriter(f"runs/{name}")
     model = seg_model.ContourModel()
+    model.load_state_dict(torch.load(f"models/heatmap_5.pth"))
     model = model_to_device(model)
-    train_model(model, "models/heatmap_model.pth", Model.CONTOUR, summary_writer=writer)
+    train_model(model, f"models/{name}.pth", Model.CONTOUR, summary_writer=writer)
     writer.flush()
 
     # print()

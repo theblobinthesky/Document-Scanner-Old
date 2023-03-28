@@ -13,12 +13,13 @@ struct mask_mesher {
     vec2* left_contour;
     vertex* vertices;
     svec2 mesh_size;
+    svec2 heatmap_size;
 
     const f32* exists;
-    vec2* contour;
+    f32* heatmap;
     s32 contour_size;
 
-    void init(const f32* exists, vec2* contour, s32 contour_size);
+    void init(const f32* exists, f32* heatmap, s32 contour_size, const svec2& heatmap_size);
     void mesh(engine_backend* backend);
 
     bool does_mesh_exist() const;

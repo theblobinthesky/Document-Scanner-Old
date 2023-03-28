@@ -76,7 +76,8 @@ struct engine_backend {
 };
 
 struct texture_downsampler {
-    uvec2 input_size, output_size;
+    uvec2 input_size;
+    svec2 output_size;
     bool input_is_oes_texture;
     const texture* input_tex;
 
@@ -88,7 +89,7 @@ struct texture_downsampler {
 
     shader_buffer gauss_quad_buffer;
 
-    void init(engine_backend* backend, uvec2 input_size, uvec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor);
+    void init(engine_backend* backend, uvec2 input_size, svec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor);
     texture* downsample();
 };
 
@@ -158,7 +159,7 @@ void unbind_framebuffer();
 
 frame_buffer framebuffer_from_texture(const texture& tex);
 
-void get_framebuffer_data(const frame_buffer &fb, const uvec2 &size, u8* &data, u32 data_size);
+void get_framebuffer_data(const frame_buffer &fb, const svec2 &size, u8* &data, u32 data_size);
 
 void set_texture_data(const texture &tex, u8* data, int width, int height);
 

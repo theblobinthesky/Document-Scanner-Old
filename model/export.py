@@ -12,7 +12,7 @@ from onnx2keras import onnx_to_keras
 import io
 
 size = (64, 64)
-name = "contour_model"
+name = "heatmap_6"
 
 dummy_input = torch.randn(1, 4, size[0], size[1])
 
@@ -38,8 +38,21 @@ def export(model, tflite_path):
 
 from seg_model import ContourModel
 
+class ContourModelWrapper(nn.Module):
+    def __init__(self, model):
+        super().__init__()
+
+        self.model = model
+
+    def forward(self, x):
+        heatmap = self.model(x)
+
+        return heatmap
+
 model = ContourModel()
 model.load_state_dict(torch.load(f"models/{name}.pth"))
+
+model = ContourModelWrapper(model)
 export(model, f"exports/{name}.tflite")
 exit()
 

@@ -65,7 +65,7 @@ neural_network docscanner::create_neural_network_from_path(file_context* file_ct
     TfLiteModel* model = TfLiteModelCreate(model_data, model_size);
     
     auto options = TfLiteInterpreterOptionsCreate();
-    TfLiteInterpreterOptionsAddDelegate(options, delegate);
+    // TfLiteInterpreterOptionsAddDelegate(options, delegate);
     
     TfLiteInterpreter* interpreter = TfLiteInterpreterCreate(model, options);
 

@@ -265,10 +265,10 @@ if __name__ == "__main__":
     from seg_model import ContourModel
 
     model = ContourModel()
-    model.load_state_dict(torch.load("models/heatmap_model.pth"))
+    model.load_state_dict(torch.load("models/heatmap_6.pth"))
     model = model.to(device=device)
 
-    if False:
+    if True:
         benchmark_cam_contour_model(model)
     else:
         fig = benchmark_plt_contour(model)
