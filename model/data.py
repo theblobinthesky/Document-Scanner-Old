@@ -1,5 +1,6 @@
 from glob import glob
 import numpy as np
+import gzip
 import Imath
 import OpenEXR
 from torchvision.transforms.functional import to_tensor
@@ -38,12 +39,13 @@ def exr_loader(path):
 
 
 def npy_loader(name, path):
-    npy = np.load(path, allow_pickle=True)
+    with gzip.GzipFile(path, "r") as f:
+        npy = np.load(f, allow_pickle=True)
 
-    if isinstance(npy.item(), dict):
-        return { f"{name}/{npy_name}": key for npy_name, key in npy.item().items() }
-    else:
-        return { name: from_numpy(npy) }
+    # if isinstance(npy.item(), dict):
+    #     return { f"{name}/{npy_name}": key for npy_name, key in npy.item().items() }
+    # else:
+    return { name: from_numpy(npy) }
 
 
 def load(name, path):
@@ -157,11 +159,11 @@ def load_seg_dataset(batch_size):
     ], {"finetuning": "finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1)
 
 def load_contour_dataset(batch_size):
-    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {"contour_feature": "blank_contour_feature.npy"}, {"img": color_jitter}, [
-        [("img", "Doc3d_64x64/img/1", "png"), ("contour_feature", "Doc3d_64x64/contour_feature/1", "npy")],
-        [("img", "Doc3d_64x64/img/2", "png"), ("contour_feature", "Doc3d_64x64/contour_feature/2", "npy")],
-        [("img", "Doc3d_64x64/img/3", "png"), ("contour_feature", "Doc3d_64x64/contour_feature/3", "npy")],
-        [("img", "Doc3d_64x64/img/4", "png"), ("contour_feature", "Doc3d_64x64/contour_feature/4", "npy")],
+    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {"heatmap": "blank_heatmap.npy"}, {"img": color_jitter}, [
+        [("img", "Doc3d_64x64/img/1", "png"), ("heatmap", "Doc3d_64x64/heatmap/1", "npy")],
+        [("img", "Doc3d_64x64/img/2", "png"), ("heatmap", "Doc3d_64x64/heatmap/2", "npy")],
+        [("img", "Doc3d_64x64/img/3", "png"), ("heatmap", "Doc3d_64x64/heatmap/3", "npy")],
+        [("img", "Doc3d_64x64/img/4", "png"), ("heatmap", "Doc3d_64x64/heatmap/4", "npy")],
         # todo: fix nan error [("img", "MitIndoor_64x64/img", "jpg")]
     ], {"finetuning": "finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1)
 

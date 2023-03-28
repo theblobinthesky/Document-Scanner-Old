@@ -57,6 +57,8 @@ class DoubleConv(nn.Module):
     def forward(self, x):
         return self.layers(x)
 
+# This Block also implements the Squeeze-and-Excitation paper.
+# https://arxiv.org/abs/1709.01507
 
 class MultiscaleBlock(nn.Module):
     def __init__(self, inp, out):
@@ -67,7 +69,17 @@ class MultiscaleBlock(nn.Module):
         self.conv2 = Conv(out // 4, out // 8, kernel_size=3, padding=1, dilation=1, activation="relu")
         self.conv3 = Conv(out // 8, out // 16, kernel_size=3, padding=1, dilation=1, activation="relu")
         self.conv4 = Conv(out // 16, out // 16, kernel_size=3, padding=1, dilation=1, activation="relu")
-        
+
+        ratio = 2
+
+        self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.scale = nn.Sequential(
+            nn.Linear(out, out // ratio),
+            nn.ReLU(True),
+            nn.Linear(out // ratio, out),
+            nn.Sigmoid(),
+        )
+
         self.skip = conv1x1(inp, out)
 
 
@@ -78,9 +90,15 @@ class MultiscaleBlock(nn.Module):
         c3 = self.conv3(c2)
         c4 = self.conv4(c3)
 
+        ft = torch.cat([c0, c1, c2, c3, c4], axis=1)
+
+        b = ft.shape[0]
+        ap = self.avg_pool(ft).reshape(b, -1)
+        ap = self.scale(ap).reshape(b, -1, 1, 1)
+
         skip = self.skip(x)
 
-        return torch.cat([c0, c1, c2, c3, c4], axis=1) + skip
+        return ft * ap + skip
 
 
 def metric_l1(pred, label):
@@ -131,43 +149,27 @@ def metric_line_distortion(pred, label):
     return stdx.mean() + stdy.mean()
 
 
-def eval_loss_on_batches(model, iter, batch_count, device):
-    loss = 0.0
-
-    with torch.no_grad():
-        for _ in range(batch_count):
-            dict, weight_metrics = next(iter)
-
-            def dict_to_device(dict):
-                return { key: value.to(device) for key, value in dict.items() }
-            
-            dict, weight_metrics = dict_to_device(dict), dict_to_device(weight_metrics)
-                
-            x, _ = model.input_and_label_from_dict(dict)
-            pred = model(x)
-    
-            loss += model.loss(pred, dict, weight_metrics).item()
-
-    loss /= float(batch_count)
-
-    return loss
-
-
-def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
+def eval_loss_and_metrics_on_batches(model, iter, metric_name_suffix, batch_count):
     loss = 0.0
     count = 0
     metrics = {}
 
     with torch.no_grad():
-        for dict, weight_metrics in tqdm(iter, desc="Evaluating test loss and metrics"):
+        def eval_on_batch(iter):
+            nonlocal loss
+            nonlocal metrics
+            nonlocal count
+
+            dict, weight_metrics = next(iter)
+
             def dict_to_device(dict):
                 return { key: value.to(device) for key, value in dict.items() }
-            
-            dict, weight_metrics = dict_to_device(dict), dict_to_device(weight_metrics)
                 
+            dict, weight_metrics = dict_to_device(dict), dict_to_device(weight_metrics)
+                    
             x, y = model.input_and_label_from_dict(dict)
             pred = model(x)
-    
+        
             loss += model.loss(pred, dict, weight_metrics).item()
 
             batch_metrics = model.eval_metrics(pred, y)
@@ -179,8 +181,19 @@ def eval_loss_and_metrics_on_batches(model, iter, batch_count, device):
 
             count += 1
 
+        if batch_count == None:
+            try:
+                while True:
+                    eval_on_batch(iter)
+            except StopIteration:
+                pass
+        else:
+            for _ in range(batch_count):
+                eval_on_batch(iter)
+
+
     loss /= float(count)
-    metrics = [(name, value / float(count)) for (name, value) in metrics.items()]
+    metrics = [(f"{name}/{metric_name_suffix}", value / float(count)) for (name, value) in metrics.items()]
 
     return loss, metrics
 

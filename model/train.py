@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-from model import save_model, eval_loss_on_batches, eval_loss_and_metrics_on_batches, count_params, device
+from model import save_model, eval_loss_and_metrics_on_batches, count_params, device
 from data import load_seg_dataset, load_contour_dataset, load_bm_dataset
 import torch
 import torch.optim.lr_scheduler as lr_scheduler
@@ -8,12 +8,14 @@ from itertools import cycle
 from tqdm import tqdm
 from benchmark import benchmark_plt_seg, benchmark_plt_contour, benchmark_plt_bm
 from enum import Enum
+import select
+import sys
 
 warmup_lr = 1e-5
 lr = 1e-3
 steps_per_epoch = 40
 seg_batch_size = 32
-contour_batch_size = 32
+contour_batch_size = 6
 bm_batch_size = 12
 
 T_0 = 15
@@ -25,7 +27,7 @@ def epochs_from_iters(iters):
     return warmup_epochs + T_0 * sum([T_mul ** i for i in range(iters)]) - 2
 
 seg_epochs = epochs_from_iters(4)
-contour_epochs = epochs_from_iters(5)
+contour_epochs = epochs_from_iters(4)
 bm_epochs = epochs_from_iters(5)
 min_learning_rate_before_early_termination = 1e-7
 lr_plateau_patience = 3
@@ -91,7 +93,7 @@ def train_model(model, model_path, model_type, summary_writer):
     elif model_type == Model.BM:
         epochs = bm_epochs
         time_in_hours = bm_time_in_hours
-        batch_siez = bm_batch_size
+        batch_size = bm_batch_size
         ds = load_bm_dataset(batch_size)
 
 
@@ -146,11 +148,14 @@ def train_model(model, model_path, model_type, summary_writer):
         train_loss /= steps_per_epoch
 
         if epoch % valid_eval_every == 0:
-            valid_loss = eval_loss_on_batches(model, valid_iter, valid_batch_count, device)
+            valid_loss, metrics = eval_loss_and_metrics_on_batches(model, valid_iter, "valid", valid_batch_count)
+            
             summary_writer.add_scalar("Loss/valid", valid_loss, epoch)
+            
+            for (name, value) in metrics:
+                summary_writer.add_scalar(name, value, epoch)
 
         scheduler.step()
-
 
         now = datetime.datetime.now()
         hours_passed = (now - start_time).seconds / (60.0 * 60.0)
@@ -167,26 +172,32 @@ def train_model(model, model_path, model_type, summary_writer):
             print(f"Hour limit of {time_in_hours:.4f}h passed.")
             break
 
-        if learning_rate < min_learning_rate_before_early_termination:
-            pbar.close()
-            print(f"Learning rate {learning_rate} is smaller than {min_learning_rate_before_early_termination}. no further learning progress can be made")
-            break
+        # check for keyboard input
+        if select.select([sys.stdin], [], [], 0)[0]:
+            input_str = sys.stdin.readline().strip()
+
+            if input_str == "q": break
+
 
     save_model(model, model_path)
 
     pbar.close()
 
+    print("Evaluating test loss and metrics...")
+
     model.set_train(False)
 
-    test_loss, metrics = eval_loss_and_metrics_on_batches(model, test_iter, batch_size, device)
+    test_loss, metrics = eval_loss_and_metrics_on_batches(model, test_iter, "test", None)
 
     hparams = {"parameter_count": count_params(model)}
 
     metric_dict = {"Loss/test": test_loss}
-    for (name, item) in metrics:
-        metric_dict[name] = item
+    for (name, value) in metrics:
+        metric_dict[name] = value
 
     summary_writer.add_hparams(hparams, metric_dict)
+
+    print("Benchmarking model...")
 
     if model_type == Model.SEG:
         plt = benchmark_plt_seg(model)
@@ -196,8 +207,6 @@ def train_model(model, model_path, model_type, summary_writer):
         plt = benchmark_plt_bm(model)
 
     summary_writer.add_figure("benchmark", plt)
-    
-    print(f"Test loss: {test_loss:.4f}")
 
 
 if __name__ == "__main__":
@@ -217,10 +226,10 @@ if __name__ == "__main__":
 
     print("Training contour model")
 
-    writer = SummaryWriter("runs/contour_model_7")
+    writer = SummaryWriter("runs/heatmap_4")
     model = seg_model.ContourModel()
     model = model_to_device(model)
-    train_model(model, "models/contour_model.pth", Model.CONTOUR, summary_writer=writer)
+    train_model(model, "models/heatmap_model.pth", Model.CONTOUR, summary_writer=writer)
     writer.flush()
 
     # print()

@@ -2,7 +2,6 @@
 from model import binarize_threshold, device
 from data import load_seg_dataset, load_contour_dataset, load_bm_dataset
 from seg_model import points_per_side_incl_start_corner
-from torchvision.transforms import Resize
 import torch
 import numpy as np
 import cv2
@@ -73,39 +72,21 @@ def benchmark_plt_seg(model):
 
     return fig
 
-def apply_feature_to_image(img, center_rel_to_cell, size_rel_to_img, contour, objectness):
-    img_size = objectness.shape[:2]
-    w, h = img_size
-    img_size = np.array(img_size, np.float32)
-
+def apply_contour_to_img(img, contour):
+    w, h = img.shape[:2]
     img = np.ascontiguousarray(img.copy())
 
-    for x in range(w):
-        for y in range(h):
-            if objectness[x, y, 0] < binarize_threshold:
-                continue
+    def swap(pt):
+        return (pt[1], pt[0])
 
-            def swap(pt):
-                return (pt[1], pt[0])
-
-            center = (np.array([x, y], np.float32) + center_rel_to_cell[x, y]) / img_size
-            size = size_rel_to_img[x, y]
-
-            def get_pt(start):
-                pt = ((center + contour[x, y, start:start+2]) * 64.0).astype("int32")
-                confidence = contour[x, y, start + 2]
-                return pt, confidence
+    def get_pt(i):
+        pt = (contour[0, i] * 64.0).astype("int32")
+        return pt
         
-            contour_pts = [ get_pt(i * 3) for i in range(4 * points_per_side_incl_start_corner) ]
+    contour_pts = [ get_pt(i) for i in range(4 * points_per_side_incl_start_corner) ]
 
-            center = (64.0 * center).astype("int32")
-            h_size = (64.0 * size / 2.0).astype("int32")
-
-            cv2.rectangle(img, swap(center - h_size), swap(center + h_size), rect_color)
-
-            for pt, confidence in contour_pts:
-                if confidence > binarize_threshold:
-                    cv2.circle(img, swap(pt), circle_radius, circle_color)
+    for pt in contour_pts:
+        cv2.circle(img, swap(pt), circle_radius, circle_color)
         
     return img
 
@@ -119,22 +100,21 @@ def benchmark_plt_contour(model):
         for key in dict.keys():
             dict[key] = dict[key].to(device)
 
-        x, (feature_label, _) = model.input_and_label_from_dict(dict)
-        feature_pred = model(x)
-
-        unpack_label = model.unpack_feature(feature_label)
-        unpack_pred = model.unpack_feature(feature_pred)
+        x, heatmap_label = model.input_and_label_from_dict(dict)
+        heatmap_pred = model(x)
+        
+        contour_label, contour_pred = model.contour_from_heatmap(heatmap_label), model.contour_from_heatmap(heatmap_pred)
 
         x = cpu(x)
-        unpack_label = [cpu(u) for u in unpack_label]
-        unpack_pred = [cpu(u) for u in unpack_pred]
+        heatmap_label, heatmap_pred = cpu(heatmap_label), cpu(heatmap_pred)
+        contour_label, contour_pred = cpu(contour_label, True), cpu(contour_pred, True)
 
         xs.append(x)
-        ys.append(unpack_label)
-        preds.append(unpack_pred)
+        ys.append((contour_label, heatmap_label))
+        preds.append((contour_pred, heatmap_pred))
 
 
-    title = ["contour pred", "contour label"]
+    title = ["pred", "label", "heatmap pred", "heatmap label"]
 
     fig = plt.figure(figsize=(25, 25), dpi=dpi)
     i = 0
@@ -142,15 +122,17 @@ def benchmark_plt_contour(model):
     for e in range(num_examples):
         img = xs[e][:, :, :3]
         
-        unpack_pred = preds[e]
-        unpack_label = ys[e]
+        (contour_pred, heatmap_pred) = preds[e]
+        (contour_label, heatmap_label) = ys[e]
 
-        center_rel_to_cell_label, size_label, contour_label, objectness_label = unpack_label[0], unpack_label[1], unpack_label[2], unpack_label[3]
-        center_rel_to_cell_pred, size_pred, contour_pred, objectness_pred = unpack_pred[0], unpack_pred[1], unpack_pred[2], unpack_pred[3]
-        
+        heatmap_pred = heatmap_pred.mean(-1)
+        heatmap_label = heatmap_label.mean(-1)
+
         list = [
-            apply_feature_to_image(img, center_rel_to_cell_pred, size_pred, contour_pred, objectness_pred),
-            apply_feature_to_image(img, center_rel_to_cell_label, size_label, contour_label, objectness_label)
+            apply_contour_to_img(img, contour_pred),
+            apply_contour_to_img(img, contour_label),
+            heatmap_pred,
+            heatmap_label
         ]
         
         for t, arr in enumerate(list):
@@ -245,12 +227,11 @@ def benchmark_cam_contour_model(model):
         a_padding = torch.full((b, 1, h, w), 1.0, device=device)
         img = torch.cat([img, a_padding], axis=1)
    
-        feature = model(img)
-        unpack = model.unpack_feature(feature)
-        unpack = [cpu(u) for u in unpack]
-        [center_rel_to_cell, size, contour, objectness] = unpack
+        heatmap = model(img)
+        contour = model.contour_from_heatmap(heatmap)
+        contour = cpu(contour, True)
 
-        frame = apply_feature_to_image(frame, center_rel_to_cell, size, contour, objectness)
+        frame = apply_contour_to_img(frame, contour)
 
         surf = pygame.surfarray.make_surface(np.rot90(frame))
         surf = pygame.transform.scale(surf, (width, height))
@@ -272,7 +253,7 @@ if __name__ == "__main__":
     from seg_model import ContourModel
 
     model = ContourModel()
-    # model.load_state_dict(torch.load("models/contour_model.pth"))
+    model.load_state_dict(torch.load("models/heatmap_model.pth"))
     model = model.to(device=device)
 
     if False:

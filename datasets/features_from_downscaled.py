@@ -2,6 +2,7 @@
 from glob import glob
 from pathlib import Path
 import numpy as np
+import gzip
 import os
 os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
 import cv2
@@ -10,21 +11,20 @@ import concurrent.futures
 import random
 
 dir_pairs = [
-    ("Doc3d/img/1", "Doc3d_64x64/img/1", "Doc3d_64x64/contour_feature/1", "Doc3d/lines/1", "Doc3d_64x64/lines/1", "Doc3d/bm/1exr"),
-    ("Doc3d/img/2", "Doc3d_64x64/img/2", "Doc3d_64x64/contour_feature/2", "Doc3d/lines/2", "Doc3d_64x64/lines/2", "Doc3d/bm/2exr"),
-    ("Doc3d/img/3", "Doc3d_64x64/img/3", "Doc3d_64x64/contour_feature/3", "Doc3d/lines/3", "Doc3d_64x64/lines/3", "Doc3d/bm/3exr"),
-    ("Doc3d/img/4", "Doc3d_64x64/img/4", "Doc3d_64x64/contour_feature/4", "Doc3d/lines/4", "Doc3d_64x64/lines/4", "Doc3d/bm/4exr"),
+    ("Doc3d/img/1", "Doc3d_64x64/img/1", "Doc3d_64x64/heatmap/1", "Doc3d/lines/1", "Doc3d_64x64/lines/1", "Doc3d/bm/1exr"),
+    ("Doc3d/img/2", "Doc3d_64x64/img/2", "Doc3d_64x64/heatmap/2", "Doc3d/lines/2", "Doc3d_64x64/lines/2", "Doc3d/bm/2exr"),
+    ("Doc3d/img/3", "Doc3d_64x64/img/3", "Doc3d_64x64/heatmap/3", "Doc3d/lines/3", "Doc3d_64x64/lines/3", "Doc3d/bm/3exr"),
+    ("Doc3d/img/4", "Doc3d_64x64/img/4", "Doc3d_64x64/heatmap/4", "Doc3d/lines/4", "Doc3d_64x64/lines/4", "Doc3d/bm/4exr"),
     ("MitIndoor_64x64/img", None, None, None, None, None)
 ]
 
-blank_contour_feature_path = "blank_contour_feature.npy"
+blank_heatmap_path = "blank_heatmap.npy"
 
 processing_size = (256, 256)
 downscale_size = (64, 64)
 
 points_per_side_incl_start_corner = 4
-feature_map_size = np.array([8, 8])
-feature_depth = 4 + 4 * points_per_side_incl_start_corner * 3 + 1
+contour_pts = 4 * points_per_side_incl_start_corner
 
 min_max_scale = (1.0, 1.0) # (1, 1.1)
 min_max_rot = (0.0, 0.0) # (0.0, 360.0)
@@ -66,8 +66,62 @@ def get_tl_corners_idx(corners):
 
     return xs[0][1]
 
+
+def save_compressed_npy(path, arr):
+    with gzip.GzipFile(path, "w") as f:
+        np.save(f, arr)
+
+
+def generate_heatmap(cx, cy, confidence, size):
+    # generate gaussian kernel
+    sigma = 1
+    kernel_size = 12 * sigma
+    middle = kernel_size // 2
+
+    arange = np.arange(0, kernel_size)
+    kernel = np.meshgrid(arange, arange)
+    
+    kernel = 1.0 / np.sqrt(2 * sigma) * np.exp(-0.5 * np.sqrt((kernel[0] - middle) ** 2 + (kernel[1] - middle) ** 2) / (sigma ** 2)) 
+    kernel /= kernel.sum()
+    kernel /= kernel[middle, middle]
+
+    # write into output map
+    map = np.zeros((cx.size, size[0], size[1]))
+
+    for i in range(cx.size):
+        left = cx[i] - middle
+        right = cx[i] + middle
+        top = cy[i] - middle
+        bottom = cy[i] + middle
+
+        kernel_left = 0
+        kernel_right = kernel_size
+        kernel_top = 0
+        kernel_bottom = kernel_size
+
+        if left < 0:
+            kernel_left = -left
+            left = 0
+        
+        if right > size[0]:
+            kernel_right = kernel_size - (right - size[0])
+            right = size[0]
+
+        if top < 0:
+            kernel_top = -top
+            top = 0
+
+        if bottom > size[1]:
+            kernel_bottom = kernel_size - (bottom - size[1])
+            bottom = size[1]
+
+        map[i, left:right, top:bottom] = kernel[kernel_left:kernel_right, kernel_top:kernel_bottom]
+
+    return map
+
+
 def task(pairs):
-    for (name, img_dir, img_down_dir, feature_map_dir, lines_dir, lines_down_dir, bm_dir) in pairs:
+    for (name, img_dir, img_down_dir, heatmap_dir, lines_dir, lines_down_dir, bm_dir) in pairs:
         img_path = f"{img_dir}/{name}.png"
         lines_path = f"{lines_dir}/{name}.png"
         bm_path = f"{bm_dir}/{name}.exr"
@@ -115,7 +169,7 @@ def task(pairs):
 
         for augment_index in range(augment_factor):
             img_down_path = f"{img_down_dir}/{name}_aug{augment_index}.png"
-            feature_map_path = f"{feature_map_dir}/{name}_aug{augment_index}.npy" 
+            heatmap_path = f"{heatmap_dir}/{name}_aug{augment_index}.npy" 
             lines_down_path = f"{lines_down_dir}/{name}_aug{augment_index}.png" 
             
             # apply random transform
@@ -129,11 +183,6 @@ def task(pairs):
             lines = transform_image(unaug_lines, mat)
             lines_down = cv2.resize(lines, downscale_size)
             
-            mat = get_mat_from_transform(unaug_mask.shape[:2], scale, rot)
-            mask = transform_image(unaug_mask, mat)
-            mask = cv2.resize(mask, feature_map_size)
-            mask = (mask == 255)
-
             # todo: understand -rot
             mat = get_mat_from_transform((1, 1), scale, -rot)
             contour = transform_points(unaug_contour, mat)
@@ -150,66 +199,20 @@ def task(pairs):
             tl_idx = get_tl_corners_idx(corners)
             contour = np.roll(contour, shift=-tl_idx * points_per_side_incl_start_corner, axis=0)
 
-            # concat confidence in predictions
+            # generate confidences
             is_contour_out_of_view = np.bitwise_or((contour < 0.0).any(1), (contour > 1.0).any(1))
             is_contour_confident = (1.0 - is_contour_out_of_view.astype("float32"))
             is_contour_confident = is_contour_confident[:, np.newaxis]
 
-            contour = np.concatenate([contour, is_contour_confident], axis=-1)
-
-
-            # calculate bounding box
             cx, cy = contour[:, 0], contour[:, 1]
-            left, right = cx.min(), cx.max()
-            top, bottom = cy.min(), cy.max()
-            width, height = np.array([right - left], np.float32), np.array([bottom - top], np.float32)
-            center = np.array([(left + right) / 2.0, (top + bottom) / 2.0], np.float32)
-
-            # offset contour points based on center
-            cx -= center[0]
-            cy -= center[1]
-            
-            # contour points are relative to the bounding box for now
-            # if width != 0.0:
-            #     cx /= (width / 2.0)
-            
-            # if height != 0.0:
-            #     cy /= (height / 2.0)
-
-            # find grid cell responsible for prediction
-            cell = np.floor(center * feature_map_size)
-            cell_norm = cell / feature_map_size
-            center_rel_to_cell = (center - cell_norm) * feature_map_size
-            cell = cell.astype("int32")
-
-            bbox = np.concatenate([center_rel_to_cell, width, height])
-
-            # features
-            one = np.array([1.0], np.float32)
-            feature = np.concatenate([bbox, contour.reshape(-1), one])
-
-            # replicate features into larger map
-            feature_map = np.zeros((*feature_map_size, feature.size), dtype=np.float32)
-            feature_map[cell[0], cell[1]] = feature
-
-            w, h, f = feature_map.shape
-            feature_map_rs = feature_map.reshape(-1, f)
-            feature_map_id = mask.reshape(-1).nonzero()
-            feature_map_rs[feature_map_id][:, -1] = 1.0
-
-            assert feature_map.shape[-1] == feature_depth
-
-            feature_map = feature_map.transpose((2, 0, 1))
+            cx = (downscale_size[0] * cx).astype("int32")
+            cy = (downscale_size[1] * cy).astype("int32")
+            heatmap = generate_heatmap(cx, cy, is_contour_confident, downscale_size)
 
             cv2.imwrite(img_down_path, img_down)
             cv2.imwrite(lines_down_path, lines_down)
 
-            dict = {
-                "feature_map": feature_map,
-                "cell": cell
-            }
-
-            np.save(feature_map_path, dict)
+            save_compressed_npy(heatmap_path, heatmap)
 
     
 def chunk(list, chunk_size):
@@ -218,20 +221,13 @@ def chunk(list, chunk_size):
 
 with concurrent.futures.ThreadPoolExecutor(8) as executor:
     pairs = []
-    for (img_dir, img_down_dir, feature_map_dir, lines_dir, lines_down_dir, bm_dir) in dir_pairs:
-        if feature_map_dir == None or bm_dir == None:
-            feature_map = np.zeros((feature_depth, feature_map_size[0], feature_map_size[1]), np.float32)
-            cell = np.zeros((2), np.int32)
-
-            dict = {
-                "feature_map": feature_map,
-                "cell": cell
-            }
-
-            np.save(blank_contour_feature_path, dict)
+    for (img_dir, img_down_dir, heatmap_dir, lines_dir, lines_down_dir, bm_dir) in dir_pairs:
+        if heatmap_dir == None or bm_dir == None:
+            feature_map = np.zeros((contour_pts, downscale_size[0], downscale_size[1]), np.float32)
+            save_compressed_npy(blank_heatmap_path, feature_map)
             continue
 
-        make_dirs([img_dir, img_down_dir, feature_map_dir, lines_dir, lines_down_dir, bm_dir])
+        make_dirs([img_dir, img_down_dir, heatmap_dir, lines_dir, lines_down_dir, bm_dir])
 
         paths = []
         paths.extend(glob(f"{img_dir}/*.png"))
@@ -241,7 +237,7 @@ with concurrent.futures.ThreadPoolExecutor(8) as executor:
             name = Path(path).stem
             pairs.append((
                 name, 
-                img_dir, img_down_dir, feature_map_dir,
+                img_dir, img_down_dir, heatmap_dir,
                 lines_dir, lines_down_dir,
                 bm_dir
             ))
