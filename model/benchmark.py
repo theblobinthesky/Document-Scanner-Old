@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-from model import binarize_threshold, device
+from model import binarize_threshold, device, Model
 from data import load_seg_dataset, load_contour_dataset, load_bm_dataset
 from seg_model import points_per_side_incl_start_corner
 import torch
@@ -46,7 +46,8 @@ def benchmark_plt_seg(model):
 
         x, mask_label = model.input_and_label_from_dict(dict)
 
-        mask_pred = model(x)
+        with torch.no_grad():
+            mask_pred = model(x)
 
         x, mask_label, mask_pred = cpu(x), cpu(mask_label), cpu(mask_pred)
         
@@ -101,7 +102,9 @@ def benchmark_plt_contour(model):
             dict[key] = dict[key].to(device)
 
         x, heatmap_label = model.input_and_label_from_dict(dict)
-        heatmap_pred = model(x)
+
+        with torch.no_grad():
+            heatmap_pred = model(x)
         
         contour_label, contour_pred = model.contour_from_heatmap(heatmap_label), model.contour_from_heatmap(heatmap_pred)
 
@@ -165,7 +168,8 @@ def benchmark_plt_bm(model, ds):
 
         x, y = model.input_and_label_from_dict(dict)
 
-        pred = model.forward_all(x)
+        with torch.no_grad():
+            pred = model.forward_all(x)
         
         sampled = [sample_from_bmap(x, p) for p in pred]
 
@@ -201,6 +205,14 @@ def benchmark_plt_bm(model, ds):
             i += 1
 
     return fig
+
+def benchmark_plt_model(model, model_type):
+    if model_type == Model.SEG:
+        return benchmark_plt_seg(model)
+    elif model_type == Model.CONTOUR:
+        return benchmark_plt_contour(model)
+    elif model_type == Model.BM:
+        return benchmark_plt_bm(model)
 
 def benchmark_cam_contour_model(model):
     import pygame

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchmetrics.functional as MF
-from tqdm import tqdm
+from enum import Enum
 
 l2_weight = 0.3
 grad_weight = 0.3
@@ -232,3 +232,8 @@ def count_params(model):
 
 def save_model(model, path):
     torch.save(model.state_dict(), path)
+
+class Model(Enum):
+    SEG = 0
+    CONTOUR = 1
+    BM = 2

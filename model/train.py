@@ -1,13 +1,12 @@
 #!/usr/bin/python3
-from model import save_model, eval_loss_and_metrics_on_batches, count_params, device
+from model import save_model, eval_loss_and_metrics_on_batches, count_params, device, Model
 from data import load_seg_dataset, load_contour_dataset, load_bm_dataset
 import torch
 import torch.optim.lr_scheduler as lr_scheduler
 import datetime
 from itertools import cycle
 from tqdm import tqdm
-from benchmark import benchmark_plt_seg, benchmark_plt_contour, benchmark_plt_bm
-from enum import Enum
+from benchmark import benchmark_plt_model
 import select
 import sys
 
@@ -38,11 +37,6 @@ lam = 0.85
 seg_time_in_hours = 2.0
 contour_time_in_hours = 2.0
 bm_time_in_hours = 4.0
-
-class Model(Enum):
-    SEG = 0
-    CONTOUR = 1
-    BM = 2
 
 def cycle(iterable):
     while True:
@@ -164,6 +158,18 @@ def train_model(model, model_path, model_type, summary_writer):
         summary_writer.add_scalar("Loss/train", train_loss, epoch)
         summary_writer.add_scalar("Learning rate", learning_rate, epoch)
 
+        # check for keyboard input
+        if select.select([sys.stdin], [], [], 0)[0]:
+            input_str = sys.stdin.readline().strip()
+
+            if input_str == "b":
+                pbar.set_description("Benchmarking model")
+                
+                plt = benchmark_plt_model(model, model_type)
+                summary_writer.add_figure("benchmark", plt)
+            elif input_str == "q": break
+
+
         pbar.update(1)
         pbar.set_description(f"Epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. Loss/train: {train_loss:.4f}, Loss/valid: {valid_loss:.4f}, LR: {learning_rate:.6f}")
 
@@ -171,12 +177,6 @@ def train_model(model, model_path, model_type, summary_writer):
             pbar.close()
             print(f"Hour limit of {time_in_hours:.4f}h passed.")
             break
-
-        # check for keyboard input
-        if select.select([sys.stdin], [], [], 0)[0]:
-            input_str = sys.stdin.readline().strip()
-
-            if input_str == "q": break
 
 
     save_model(model, model_path)
@@ -199,13 +199,7 @@ def train_model(model, model_path, model_type, summary_writer):
 
     print("Benchmarking model...")
 
-    if model_type == Model.SEG:
-        plt = benchmark_plt_seg(model)
-    elif model_type == Model.CONTOUR:
-        plt = benchmark_plt_contour(model)
-    elif model_type == Model.BM:
-        plt = benchmark_plt_bm(model)
-
+    plt = benchmark_plt_model(model, model_type)
     summary_writer.add_figure("benchmark", plt)
 
 
@@ -226,7 +220,7 @@ if __name__ == "__main__":
 
     print("Training contour model")
 
-    writer = SummaryWriter("runs/heatmap_4")
+    writer = SummaryWriter("runs/heatmap_5")
     model = seg_model.ContourModel()
     model = model_to_device(model)
     train_model(model, "models/heatmap_model.pth", Model.CONTOUR, summary_writer=writer)
