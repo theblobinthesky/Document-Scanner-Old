@@ -20,6 +20,11 @@ struct shader_buffer {
     u32 id;
 };
 
+struct instanced_shader_buffer {
+    u32 vao;
+    u32 instance_vbo;
+};
+
 struct frame_buffer {
     u32 id;
 };
@@ -41,6 +46,19 @@ struct variable {
     void set_vec2(const vec2& v);
     void set_vec3(const vec3& v);
     void set_vec4(const vec2& a, const vec2& b);
+};
+
+struct instanced_quad {
+    vec2 v0, v1, v2, v3;
+};
+
+struct instanced_quads {
+    instanced_quad* quads;
+    s32 quads_size;
+    instanced_shader_buffer quads_buffer;
+
+    instanced_quads(s32 size);
+    void draw();
 };
 
 #ifdef DEBUG
@@ -68,6 +86,7 @@ struct engine_backend {
     shader_program compile_and_link(const std::string& comp_src);
 
     void draw_quad(const vec2& pos, const vec2& size);
+    void draw_instanced_quads(instanced_quad* quads, u32 quads_size);
 
 #ifdef DEBUG
     void DEBUG_draw_marker(const vec2& pt, const vec3& col);
@@ -142,6 +161,8 @@ void use_program(const shader_program &program);
 void dispatch_compute_program(const uvec2 size, u32 depth);
 
 shader_buffer make_shader_buffer();
+
+instanced_shader_buffer make_instanced_quad_shader_buffer(shader_buffer buff);
 
 void bind_shader_buffer(const shader_buffer& buff);
 

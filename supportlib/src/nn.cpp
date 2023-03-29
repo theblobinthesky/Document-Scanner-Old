@@ -9,7 +9,7 @@
 using namespace docscanner;
 
 #ifdef ANDROID
-#if 0
+#if true
 TfLiteDelegate* create_delegate(execution_pref pref) {
     TfLiteNnapiDelegateOptions options = TfLiteNnapiDelegateOptionsDefault();
 
@@ -94,6 +94,8 @@ void docscanner::destory_neural_network(const neural_network& nn) {
 void docscanner::invoke_neural_network_on_data(const neural_network& nn, u8* inp_data, u32 inp_size, u8** out_datas, u32* out_sizes, u32 out_size) {
     auto start = std::chrono::high_resolution_clock::now();
     
+    ASSERT(inp_size == nn.inp_ten->bytes, "Neural network input tensor size is wrong. Expected %u but got %u.", inp_size, (u32)nn.inp_ten->bytes);
+
     TfLiteTensorCopyFromBuffer(nn.inp_ten, inp_data, inp_size);
     TfLiteInterpreterInvoke(nn.interpreter);
 

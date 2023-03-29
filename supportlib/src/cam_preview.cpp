@@ -14,9 +14,6 @@ using namespace docscanner;
 #error "Platform not supported yet."
 #endif
 
-const s32 docscanner::points_per_side_incl_start_corner = 4;
-const s32 contour_size = points_per_side_incl_start_corner * 4;
-
 void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* cam_height) {
     this->preview_size = preview_size;
 
@@ -57,7 +54,7 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx) {
     nn_input_buffer_size = downsampled_size.area() * 4 * sizeof(f32);
     nn_input_buffer = new u8[nn_input_buffer_size];
 
-    nn_contour_out_size = downsampled_size.area() * contour_size * sizeof(f32);
+    nn_contour_out_size = downsampled_size.area() * points_per_contour * sizeof(f32);
     nn_contour_out = new u8[nn_contour_out_size];
 
 #if CAM_USES_OES_TEXTURE
@@ -66,7 +63,7 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx) {
     tex_downsampler.init(&backend, cam_tex_size, downsampled_size, false, &cam.cam_tex, 2.0);
 #endif
 
-    mesher.init(&nn_exists_out, (f32*)nn_contour_out, contour_size, downsampled_size);
+    mesher.init(&nn_exists_out, (f32*)nn_contour_out, downsampled_size, 0.2f);
 
     auto buffer = make_shader_buffer();
 

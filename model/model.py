@@ -92,11 +92,11 @@ class MultiscaleBlock(nn.Module):
 
         ft = torch.cat([c0, c1, c2, c3, c4], axis=1)
 
+        skip = self.skip(x)
+
         b = ft.shape[0]
         ap = self.avg_pool(ft).reshape(b, -1)
         ap = self.scale(ap).reshape(b, -1, 1, 1)
-
-        skip = self.skip(x)
 
         return ft * ap + skip
 

@@ -13,8 +13,6 @@ struct ANativeWindow;
 
 NAMESPACE_BEGIN
 
-extern const s32 points_per_side_incl_start_corner;
-
 struct cam_preview {
     engine_backend backend;
 

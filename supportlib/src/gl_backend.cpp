@@ -18,6 +18,7 @@
 using namespace docscanner;
 
 constexpr vec2 DEBUG_marker_size = { 0.02f, 0.02f };
+constexpr s32 vertex_attrib_count = 2;
 
 void docscanner::check_gl_error(const char* op) {
     for (GLenum error = glGetError(); error; error = glGetError()) {
@@ -43,6 +44,36 @@ void docscanner::variable::set_vec3(const vec3& v) {
 
 void docscanner::variable::set_vec4(const vec2& a, const vec2& b) {
     glUniform4f(location, a.x, a.y, b.x, b.y);
+}
+
+docscanner::instanced_quads::instanced_quads(s32 size) {
+    quads = new instanced_quad[size];
+    quads_size = size;
+    
+    u32 indices[6] = { 
+        0, 1, 2, 
+        0, 2, 3 
+    };
+
+    vec2 pos = {0.5f, 0.5f};
+    vertex vertices[5] = {
+        {{0, 0}, {0, 0}},
+        {{1, 0}, {1, 0}},
+        {{1, 1}, {1, 1}},
+        {{0, 1}, {0, 1}}
+    };
+
+    shader_buffer quad_buffer = make_shader_buffer();
+    fill_shader_buffer(quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
+
+    quads_buffer = make_instanced_quad_shader_buffer(quad_buffer);
+
+    glBindBuffer(GL_ARRAY_BUFFER, quads_buffer.instance_vbo);
+    glBufferData(GL_ARRAY_BUFFER, size * sizeof(instanced_quad), quads, GL_DYNAMIC_DRAW);
+}
+
+void docscanner::instanced_quads::draw() {
+    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null, quads_size);
 }
 
 void docscanner::engine_backend::init(mat4 projection_mat) {
@@ -126,6 +157,10 @@ void docscanner::engine_backend::draw_quad(const vec2& pos, const vec2& size) {
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
     check_gl_error("glDrawElements");
+}
+
+void draw_instanced_quads(instanced_quad* quads, u32 quads_size) {
+
 }
 
 #ifdef DEBUG
@@ -542,6 +577,28 @@ shader_buffer docscanner::make_shader_buffer() {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
 
     return {vao};
+}
+
+instanced_shader_buffer docscanner::make_instanced_quad_shader_buffer(shader_buffer buff) {
+    bind_shader_buffer(buff);
+
+    GLuint instance_vbo;
+    glGenBuffers(1, &instance_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
+
+#define attrib_enable(index, num_comp, var_name) \
+        glVertexAttribPointer(vertex_attrib_count + index, num_comp, GL_FLOAT, GL_FALSE, sizeof(instanced_quad), (void*) offsetof(instanced_quad, var_name)); \
+        glEnableVertexAttribArray(index); \
+        glVertexAttribDivisor(index, 1)
+
+    attrib_enable(0, 2, v0);
+    attrib_enable(1, 2, v1);
+    attrib_enable(2, 2, v2);
+    attrib_enable(3, 2, v3);
+
+#undef attrib_enable
+
+    return {buff.id, instance_vbo};
 }
 
 void docscanner::fill_shader_buffer(const shader_buffer& buff, vertex* vertices, u32 vertices_size, u32* indices, u32 indices_size) {

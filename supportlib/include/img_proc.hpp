@@ -6,7 +6,11 @@
 
 NAMESPACE_BEGIN
 
+extern const s32 points_per_side_incl_start_corner;
+extern const s32 points_per_contour;
+
 struct mask_mesher {
+    vec2* contour;
     vec2* top_contour;
     vec2* right_contour;
     vec2* bottom_contour;
@@ -17,9 +21,10 @@ struct mask_mesher {
 
     const f32* exists;
     f32* heatmap;
-    s32 contour_size;
 
-    void init(const f32* exists, f32* heatmap, s32 contour_size, const svec2& heatmap_size);
+    f32 smoothness;
+
+    void init(const f32* exists, f32* heatmap, const svec2& heatmap_size, f32 smoothness);
     void mesh(engine_backend* backend);
 
     bool does_mesh_exist() const;

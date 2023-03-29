@@ -7,16 +7,20 @@
 
 using namespace docscanner;
 
+const s32 docscanner::points_per_side_incl_start_corner = 4;
+const s32 docscanner::points_per_contour = points_per_side_incl_start_corner * 4;
+
 constexpr f32 binarize_threshold = 0.8f;
 constexpr s32 points_per_side = 10;
 
-void mask_mesher::init(const f32* exists, f32* heatmap, s32 contour_size, const svec2& heatmap_size) {
+void mask_mesher::init(const f32* exists, f32* heatmap, const svec2& heatmap_size, f32 smoothness) {
     this->exists = exists;
     this->heatmap = heatmap;
-    this->contour_size = contour_size;
     this->mesh_size = { points_per_side, points_per_side };
     this->heatmap_size = heatmap_size;
+    this->smoothness = smoothness;
     
+    contour = new vec2[points_per_contour];
     top_contour = new vec2[points_per_side];
     right_contour = new vec2[points_per_side];
     bottom_contour = new vec2[points_per_side];
@@ -24,7 +28,7 @@ void mask_mesher::init(const f32* exists, f32* heatmap, s32 contour_size, const 
     vertices = new vertex[mesh_size.area()];
 }
 
-void sample_points_from_contour(vec2* pts, const vec2* contour, s32 contour_size, s32 corner_idx, s32 n) {
+void sample_points_from_contour(vec2* pts, const vec2* contour, s32 points_per_contour, s32 corner_idx, s32 n) {
     s32 points_per_part = (s32)ceil(n / (f32)points_per_side_incl_start_corner);
     s32 pt_idx = 0;
     s32 points_left = n - 1;
@@ -44,7 +48,7 @@ void sample_points_from_contour(vec2* pts, const vec2* contour, s32 contour_size
         }
     }
 
-    pts[pt_idx++] = contour[(corner_idx + points_per_side_incl_start_corner) % contour_size];
+    pts[pt_idx++] = contour[(corner_idx + points_per_side_incl_start_corner) % points_per_contour];
 }
 
 vec2* interpolate_lines(const vec2* start, const vec2* end_backwards) {
@@ -84,14 +88,13 @@ void interpolate_mesh(vertex* vertices, const vec2* left, const vec2* top, const
 
 void mask_mesher::mesh(engine_backend* backend) {
     if (does_mesh_exist()) {
-        vec2 contour[contour_size];
-        for(s32 c = 0; c < contour_size; c++) {
+        for(s32 c = 0; c < points_per_contour; c++) {
             f32 max_value = 0.0f;
             s32 max_x = -1, max_y = -1;
         
             for(s32 x = 0; x < heatmap_size.x; x++) {
                 for(s32 y = 0; y < heatmap_size.y; y++) {
-                    s32 i = x * heatmap_size.y * contour_size + y * contour_size + c;
+                    s32 i = x * heatmap_size.y * points_per_contour + y * points_per_contour + c;
 
                     if(heatmap[i] > max_value) {
                         max_value = heatmap[i];
@@ -101,18 +104,14 @@ void mask_mesher::mesh(engine_backend* backend) {
                 }
             }
 
-            contour[c] = { max_x / (f32)(heatmap_size.x - 1), max_y / (f32)(heatmap_size.y - 1) };
+            const vec2 pt = { 1.0f - max_x / (f32)(heatmap_size.x - 1), 1.0f - max_y / (f32)(heatmap_size.y - 1) };
+            contour[c] = contour[c] * smoothness + pt * (1.0f - smoothness);
         }
 
-        for(s32 i = 0; i < contour_size; i++) {
-            vec2& pt = contour[i];
-            pt = { 1.0f - pt.x, 1.0f - pt.y };
-        }
-
-        sample_points_from_contour(top_contour, contour, contour_size, 0, points_per_side);
-        sample_points_from_contour(right_contour, contour, contour_size, 1, points_per_side);
-        sample_points_from_contour(bottom_contour, contour, contour_size, 2, points_per_side);
-        sample_points_from_contour(left_contour, contour, contour_size, 3, points_per_side);
+        sample_points_from_contour(top_contour, contour, points_per_contour, 0, points_per_side);
+        sample_points_from_contour(right_contour, contour, points_per_contour, 1, points_per_side);
+        sample_points_from_contour(bottom_contour, contour, points_per_contour, 2, points_per_side);
+        sample_points_from_contour(left_contour, contour, points_per_contour, 3, points_per_side);
     
         interpolate_mesh(vertices, left_contour, top_contour, right_contour, bottom_contour);
     }
