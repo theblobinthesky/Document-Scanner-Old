@@ -53,19 +53,22 @@ struct sticky_particle_system {
 };
 
 struct mesh_border {
-    const vec2* left_border, *top_border, *right_border, *bottom_border;
-    s32 border_size;
+    const mask_mesher* mesher;
 
-    std::vector<vertex> mesh_vertices;
-    std::vector<u32> mesh_indices;
+    vec2* points;
+    s32 points_size;
+    svec2 size;
+
+    f32 thickness;
 
     shader_program shader;
-    shader_buffer buffer;
+    lines border_lines;
 
     variable time_var;
+    variable thickness_var;
 
-    void gen_and_fill_mesh_vertices();
-    void init(engine_backend* backend, const vec2* left_border, const vec2* top_border, const vec2* right_border, const vec2* bottom_border, s32 border_size, shader_buffer buffer);
+    void gen_and_fill_lines();
+    void init(engine_backend* backend, const mask_mesher* mesher, svec2 size, f32 thickness);
     void render(f32 time);
 };
 

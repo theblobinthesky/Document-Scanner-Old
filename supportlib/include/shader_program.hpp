@@ -55,6 +55,28 @@ constexpr const char* vert_instanced_quad_src = version_head R"(uniform mat4 pro
     }
 )";
 
+constexpr const char* vert_instanced_line_src = version_head R"(uniform mat4 projection;
+    uniform float thickness;
+
+    layout (location = 0) in vec2 pos;
+    layout (location = 1) in vec2 uv;
+
+    layout (location = 2) in vec2 pos_start;
+    layout (location = 3) in vec2 pos_end;
+
+    out vec2 out_uvs;
+
+    void main() {
+        vec2 x_basis = pos_end - pos_start;
+        vec2 y_basis = normalize(vec2(-x_basis.y, x_basis.x));
+
+        vec2 v_pos = pos_start + (x_basis * pos.x) + (y_basis * pos.y * thickness);
+
+        gl_Position = projection * vec4(v_pos, 0, 1);
+        out_uvs = uv;
+    }
+)";
+
 std::string frag_gauss_blur_src(bool use_oes, u32 N, const vec2& pixel_shift);
 
 constexpr const char* frag_debug_src = version_head R"(precision mediump float;
@@ -84,21 +106,15 @@ constexpr const char* frag_border_src = version_head PI_define R"(precision medi
         out vec4 out_col;
 
         const float border_fadeout = 0.03;
-        const float border_pos = 0.5;
-        const vec2 border_core_min_max = vec2(0.05, 0.1);
-        const float border_interval = 0.5;
 
         uniform float time;
 
         void main() {
-            float offset = 0.5 * sin(M_PI * time / border_interval) + 1.0;
-            float border_core = mix(border_core_min_max.x, border_core_min_max.y, offset);
+            float inner_core = -0.95;
+            float outer_core = +0.95;
             
-            float inner_core = border_pos - border_core / 2.0;
-            float outer_core = border_pos + border_core / 2.0;
-            
-            float alpha = smoothstep(inner_core - border_fadeout, inner_core, out_uvs.x); 
-            alpha -= smoothstep(outer_core, outer_core + border_fadeout, out_uvs.x);
+            float alpha = smoothstep(inner_core - border_fadeout, inner_core, out_uvs.y); 
+            alpha -= smoothstep(outer_core, outer_core + border_fadeout, out_uvs.y);
 
             out_col = vec4(1.0, 1.0, 1.0, alpha);
         }

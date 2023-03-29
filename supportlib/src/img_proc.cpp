@@ -153,7 +153,6 @@ void sticky_particle_system::gen_from_and_to() {
         for(s32 y = 0; y < size.y; y++) {
             f32 x_t0 = random_f32(margin, 1.0f - margin), x_t1 = random_f32(margin, 1.0f - margin);
             f32 y_t0 = random_f32(margin, 1.0f - margin), y_t1 = random_f32(margin, 1.0f - margin);
-            LOGI("%f, %f, %f, %f", x_t0, x_t1, y_t0, y_t1);
         
             pos_from[x * size.y + y] = { x_t0, y_t0 };
             pos_to[x * size.y + y] = { x_t1, y_t1 };
@@ -248,77 +247,50 @@ void push_border_vertices_backward(std::vector<vertex>& mesh_vertices, const vec
     }
 }
 
-void mesh_border::gen_and_fill_mesh_vertices() {
-    mesh_indices.clear();
-    mesh_vertices.clear();
+void mesh_border::gen_and_fill_lines() {
+    s32 idx = 0;
 
-    for(s32 i = 0; i < 4 * border_size - 1; i++) {
-        s32 offset_1 = i * 3;
-        s32 offset_2 = i * 3 + 3;
-
-        // inner quad
-        mesh_indices.push_back(0 + offset_1);
-        mesh_indices.push_back(1 + offset_1);
-        mesh_indices.push_back(3 + offset_1);
-
-        mesh_indices.push_back(1 + offset_1);
-        mesh_indices.push_back(3 + offset_1);
-        mesh_indices.push_back(1 + offset_2);
-    
-        // outer quad
-        mesh_indices.push_back(0 + offset_1);
-        mesh_indices.push_back(2 + offset_1);
-        mesh_indices.push_back(0 + offset_2);
-
-        mesh_indices.push_back(2 + offset_1);
-        mesh_indices.push_back(0 + offset_2);
-        mesh_indices.push_back(2 + offset_2);
+    for(s32 i = 0; i < size.x; i++) {
+        points[idx++] = mesher->sample_at({i / (f32)(size.x - 1), 0.0f});
     }
 
-    // to make it seem complete
+    for(s32 i = 1; i < size.y; i++) {
+        points[idx++] = mesher->sample_at({1.0f, i / (f32)(size.y - 1)});
+    }
 
-    push_border_vertices_forward(mesh_vertices, left_border, border_size);
-    push_border_vertices_forward(mesh_vertices, top_border, border_size);
-    push_border_vertices_forward(mesh_vertices, right_border, border_size);
-    push_border_vertices_forward(mesh_vertices, bottom_border, border_size);
-    
-    #if false
-    push_border_vertices_backward(mesh_vertices, border_vertices, 
-        (border_size.y - 1), 
-        border_size.y, 
-        (border_size.y - 1) + (border_size.x - 1) * border_size.y
-    );
+    for(s32 i = size.x - 2; i >= 0; i--) {
+        points[idx++] = mesher->sample_at({i / (f32)(size.x - 1), 1.0f});
+    }
 
-    push_border_vertices_backward(mesh_vertices, border_vertices, 
-        0, 
-        1, 
-        (border_size.y - 1)
-    );
-    #endif
+    for(s32 i = size.y - 2; i >= 0; i--) {
+        points[idx++] = mesher->sample_at({0.0f, i / (f32)(size.y - 1)});
+    }
 
-    fill_shader_buffer(buffer, mesh_vertices.data(), mesh_vertices.size() * sizeof(vertex), mesh_indices.data(), mesh_indices.size() * sizeof(u32));
+    border_lines.fill();
 }
 
-void docscanner::mesh_border::init(engine_backend* backend, const vec2* left_border, const vec2* top_border, const vec2* right_border, const vec2* bottom_border, s32 border_size, shader_buffer buffer) {
-    this->left_border = left_border;
-    this->top_border = top_border;
-    this->right_border = right_border;
-    this->bottom_border = bottom_border;
-    this->border_size = border_size;    
-    this->buffer = buffer;
+void docscanner::mesh_border::init(engine_backend* backend, const mask_mesher* mesher, svec2 size, f32 thickness) {
+    this->mesher = mesher; 
+    this->thickness = thickness;
+    this->size = size;
 
-    shader = backend->compile_and_link(vert_src, frag_border_src);
+    points_size = 2 * size.x + 2 * size.y - 4;
+    points = new vec2[points_size];
+
+    shader = backend->compile_and_link(vert_instanced_line_src, frag_border_src);
+    border_lines.init(points, points_size);
 
     time_var = get_variable(shader, "time");
+    thickness_var = get_variable(shader, "thickness");
 }
 
 void mesh_border::render(f32 time) {
+    gen_and_fill_lines();
+
     use_program(shader);
 
-    gen_and_fill_mesh_vertices();
-    bind_shader_buffer(buffer);
-
     time_var.set_f32(time);
+    thickness_var.set_f32(0.01f);
 
-    glDrawElements(GL_TRIANGLES, mesh_indices.size(), GL_UNSIGNED_INT, null);
+    border_lines.draw();
 }

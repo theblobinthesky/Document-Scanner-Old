@@ -1,6 +1,7 @@
 #if 1
 #include "log.hpp"
 #include "backend.hpp"
+#include <string.h>
 
 #if defined(LINUX)
 #include <cstddef>
@@ -55,7 +56,6 @@ void docscanner::instanced_quads::init(s32 size) {
         0, 2, 3 
     };
 
-    vec2 pos = {0.5f, 0.5f};
     vertex vertices[5] = {
         {{0, 0}, {0, 0}},
         {{1, 0}, {1, 0}},
@@ -72,12 +72,6 @@ void docscanner::instanced_quads::init(s32 size) {
 }
 
 void docscanner::instanced_quads::fill() {
-    /*for(s32 i = 0; i < quads_size; i++) {
-        auto q = quads[i];
-        LOGI("v0: (%f, %f), v1: (%f, %f), v2: (%f, %f), v3: (%f, %f)", q.v0.x, q.v0.y, q.v1.x, q.v1.y, q.v2.x, q.v2.y, q.v3.x, q.v3.y);
-    }
-    LOGI("end");*/
-
     glBindBuffer(GL_ARRAY_BUFFER, quads_buffer.instance_vbo);
     glBufferData(GL_ARRAY_BUFFER, quads_size * sizeof(instanced_quad), quads, GL_DYNAMIC_DRAW);
 }
@@ -85,6 +79,44 @@ void docscanner::instanced_quads::fill() {
 void docscanner::instanced_quads::draw() {
     glBindVertexArray(quads_buffer.vao);
     glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null, quads_size);
+}
+
+void docscanner::lines::init(vec2* points, s32 points_size) {
+    this->points = points;
+    closed_points = new vec2[points_size];
+    this->points_size = points_size;
+
+    u32 indices[6] = { 
+        0, 1, 2, 
+        0, 2, 3 
+    };
+
+    vertex vertices[5] = {
+        {{0, -0.5}, {0, 0}},
+        {{1, -0.5}, {1, 0}},
+        {{1, +0.5}, {1, 1}},
+        {{0, +0.5}, {0, 1}}
+    };
+
+    shader_buffer quad_buffer = make_shader_buffer();
+    fill_shader_buffer(quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
+
+    lines_buffer = make_instances_lines_shader_buffer(quad_buffer);
+
+    fill();
+}
+
+void docscanner::lines::fill() {
+    memcpy(closed_points, points, points_size * sizeof(vec2));
+    closed_points[points_size] = closed_points[0];
+
+    glBindBuffer(GL_ARRAY_BUFFER, lines_buffer.instance_vbo);
+    glBufferData(GL_ARRAY_BUFFER, (points_size + 1) * sizeof(vec2), points, GL_DYNAMIC_DRAW);
+}
+
+void docscanner::lines::draw() {
+    glBindVertexArray(lines_buffer.vao);
+    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null, points_size);
 }
 
 void docscanner::engine_backend::init(mat4 projection_mat) {
@@ -437,6 +469,29 @@ instanced_shader_buffer docscanner::make_instanced_quad_shader_buffer(shader_buf
     attrib_enable(1, 2, v1);
     attrib_enable(2, 2, v2);
     attrib_enable(3, 2, v3);
+
+#undef attrib_enable
+
+    return {
+        .vao=buff.id,
+        .instance_vbo=instance_vbo
+    };
+}
+
+instanced_shader_buffer docscanner::make_instances_lines_shader_buffer(shader_buffer buff) {
+    bind_shader_buffer(buff);
+
+    GLuint instance_vbo;
+    glGenBuffers(1, &instance_vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
+
+#define attrib_enable(index, num_comp, offset) \
+        glVertexAttribPointer(vertex_attrib_count + index, num_comp, GL_FLOAT, GL_FALSE, sizeof(vec2), (void*) offset); \
+        glEnableVertexAttribArray(vertex_attrib_count + index); \
+        glVertexAttribDivisor(vertex_attrib_count + index, 1)
+
+    attrib_enable(0, 2, 0);
+    attrib_enable(1, 2, sizeof(vec2));
 
 #undef attrib_enable
 
