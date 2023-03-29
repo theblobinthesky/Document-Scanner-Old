@@ -38,20 +38,20 @@ constexpr const char* vert_quad_src = version_head R"(uniform mat4 projection;
 std::string frag_simple_tex_sampler_src(bool oes_input, u32 binding_slot);
 
 constexpr const char* vert_instanced_quad_src = version_head R"(uniform mat4 projection;
-    in vec2 pos;
-    in vec2 uv;
+    layout (location = 0) in vec2 pos;
+    layout (location = 1) in vec2 uv;
 
-    in vec2 v0;
-    in vec2 v1;
-    in vec2 v2;
-    in vec2 v3;
+    layout (location = 2) in vec2 v0;
+    layout (location = 3) in vec2 v1;
+    layout (location = 4) in vec2 v2;
+    layout (location = 5) in vec2 v3;
 
-    out vec2 out_uv;
+    out vec2 out_uvs;
 
     void main() {
-        vec2 v_pos = mix(pos.x, v0, v1) * (1.0 - pos.y) + mix(pos.x, v3, v2) * pos.y;
+        vec2 v_pos = mix(mix(v0, v1, pos.x), mix(v3, v2, pos.x), pos.y);
         gl_Position = projection * vec4(v_pos, 0, 1);
-        out_uv = uv;
+        out_uvs = uv;
     }
 )";
 

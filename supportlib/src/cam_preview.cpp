@@ -67,7 +67,7 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx) {
 
     auto buffer = make_shader_buffer();
 
-    particles.init(&backend, mesher.vertices, mesher.mesh_size, buffer);
+    particles.init(&backend, &mesher, svec2({ 5, 5 }), 0.2f, 0.02f, 2.0f);
     border.init(&backend, mesher.left_contour, mesher.top_contour, mesher.right_contour, mesher.bottom_contour, mesher.mesh_size.x, buffer);
     
     nn = create_neural_network_from_path(file_ctx, "contour_model.tflite", execution_pref::sustained_speed);
@@ -86,6 +86,8 @@ void docscanner::cam_preview::init_cam() {
 #endif
 
 void docscanner::cam_preview::render(f32 time) {
+    backend.time = time; // todo: this entire structure is ugly
+
     if(!is_init) return;
     cam.get();
 
@@ -117,8 +119,8 @@ void docscanner::cam_preview::render(f32 time) {
 
 #if true
     if(mesher.does_mesh_exist()) {
-        particles.render();
-        border.render(time);
+        particles.render(&backend);
+        // border.render(time);
     }
 #endif
 

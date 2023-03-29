@@ -3,6 +3,16 @@
 #include "shader_program.hpp"
 #include <vector>
 
+// nocheckin
+#ifdef ANDROID
+#include <GLES3/gl31.h>
+#include <GLES2/gl2ext.h>
+#elif defined(LINUX)
+#define GL_GLEXT_PROTOTYPES
+#include <GL/gl.h>
+#include <GL/glext.h>
+#endif
+
 #define DEBUG
 
 NAMESPACE_BEGIN
@@ -57,7 +67,8 @@ struct instanced_quads {
     s32 quads_size;
     instanced_shader_buffer quads_buffer;
 
-    instanced_quads(s32 size);
+    void init(s32 size);
+    void fill();
     void draw();
 };
 
@@ -80,13 +91,14 @@ struct engine_backend {
     std::vector<DEBUG_marker> DEBUG_marker_queue;
 #endif
 
+    f32 time;
+
     void init(mat4 projection_mat);
 
     shader_program compile_and_link(const std::string& vert_src, const std::string& frag_src);
     shader_program compile_and_link(const std::string& comp_src);
 
     void draw_quad(const vec2& pos, const vec2& size);
-    void draw_instanced_quads(instanced_quad* quads, u32 quads_size);
 
 #ifdef DEBUG
     void DEBUG_draw_marker(const vec2& pt, const vec3& col);
@@ -110,38 +122,6 @@ struct texture_downsampler {
 
     void init(engine_backend* backend, uvec2 input_size, svec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor);
     texture* downsample();
-};
-
-struct sticky_particle_system {
-    const vertex* stick_vertices;
-    svec2 stick_size;
-
-    std::vector<vertex> mesh_vertices;
-    std::vector<u32> mesh_indices;
-
-    shader_program shader;
-    shader_buffer buffer;
-
-    void gen_and_fill_mesh_vertices();
-    void init(engine_backend* backend, const vertex* vertices, const svec2& stick_size, shader_buffer buffer);
-    void render();
-};
-
-struct mesh_border {
-    const vec2* left_border, *top_border, *right_border, *bottom_border;
-    s32 border_size;
-
-    std::vector<vertex> mesh_vertices;
-    std::vector<u32> mesh_indices;
-
-    shader_program shader;
-    shader_buffer buffer;
-
-    variable time_var;
-
-    void gen_and_fill_mesh_vertices();
-    void init(engine_backend* backend, const vec2* left_border, const vec2* top_border, const vec2* right_border, const vec2* bottom_border, s32 border_size, shader_buffer buffer);
-    void render(f32 time);
 };
 
 void check_gl_error(const char* op);

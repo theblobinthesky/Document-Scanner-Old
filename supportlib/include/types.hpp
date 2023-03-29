@@ -17,6 +17,7 @@ using u64 = uint64_t;
 
 using s32 = int32_t;
 using f32 = float;
+using f64 = double;
 
 struct vec2 {
     f32 x, y;
@@ -63,6 +64,14 @@ struct uvec2 {
 struct mat4 {
     f32 data[16];
 };
+
+f32 clamp(f32 val, f32 min, f32 max);
+
+f32 random_f32(f32 min, f32 max);
+
+f32 ease_in_sine(f32 t);
+
+f32 ease_in_out_quad(f32 t);
 
 #define NAMESPACE_BEGIN namespace docscanner {
 #define NAMESPACE_END }

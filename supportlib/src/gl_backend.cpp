@@ -46,7 +46,7 @@ void docscanner::variable::set_vec4(const vec2& a, const vec2& b) {
     glUniform4f(location, a.x, a.y, b.x, b.y);
 }
 
-docscanner::instanced_quads::instanced_quads(s32 size) {
+void docscanner::instanced_quads::init(s32 size) {
     quads = new instanced_quad[size];
     quads_size = size;
     
@@ -68,11 +68,22 @@ docscanner::instanced_quads::instanced_quads(s32 size) {
 
     quads_buffer = make_instanced_quad_shader_buffer(quad_buffer);
 
+    fill();
+}
+
+void docscanner::instanced_quads::fill() {
+    /*for(s32 i = 0; i < quads_size; i++) {
+        auto q = quads[i];
+        LOGI("v0: (%f, %f), v1: (%f, %f), v2: (%f, %f), v3: (%f, %f)", q.v0.x, q.v0.y, q.v1.x, q.v1.y, q.v2.x, q.v2.y, q.v3.x, q.v3.y);
+    }
+    LOGI("end");*/
+
     glBindBuffer(GL_ARRAY_BUFFER, quads_buffer.instance_vbo);
-    glBufferData(GL_ARRAY_BUFFER, size * sizeof(instanced_quad), quads, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, quads_size * sizeof(instanced_quad), quads, GL_DYNAMIC_DRAW);
 }
 
 void docscanner::instanced_quads::draw() {
+    glBindVertexArray(quads_buffer.vao);
     glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null, quads_size);
 }
 
@@ -157,10 +168,6 @@ void docscanner::engine_backend::draw_quad(const vec2& pos, const vec2& size) {
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
     check_gl_error("glDrawElements");
-}
-
-void draw_instanced_quads(instanced_quad* quads, u32 quads_size) {
-
 }
 
 #ifdef DEBUG
@@ -271,171 +278,6 @@ texture* docscanner::texture_downsampler::downsample() {
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 
     return &output_tex;
-}
-
-void sticky_particle_system::gen_and_fill_mesh_vertices() {
-    mesh_indices.clear();
-    mesh_vertices.clear();
-
-    for(s32 i = 0; i < (stick_size.x - 1) * (stick_size.y - 1); i++) {
-        s32 offset = i * 4;
-        mesh_indices.push_back(0 + offset);
-        mesh_indices.push_back(1 + offset);
-        mesh_indices.push_back(2 + offset);
-
-        mesh_indices.push_back(0 + offset);
-        mesh_indices.push_back(2 + offset);
-        mesh_indices.push_back(3 + offset);
-    }
-
-    for(s32 x = 0; x < stick_size.x - 1; x++) {
-        for(s32 y = 0; y < stick_size.y - 1; y++) {
-            const vec2& tl = stick_vertices[x * stick_size.y + y].pos;
-            const vec2& tr = stick_vertices[(x + 1) * stick_size.y + y].pos;
-            const vec2& br = stick_vertices[(x + 1) * stick_size.y + (y + 1)].pos;
-            const vec2& bl = stick_vertices[x * stick_size.y + (y + 1)].pos;
-
-            const vec2 middle = (tl + tr + br + bl) * (1.0f / 4.0f);
-
-#define particle_scale 0.3
-#define rescale_particle(pt) ((pt - middle) * particle_scale + middle)
-
-            mesh_vertices.push_back({rescale_particle(tl), {0, 0}});
-            mesh_vertices.push_back({rescale_particle(tr), {1, 0}});
-            mesh_vertices.push_back({rescale_particle(br), {1, 1}});
-            mesh_vertices.push_back({rescale_particle(bl), {0, 1}});
-        
-#undef rescale_particle
-        }
-    }
-
-    fill_shader_buffer(buffer, mesh_vertices.data(), mesh_vertices.size() * sizeof(vertex), mesh_indices.data(), mesh_indices.size() * sizeof(u32));
-}
-
-void sticky_particle_system::init(engine_backend* backend, const vertex* vertices, const svec2& stick_size, shader_buffer buffer) {
-    this->stick_vertices = vertices;
-    this->stick_size = stick_size;
-    this->buffer = buffer;
-
-    shader = backend->compile_and_link(vert_src, frag_particle_src);
-}
-
-void sticky_particle_system::render() {
-    use_program(shader);
-
-    gen_and_fill_mesh_vertices();
-    glBindVertexArray(buffer.id);
-
-    glDrawElements(GL_TRIANGLES, mesh_indices.size(), GL_UNSIGNED_INT, null);
-}
-
-constexpr f32 thickness = 0.1f;
-constexpr f32 half_thickness = thickness / 2.0f;
-
-void push_border_vertices(std::vector<vertex>& mesh_vertices, const vec2* border_pts, s32 border_size, s32 i) {
-    const vec2& curr = border_pts[i];
-    const vec2& last = (i - 1 < 0) ? curr : border_pts[i - 1];
-    const vec2& next = (i + 1 > border_size) ? curr : border_pts[i + 1];
-            
-    const vec2 normal = ((curr - last) * 0.5 + (next - curr) * 0.5).orthogonal().normalize();
-    const vec2 half_border = normal * half_thickness;
-
-    const vec2 curr_small = curr - half_border;
-    const vec2 curr_large = curr + half_border;
-
-    vec2 ref = { 1.0f, 0.0f };
-    f32 curr_angle = vec2::angle_between(curr, ref);
-
-    mesh_vertices.push_back({curr, {0.5f, curr_angle}});
-    mesh_vertices.push_back({curr_small, {0.0f, curr_angle}});
-    mesh_vertices.push_back({curr_large, {1.0f, curr_angle}});
-}
-
-void push_border_vertices_forward(std::vector<vertex>& mesh_vertices, const vec2* border_pts, s32 border_size) {
-    for(s32 i = 0; i < border_size; i++) {
-        push_border_vertices(mesh_vertices, border_pts, border_size, i);
-    }
-}
-
-void push_border_vertices_backward(std::vector<vertex>& mesh_vertices, const vec2* border_pts, s32 border_size) {
-    for(s32 i = border_size - 1; i >= 0; i--) {
-        push_border_vertices(mesh_vertices, border_pts, border_size, i);
-    }
-}
-
-void mesh_border::gen_and_fill_mesh_vertices() {
-    mesh_indices.clear();
-    mesh_vertices.clear();
-
-    for(s32 i = 0; i < 4 * border_size - 1; i++) {
-        s32 offset_1 = i * 3;
-        s32 offset_2 = i * 3 + 3;
-
-        // inner quad
-        mesh_indices.push_back(0 + offset_1);
-        mesh_indices.push_back(1 + offset_1);
-        mesh_indices.push_back(3 + offset_1);
-
-        mesh_indices.push_back(1 + offset_1);
-        mesh_indices.push_back(3 + offset_1);
-        mesh_indices.push_back(1 + offset_2);
-    
-        // outer quad
-        mesh_indices.push_back(0 + offset_1);
-        mesh_indices.push_back(2 + offset_1);
-        mesh_indices.push_back(0 + offset_2);
-
-        mesh_indices.push_back(2 + offset_1);
-        mesh_indices.push_back(0 + offset_2);
-        mesh_indices.push_back(2 + offset_2);
-    }
-
-    // to make it seem complete
-
-    push_border_vertices_forward(mesh_vertices, left_border, border_size);
-    push_border_vertices_forward(mesh_vertices, top_border, border_size);
-    push_border_vertices_forward(mesh_vertices, right_border, border_size);
-    push_border_vertices_forward(mesh_vertices, bottom_border, border_size);
-    
-    #if false
-    push_border_vertices_backward(mesh_vertices, border_vertices, 
-        (border_size.y - 1), 
-        border_size.y, 
-        (border_size.y - 1) + (border_size.x - 1) * border_size.y
-    );
-
-    push_border_vertices_backward(mesh_vertices, border_vertices, 
-        0, 
-        1, 
-        (border_size.y - 1)
-    );
-    #endif
-
-    fill_shader_buffer(buffer, mesh_vertices.data(), mesh_vertices.size() * sizeof(vertex), mesh_indices.data(), mesh_indices.size() * sizeof(u32));
-}
-
-void docscanner::mesh_border::init(engine_backend* backend, const vec2* left_border, const vec2* top_border, const vec2* right_border, const vec2* bottom_border, s32 border_size, shader_buffer buffer) {
-    this->left_border = left_border;
-    this->top_border = top_border;
-    this->right_border = right_border;
-    this->bottom_border = bottom_border;
-    this->border_size = border_size;    
-    this->buffer = buffer;
-
-    shader = backend->compile_and_link(vert_src, frag_border_src);
-
-    time_var = get_variable(shader, "time");
-}
-
-void mesh_border::render(f32 time) {
-    use_program(shader);
-
-    gen_and_fill_mesh_vertices();
-    glBindVertexArray(buffer.id);
-
-    time_var.set_f32(time);
-
-    glDrawElements(GL_TRIANGLES, mesh_indices.size(), GL_UNSIGNED_INT, null);
 }
 
 bool link_program(GLuint &program) {
@@ -588,8 +430,8 @@ instanced_shader_buffer docscanner::make_instanced_quad_shader_buffer(shader_buf
 
 #define attrib_enable(index, num_comp, var_name) \
         glVertexAttribPointer(vertex_attrib_count + index, num_comp, GL_FLOAT, GL_FALSE, sizeof(instanced_quad), (void*) offsetof(instanced_quad, var_name)); \
-        glEnableVertexAttribArray(index); \
-        glVertexAttribDivisor(index, 1)
+        glEnableVertexAttribArray(vertex_attrib_count + index); \
+        glVertexAttribDivisor(vertex_attrib_count + index, 1)
 
     attrib_enable(0, 2, v0);
     attrib_enable(1, 2, v1);
@@ -598,7 +440,10 @@ instanced_shader_buffer docscanner::make_instanced_quad_shader_buffer(shader_buf
 
 #undef attrib_enable
 
-    return {buff.id, instance_vbo};
+    return {
+        .vao=buff.id,
+        .instance_vbo=instance_vbo
+    };
 }
 
 void docscanner::fill_shader_buffer(const shader_buffer& buff, vertex* vertices, u32 vertices_size, u32* indices, u32 indices_size) {
