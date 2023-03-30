@@ -117,11 +117,10 @@ struct scoped_camera_matrix {
 
 #define SCOPED_CAMERA_MATRIX(backend, matrix) scoped_camera_matrix SCOPED_CAMERA_MATRIX_VAR((backend), (matrix))
 
-struct texture_downsampler {
+struct texture_downsampler_stage {
     engine_backend* backend;
-    mat4 projection_matrix;
 
-    uvec2 input_size;
+    svec2 input_size;
     svec2 output_size;
     bool input_is_oes_texture;
     const texture* input_tex;
@@ -131,11 +130,31 @@ struct texture_downsampler {
     
     shader_program gauss_blur_x_program;
     shader_program gauss_blur_y_program;
+    
+    void init(engine_backend* backend, svec2 input_size, svec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor);
+    void downsample();
+};
+
+struct texture_downsampler {
+    engine_backend* backend;
+    mat4 projection_matrix;
+
+    svec2 input_size;
+    svec2 output_size;
+    bool input_is_oes_texture;
+    const texture* input_tex;
+    const texture* output_tex;
+    const frame_buffer* output_fb;
+
+    texture_downsampler_stage* stages;
+    s32 stages_size;
 
     shader_buffer gauss_quad_buffer;
 
-    void init(engine_backend* backend, uvec2 input_size, svec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor);
-    texture* downsample();
+    GLsync fence;
+
+    void init(engine_backend* backend, svec2 input_size, svec2 output_size, bool input_is_oes_texture, const texture* input_tex, s32 downsampling_stages, f32 relaxation_factor);
+    void downsample();
 };
 
 // Line rendering inspired by

@@ -26,8 +26,6 @@ struct cam_preview {
     f32 nn_exists_out;
     u8* nn_input_buffer, *nn_contour_out;
 
-    texture* nn_input_tex;
-
     neural_network nn;
 
     uvec2 cam_tex_size;

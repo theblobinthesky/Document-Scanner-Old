@@ -70,9 +70,9 @@ void docscanner::cam_preview::init_backend(engine_backend* backend, file_context
     nn_contour_out = new u8[nn_contour_out_size];
 
 #if CAM_USES_OES_TEXTURE
-    tex_downsampler.init(backend, cam_tex_size, downsampled_size, true, null, 1.0);
+    tex_downsampler.init(backend, { (s32)cam_tex_size.x, (s32)cam_tex_size.y }, downsampled_size, true, null, 2, 1.0f);
 #else
-    tex_downsampler.init(backend, cam_tex_size, downsampled_size, false, &cam.cam_tex, 2.0);
+    tex_downsampler.init(backend, cam_tex_size, downsampled_size, false, &cam.cam_tex, 2);
 #endif
 
     mesher.init(&nn_exists_out, (f32*)nn_contour_out, downsampled_size, 0.4f);
@@ -103,9 +103,9 @@ void docscanner::cam_preview::render(f32 time) {
     if(!is_init) return;
     cam.get();
 
-    nn_input_tex = tex_downsampler.downsample();
+    tex_downsampler.downsample();
 
-    get_framebuffer_data(tex_downsampler.output_fb, tex_downsampler.output_size, nn_input_buffer, nn_input_buffer_size);
+    get_framebuffer_data(*tex_downsampler.output_fb, tex_downsampler.output_size, nn_input_buffer, nn_input_buffer_size);
     
     constexpr u32 out_size = 1; // 2;
     u8* out_datas[out_size] = { nn_contour_out }; //, (u8*)&nn_exists_out };
@@ -113,6 +113,7 @@ void docscanner::cam_preview::render(f32 time) {
     invoke_neural_network_on_data(nn, nn_input_buffer, nn_input_buffer_size, out_datas, out_sizes, out_size);
 
     mesher.mesh(backend);
+
 
     canvas c = {
         .bg_color={0, 0, 0}
@@ -140,6 +141,6 @@ void docscanner::cam_preview::render(f32 time) {
 
     auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
     auto dur = end - last_time;
-    LOGI("frame time: %ums", (u32)dur);
+    LOGI("frame time: %ums, fps: %u", (u32)dur, (u32)(1000.0f / dur));
     last_time = end;
 }

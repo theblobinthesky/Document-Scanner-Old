@@ -39,7 +39,8 @@ std::string compute_gauss_coefficients(s32 N, s32 M) {
         const f32 x = (f32)(i); \
         coeffs[i] = gauss_factor * pow(M_E, -(x * x) / (2 * sigma * sigma));
 
-    compute_gauss_coeff(0);        
+    compute_gauss_coeff(0);    
+    sum += coeffs[0];    
 
     for(int i = 1; i < M; i++) {
         compute_gauss_coeff(i);

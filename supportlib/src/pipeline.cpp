@@ -29,22 +29,23 @@ void docscanner::pipeline::pre_init(uvec2 preview_size, int* cam_width, int* cam
 
 #ifdef ANDROID
 void docscanner::pipeline::init_backend(ANativeWindow* texture_window, file_context* file_ctx) {
+#elif defined(LINUX)
+void docscanner::pipeline::init_backend() {
+#endif
     backend.init();
 
     projection_matrix = mat4::orthographic(0.0f, 1.0f, aspect_ratio, 0.0f, -1.0f, 1.0f);
 
+#ifdef ANDROID
     cam_preview_screen.init_backend(&backend, file_ctx, 0.05f);
     cam_preview_screen.init_cam(texture_window);
+#elif defined(LINUX)
+    cam_preview_screen.init_backend(&backend, null, 0.05f);
+    cam_preview_screen.init_cam();
+#endif
 
     shutter_program = backend.compile_and_link(vert_quad_src, frag_shutter_src);
 }
-#elif defined(LINUX)
-void docscanner::pipeline::init_backend() {
-    cam_preview_screen.init_backend(null);
-    cam_preview_screen.init_cam();
-    get_time(start_time, time);
-}
-#endif
 
 void docscanner::pipeline::render() {
     SCOPED_CAMERA_MATRIX(&backend, projection_matrix);

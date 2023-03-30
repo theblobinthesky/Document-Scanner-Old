@@ -193,24 +193,26 @@ scoped_camera_matrix::~scoped_camera_matrix() {
     backend->projection_mat = previous_matrix;
 }
 
-void docscanner::texture_downsampler::init(engine_backend* backend, uvec2 input_size, svec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor) {
+u32 even_to_uneven(u32 N) {
+    u32 M;
+    while((M = N / 2 + 1) % 2 == 0 || N % 2 == 0 || M < 1) N++;
+    return N;
+}
+
+void texture_downsampler_stage::init(engine_backend* backend, svec2 input_size, svec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor) {
     this->backend = backend;
     this->input_size = input_size;
     this->output_size = output_size;
     this->input_is_oes_texture = input_is_oes_texture;
     this->input_tex = input_tex;
 
-#define EVEN_TO_UNEVEN(n) if ((n) % 2 == 0) { n++; }
-
     uvec2 req_kernel_size = {
         (u32)((f32)input_size.x / (relaxation_factor * (f32)output_size.x)),
         (u32)((f32)input_size.y / (relaxation_factor * (f32)output_size.y))
     };
 
-    EVEN_TO_UNEVEN(req_kernel_size.x);
-    EVEN_TO_UNEVEN(req_kernel_size.y);
-
-#undef EVEN_TO_UNEVEN
+    req_kernel_size.x = even_to_uneven(req_kernel_size.x);
+    req_kernel_size.y = even_to_uneven(req_kernel_size.y);
 
     temp_tex = create_texture({(u32)output_size.x, (u32)input_size.y}, GL_RGBA16F);
     output_tex = create_texture({(u32)output_size.x, (u32)output_size.y}, GL_RGBA32F);
@@ -225,6 +227,41 @@ void docscanner::texture_downsampler::init(engine_backend* backend, uvec2 input_
     std::string gauss_frag_src_y = frag_gauss_blur_src(false, req_kernel_size.y, {0.0f, 1.0f / (f32)input_size.y});
     gauss_blur_y_program = backend->compile_and_link(vert_src, gauss_frag_src_y);
     ASSERT(gauss_blur_y_program.program, "gauss_blur_y_program program could not be compiled.");
+
+    LOGI("gauss_frag_src_x: %s", gauss_frag_src_x.c_str());
+    LOGI("gauss_frag_src_y: %s", gauss_frag_src_y.c_str());
+}
+
+void texture_downsampler_stage::downsample() {
+    // first blur pass    
+    backend->use_program(gauss_blur_x_program);
+    bind_framebuffer(temp_fb);
+
+    if(!input_is_oes_texture) {
+        bind_texture_to_slot(0, *input_tex);
+    }
+
+    glViewport(0, 0, output_size.x, input_size.y);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
+    check_gl_error("glDrawElements");
+
+
+    // second blur pass
+    backend->use_program(gauss_blur_y_program);
+    bind_texture_to_slot(0, temp_tex);
+    bind_framebuffer(output_fb);
+    
+    glViewport(0, 0, output_size.x, output_size.y);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
+    check_gl_error("glDrawElements");
+}
+
+void docscanner::texture_downsampler::init(engine_backend* backend, svec2 input_size, svec2 output_size, bool input_is_oes_texture, const texture* input_tex, s32 downsampling_stages, f32 relaxation_factor) {
+    this->backend = backend;
+    this->input_size = input_size;
+    this->output_size = output_size;
+    this->input_is_oes_texture = input_is_oes_texture;
+    this->input_tex = input_tex;
 
     projection_matrix = mat4::orthographic(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
 
@@ -242,41 +279,56 @@ void docscanner::texture_downsampler::init(engine_backend* backend, uvec2 input_
 
     gauss_quad_buffer = make_shader_buffer();
     fill_shader_buffer(gauss_quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
+
+    stages = new texture_downsampler_stage[downsampling_stages];
+    stages_size = downsampling_stages;
+
+    // ASSERT(stages_size == 2, "Lol");    
+
+    svec2 downsampling_fac = {
+        (s32)sqrt(input_size.x / (f32)output_size.x),
+        (s32)sqrt(input_size.y / (f32)output_size.y),
+    };
+
+    svec2 stage_input_size = {};
+    svec2 stage_output_size = input_size;
+    bool stage_input_is_oes_texture = input_is_oes_texture;
+    const texture* stage_input_tex = input_tex;
+    
+    for(s32 i = 0; i < stages_size; i++) {
+        texture_downsampler_stage& stage = stages[i]; 
+
+        stage_input_size = stage_output_size;
+        stage_output_size = { stage_input_size.x / downsampling_fac.x, stage_input_size.y / downsampling_fac.y };
+        if(i == downsampling_stages - 1) stage_output_size = output_size;
+
+        stage.init(backend, stage_input_size, stage_output_size, stage_input_is_oes_texture, stage_input_tex, relaxation_factor);
+
+        stage_input_is_oes_texture = false;
+        stage_input_tex = &stage.output_tex;
+    }
+
+    const texture_downsampler_stage& last_stage = stages[stages_size - 1];
+    output_tex = &last_stage.output_tex;
+    output_fb = &last_stage.output_fb;
+
+    fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
-texture* docscanner::texture_downsampler::downsample() {
+void docscanner::texture_downsampler::downsample() {
     SCOPED_CAMERA_MATRIX(backend, projection_matrix);
-
+   
     int viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
 
     glBindVertexArray(gauss_quad_buffer.id);
 
-    // first blur pass    
-    backend->use_program(gauss_blur_x_program);
-    bind_framebuffer(temp_fb);
-
-    if(!input_is_oes_texture) {
-        bind_texture_to_slot(0, *input_tex);
+    for(s32 i = 0; i < stages_size; i++) {
+        stages[i].downsample();
     }
-
-    glViewport(0, 0, output_size.x, input_size.y);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
-    check_gl_error("glDrawElements");
-
-    // second blur pass
-    backend->use_program(gauss_blur_y_program);
-    bind_texture_to_slot(0, temp_tex);
-    bind_framebuffer(output_fb);
-    
-    glViewport(0, 0, output_size.x, output_size.y);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
-    check_gl_error("glDrawElements");
 
     // restore old viewport
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-
-    return &output_tex;
 }
 
 instanced_shader_buffer make_lines_buffer() {
