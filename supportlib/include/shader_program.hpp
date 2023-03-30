@@ -55,6 +55,24 @@ constexpr const char* vert_instanced_quad_src = version_head R"(uniform mat4 pro
     }
 )";
 
+constexpr const char* vert_instanced_point_src = version_head R"(uniform mat4 projection;
+    uniform float scale;
+
+    layout (location = 0) in vec2 pos;
+    layout (location = 1) in vec2 uv;
+
+    layout (location = 2) in vec2 pos_middle;
+
+    out vec2 out_uvs;
+
+    void main() {
+        vec2 v_pos = pos_middle + pos * scale;
+
+        gl_Position = projection * vec4(v_pos, 0, 1);
+        out_uvs = uv;
+    }
+)";
+
 constexpr const char* vert_instanced_line_src = version_head R"(uniform mat4 projection;
     uniform float thickness;
 
@@ -116,7 +134,7 @@ constexpr const char* frag_border_src = version_head PI_define R"(precision medi
             float alpha = smoothstep(inner_core - border_fadeout, inner_core, out_uvs.y); 
             alpha -= smoothstep(outer_core, outer_core + border_fadeout, out_uvs.y);
 
-            out_col = vec4(1.0, 1.0, 1.0, alpha);
+            out_col = vec4(1.0, 1.0, 1.0, 1.0);
         }
 )";
 

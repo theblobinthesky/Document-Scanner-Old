@@ -63,12 +63,12 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx) {
     tex_downsampler.init(&backend, cam_tex_size, downsampled_size, false, &cam.cam_tex, 2.0);
 #endif
 
-    mesher.init(&nn_exists_out, (f32*)nn_contour_out, downsampled_size, 0.2f);
+    mesher.init(&nn_exists_out, (f32*)nn_contour_out, downsampled_size, 0.4f);
 
     auto buffer = make_shader_buffer();
 
     particles.init(&backend, &mesher, svec2({ 5, 5 }), 0.2f, 0.02f, 2.0f);
-    border.init(&backend, &mesher, svec2({ 5, 5 }), 0.05f);
+    border.init(&backend, &mesher, svec2({ 16, 16 }), 0.01f);
     
     nn = create_neural_network_from_path(file_ctx, "contour_model.tflite", execution_pref::sustained_speed);
 

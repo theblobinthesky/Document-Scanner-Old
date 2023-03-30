@@ -271,26 +271,16 @@ void mesh_border::gen_and_fill_lines() {
 
 void docscanner::mesh_border::init(engine_backend* backend, const mask_mesher* mesher, svec2 size, f32 thickness) {
     this->mesher = mesher; 
-    this->thickness = thickness;
     this->size = size;
 
     points_size = 2 * size.x + 2 * size.y - 4;
     points = new vec2[points_size];
 
-    shader = backend->compile_and_link(vert_instanced_line_src, frag_border_src);
-    border_lines.init(points, points_size);
-
-    time_var = get_variable(shader, "time");
-    thickness_var = get_variable(shader, "thickness");
+    border_lines.init(backend, points, points_size, thickness);
 }
 
 void mesh_border::render(f32 time) {
     gen_and_fill_lines();
-
-    use_program(shader);
-
-    time_var.set_f32(time);
-    thickness_var.set_f32(0.01f);
 
     border_lines.draw();
 }

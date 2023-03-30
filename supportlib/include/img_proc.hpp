@@ -59,9 +59,6 @@ struct mesh_border {
     s32 points_size;
     svec2 size;
 
-    f32 thickness;
-
-    shader_program shader;
     lines border_lines;
 
     variable time_var;

@@ -2,6 +2,7 @@
 #include "log.hpp"
 #include "backend.hpp"
 #include <string.h>
+#include <math.h>
 
 #if defined(LINUX)
 #include <cstddef>
@@ -79,44 +80,6 @@ void docscanner::instanced_quads::fill() {
 void docscanner::instanced_quads::draw() {
     glBindVertexArray(quads_buffer.vao);
     glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null, quads_size);
-}
-
-void docscanner::lines::init(vec2* points, s32 points_size) {
-    this->points = points;
-    closed_points = new vec2[points_size];
-    this->points_size = points_size;
-
-    u32 indices[6] = { 
-        0, 1, 2, 
-        0, 2, 3 
-    };
-
-    vertex vertices[5] = {
-        {{0, -0.5}, {0, 0}},
-        {{1, -0.5}, {1, 0}},
-        {{1, +0.5}, {1, 1}},
-        {{0, +0.5}, {0, 1}}
-    };
-
-    shader_buffer quad_buffer = make_shader_buffer();
-    fill_shader_buffer(quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
-
-    lines_buffer = make_instances_lines_shader_buffer(quad_buffer);
-
-    fill();
-}
-
-void docscanner::lines::fill() {
-    memcpy(closed_points, points, points_size * sizeof(vec2));
-    closed_points[points_size] = closed_points[0];
-
-    glBindBuffer(GL_ARRAY_BUFFER, lines_buffer.instance_vbo);
-    glBufferData(GL_ARRAY_BUFFER, (points_size + 1) * sizeof(vec2), points, GL_DYNAMIC_DRAW);
-}
-
-void docscanner::lines::draw() {
-    glBindVertexArray(lines_buffer.vao);
-    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null, points_size);
 }
 
 void docscanner::engine_backend::init(mat4 projection_mat) {
@@ -312,6 +275,88 @@ texture* docscanner::texture_downsampler::downsample() {
     return &output_tex;
 }
 
+instanced_shader_buffer make_lines_buffer() {
+    u32 indices[6] = { 
+        0, 1, 2, 
+        0, 2, 3 
+    };
+
+    vertex vertices[5] = {
+        {{0, -0.5}, {0, 0}},
+        {{1, -0.5}, {1, 0}},
+        {{1, +0.5}, {1, 1}},
+        {{0, +0.5}, {0, 1}}
+    };
+
+    shader_buffer quad_buffer = make_shader_buffer();
+    fill_shader_buffer(quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
+
+    return make_instanced_line_shader_buffer(quad_buffer);
+}
+
+instanced_shader_buffer make_joins_buffer(s32 resolution) {
+    vertex *vertices = new vertex[resolution];
+
+    for(s32 i = 0; i < resolution; i++) {
+        vertex& vertex = vertices[i];
+        f32 alpha = (2.0f * M_PI * i) / (f32)resolution;
+        f32 x = 0.5f * cosf(alpha);
+        f32 y = 0.5f * sinf(alpha);
+
+        vertex.pos = { x, y };
+        vertex.uv = { 0.5f, 0.5f };
+    }
+
+    shader_buffer round_buffer = make_shader_buffer();
+    fill_shader_buffer(round_buffer, vertices, resolution * sizeof(vertex), null, 0);
+
+    delete[] vertices;
+
+    return make_instanced_point_shader_buffer(round_buffer);
+}
+
+void docscanner::lines::init(engine_backend* backend, vec2* points, s32 points_size, f32 thickness) {
+    this->points = points;
+    closed_points = new vec2[points_size + 1];
+    this->points_size = points_size;
+    this->thickness = thickness;
+
+    lines_buffer = make_lines_buffer();
+    joins_buffer = make_joins_buffer(16);
+
+    lines_program = backend->compile_and_link(vert_instanced_line_src, frag_border_src);
+    joins_program = backend->compile_and_link(vert_instanced_point_src, frag_border_src);
+
+    fill();
+}
+
+void docscanner::lines::fill() {
+    glBindBuffer(GL_ARRAY_BUFFER, joins_buffer.instance_vbo);
+    glBufferData(GL_ARRAY_BUFFER, points_size * sizeof(vec2), points, GL_DYNAMIC_DRAW);
+
+    memcpy(closed_points, points, points_size * sizeof(vec2));
+    closed_points[points_size] = closed_points[0];
+
+    glBindBuffer(GL_ARRAY_BUFFER, lines_buffer.instance_vbo);
+    glBufferData(GL_ARRAY_BUFFER, (points_size + 1) * sizeof(vec2), points, GL_DYNAMIC_DRAW);
+}
+
+void docscanner::lines::draw() {
+    use_program(joins_program);
+    get_variable(joins_program, "scale").set_f32(thickness);
+    
+    glBindVertexArray(joins_buffer.vao);
+    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 16, points_size - 1);
+
+
+    use_program(lines_program);
+    get_variable(lines_program, "thickness").set_f32(thickness);
+    
+    glBindVertexArray(lines_buffer.vao);
+    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null, points_size);
+}
+
+
 bool link_program(GLuint &program) {
     glLinkProgram(program);
     GLint linkStatus = GL_FALSE;
@@ -478,12 +523,36 @@ instanced_shader_buffer docscanner::make_instanced_quad_shader_buffer(shader_buf
     };
 }
 
-instanced_shader_buffer docscanner::make_instances_lines_shader_buffer(shader_buffer buff) {
+GLuint prep_instance_vbo(const shader_buffer& buff) {
     bind_shader_buffer(buff);
 
     GLuint instance_vbo;
     glGenBuffers(1, &instance_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
+
+    return instance_vbo;
+}
+
+instanced_shader_buffer docscanner::make_instanced_point_shader_buffer(shader_buffer buff) {
+    u32 instance_vbo = prep_instance_vbo(buff);
+
+#define attrib_enable(index, num_comp, offset) \
+        glVertexAttribPointer(vertex_attrib_count + index, num_comp, GL_FLOAT, GL_FALSE, sizeof(vec2), (void*) offset); \
+        glEnableVertexAttribArray(vertex_attrib_count + index); \
+        glVertexAttribDivisor(vertex_attrib_count + index, 1)
+
+    attrib_enable(0, 2, 0);
+
+#undef attrib_enable
+
+    return {
+        .vao=buff.id,
+        .instance_vbo=instance_vbo
+    };
+}
+
+instanced_shader_buffer docscanner::make_instanced_line_shader_buffer(shader_buffer buff) {
+    u32 instance_vbo = prep_instance_vbo(buff);
 
 #define attrib_enable(index, num_comp, offset) \
         glVertexAttribPointer(vertex_attrib_count + index, num_comp, GL_FLOAT, GL_FALSE, sizeof(vec2), (void*) offset); \

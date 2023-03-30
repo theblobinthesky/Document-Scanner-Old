@@ -72,17 +72,6 @@ struct instanced_quads {
     void draw();
 };
 
-struct lines {
-    vec2* points;
-    vec2* closed_points;
-    s32 points_size;
-    instanced_shader_buffer lines_buffer;
-
-    void init(vec2* points, s32 points_size);
-    void fill();
-    void draw();
-};
-
 #ifdef DEBUG
 struct DEBUG_marker {
     vec2 pos;
@@ -135,6 +124,26 @@ struct texture_downsampler {
     texture* downsample();
 };
 
+// Line rendering inspired by
+// https://wwwtyro.net/2019/11/18/instanced-lines.html
+
+struct lines {
+    vec2* points;
+    vec2* closed_points;
+    s32 points_size;
+    f32 thickness;
+
+    instanced_shader_buffer lines_buffer;
+    instanced_shader_buffer joins_buffer;
+
+    shader_program lines_program;
+    shader_program joins_program;
+
+    void init(engine_backend* backend, vec2* points, s32 points_size, f32 thickness);
+    void fill();
+    void draw();
+};
+
 void check_gl_error(const char* op);
 
 u32 compile_shader(u32 type, const char* src);
@@ -155,7 +164,9 @@ shader_buffer make_shader_buffer();
 
 instanced_shader_buffer make_instanced_quad_shader_buffer(shader_buffer buff);
 
-instanced_shader_buffer make_instances_lines_shader_buffer(shader_buffer buff);
+instanced_shader_buffer make_instanced_point_shader_buffer(shader_buffer buff);
+
+instanced_shader_buffer make_instanced_line_shader_buffer(shader_buffer buff);
 
 void bind_shader_buffer(const shader_buffer& buff);
 
