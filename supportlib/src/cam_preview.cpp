@@ -14,6 +14,8 @@ using namespace docscanner;
 #error "Platform not supported yet."
 #endif
 
+constexpr f32 preview_aspect_ratio = 4.0f / 3.0f;
+
 void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* cam_height) {
     this->preview_size = preview_size;
 
@@ -23,12 +25,22 @@ void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* 
 }
 
 void docscanner::cam_preview::init_backend(file_context* file_ctx) {
-    float p = (cam_tex_size.x / (float) cam_tex_size.y) * (preview_size.x / (float) preview_size.y);
-    f32 cam_tex_left = (1.0f - p) / 2.0f;
-    f32 cam_tex_right = 1.0f - cam_tex_left;
-    
+    f32 aspect_ratio = 16.0f / 9.0f;
+    f32 preview_aspect_ratio = preview_size.y / (f32)preview_size.x;
+    f32 preview_y_perc = aspect_ratio / preview_aspect_ratio;
+    f32 half_border_y_size = (1.0f - preview_y_perc) / 2.0f;
+
+    vec2 fit_between_ys = { half_border_y_size, 1.0f - half_border_y_size };
+
+    f32 t = (1.0f - fit_between_ys.x) / (fit_between_ys.y - fit_between_ys.x);
+    f32 b = 1.0f - fit_between_ys.y / (fit_between_ys.y - fit_between_ys.x);
+
+    float p = (cam_tex_size.x / (float) cam_tex_size.y) * (1.0f / aspect_ratio);
+    f32 l = (1.0f - p) / 2.0f;
+    f32 r = 1.0f - l;
+
     mat4 projection;
-    mat4f_load_ortho(cam_tex_left, cam_tex_right, 0.0f, 1.0f, -1.0f, 1.0f, projection.data);
+    mat4f_load_ortho(l, r, b, t, -1.0f, 1.0f, projection.data);
     backend.init(projection);
 
     preview_program = backend.compile_and_link(vert_src, frag_simple_tex_sampler_src(CAM_USES_OES_TEXTURE, 0));
