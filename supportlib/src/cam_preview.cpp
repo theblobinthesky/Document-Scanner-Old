@@ -27,7 +27,7 @@ void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* 
 void docscanner::cam_preview::init_backend(engine_backend* backend, file_context* file_ctx, f32 bottom_edge) {
     this->backend = backend;
 
-    f32 aspect_ratio = 4.0f / 3.0f;
+    f32 aspect_ratio = 16.0f / 9.0f;
     f32 preview_aspect_ratio = preview_size.y / (f32)preview_size.x;
     f32 preview_y_perc = aspect_ratio / preview_aspect_ratio;
     f32 full_border_y_size = 1.0f - preview_y_perc;
@@ -115,7 +115,7 @@ void docscanner::cam_preview::render(f32 time) {
     mesher.mesh(backend);
 
     canvas c = {
-        .bg_color={0, 1, 0}
+        .bg_color={0, 0, 0}
     };
     
     backend->use_program(preview_program);

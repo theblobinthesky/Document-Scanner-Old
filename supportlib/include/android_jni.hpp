@@ -1,7 +1,7 @@
 #ifdef ANDROID
 
 #include <jni.h>
-#include "types.hpp"
+#include "utils.hpp"
 #include "pipeline.hpp"
 
 namespace docscanner {

@@ -1,11 +1,13 @@
 package com.erikstern.documentscanner
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.AssetManager
 import android.graphics.SurfaceTexture
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
+import android.view.MotionEvent
 import android.view.Surface
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
@@ -25,14 +27,23 @@ class GLSurfaceRenderer : GLSurfaceView.Renderer {
     private external fun nativeDestroy()
     private external fun nativePreInit(preview_width: Int, preview_height: Int) : IntArray
     private external fun nativeInit(assetManager: AssetManager, surface: Surface)
+    private external fun nativeMotionEvent(event: Int, x: Float, y: Float)
 
     private external fun nativeRender()
 
+    @SuppressLint("ClickableViewAccessibility")
     fun setSurfaceView(surfaceView: GLSurfaceView) {
         surfaceView.setEGLContextClientVersion(3)
         surfaceView.setRenderer(this)
         surfaceView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
         context = surfaceView.context
+
+        surfaceView.setOnTouchListener { _, motionEvent ->
+            when(motionEvent.action) {
+                MotionEvent.ACTION_DOWN -> nativeMotionEvent(motionEvent.action, motionEvent.x, motionEvent.y)
+            }
+            true
+        }
 
         nativeCreate()
     }

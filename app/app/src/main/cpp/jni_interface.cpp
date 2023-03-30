@@ -6,6 +6,8 @@
 #define DECL_FUNC(return_type, class_name, func_name) \
     extern "C" JNIEXPORT return_type JNICALL Java_com_erikstern_documentscanner_##class_name##_##func_name
 
+constexpr s32 MOTION_EVENT_ACTION_DOWN = 0;
+
 DECL_FUNC(void, GLSurfaceRenderer, nativeCreate)(JNIEnv *env, jobject obj) {
     docscanner::create_persistent_pipeline(env, obj);
 }
@@ -39,6 +41,20 @@ DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject
 
     docscanner::pipeline *pipeline = docscanner::get_persistent_pipeline(env, obj);
     if (pipeline) pipeline->init_backend(window, &file_ctx);
+}
+
+DECL_FUNC(void, GLSurfaceRenderer, nativeMotionEvent)(JNIEnv* env, jobject obj, jint event, jfloat x, jfloat y) {
+    docscanner::motion_event motion_event;
+
+    switch(event) {
+        case MOTION_EVENT_ACTION_DOWN: {
+            motion_event.type = docscanner::motion_type::TOUCH_DOWN;
+            motion_event.pos = { x, y };
+        } break;
+    }
+
+    docscanner::pipeline *pipeline = docscanner::get_persistent_pipeline(env, obj);
+    if (pipeline) pipeline->input.handle_motion_event(motion_event);
 }
 
 DECL_FUNC(void, GLSurfaceRenderer, nativeRender)(JNIEnv *env, jobject obj) {

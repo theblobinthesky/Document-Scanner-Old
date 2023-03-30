@@ -1,5 +1,5 @@
 #pragma once
-#include "types.hpp"
+#include "utils.hpp"
 #include <unordered_map>
 #include <string>
 
@@ -146,6 +146,26 @@ constexpr const char* frag_particle_src = version_head R"(precision mediump floa
             float opacity = length(out_uvs - vec2(0.5));
             float alpha = step(1.0 / sqrt(2.0), 1.0 - opacity);
             out_col = vec4(1.0, 1.0, 1.0, alpha);
+        }
+)";
+
+constexpr const char* frag_shutter_src = version_head R"(precision mediump float;
+        in vec2 out_uvs;
+        out vec4 out_col;
+
+        uniform float inner_out;
+
+        const float border_fadeout = 0.03;
+        const float outer_in = 0.85;
+        const float outer_out = 0.95;
+
+        void main() {
+            float len = length(2.0 * out_uvs - vec2(1));
+            float alpha = smoothstep(outer_out + border_fadeout, outer_out, len); 
+            alpha -= smoothstep(outer_in, outer_in - border_fadeout, len);
+            alpha += smoothstep(inner_out + border_fadeout, inner_out, len);
+
+            out_col = vec4(alpha, alpha, 1.0, alpha);
         }
 )";
 

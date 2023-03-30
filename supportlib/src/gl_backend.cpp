@@ -91,12 +91,11 @@ void docscanner::engine_backend::init() {
         0, 2, 3 
     };
 
-    vec2 pos = {0.5f, 0.5f};
     vertex vertices[5] = {
-        {{0, 0}, {0, 0}},
-        {{1, 0}, {1, 0}},
-        {{1, 1}, {1, 1}},
-        {{0, 1}, {0, 1}}
+        {{-0.5f, -0.5f}, {0, 0}},
+        {{+0.5f, -0.5f}, {1, 0}},
+        {{+0.5f, +0.5f}, {1, 1}},
+        {{-0.5f, +0.5f}, {0, 1}}
     };
 
     quad_buffer = make_shader_buffer();
@@ -172,12 +171,11 @@ void docscanner::engine_backend::DEBUG_draw_marker(const vec2& pt, const vec3& c
 }
 
 void docscanner::engine_backend::DEBUG_draw() {
-    LOGI("DEBUG_draw %u markers.", (u32)DEBUG_marker_queue.size());
     use_program(DEBUG_marker_program);
 
     for(const DEBUG_marker& marker: DEBUG_marker_queue) {
         get_variable(DEBUG_marker_program, "color").set_vec3(marker.color);
-        draw_quad(marker.pos - DEBUG_marker_size * 0.5, DEBUG_marker_size);
+        draw_quad(marker.pos, DEBUG_marker_size);
     }
 
     DEBUG_marker_queue.clear();

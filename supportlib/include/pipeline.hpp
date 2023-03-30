@@ -1,5 +1,6 @@
 #pragma once
 #include "cam_preview.hpp"
+#include "input.hpp"
 
 NAMESPACE_BEGIN
 
@@ -8,7 +9,15 @@ struct pipeline {
     mat4 projection_matrix;
 
     uvec2 preview_size;
+    f32 aspect_ratio;
     cam_preview cam_preview_screen;
+
+    shader_program shutter_program;
+    bool anim_started;
+    f32 anim_start_time;
+    f32 anim_duration;
+
+    input_manager input;
     
     u64 start_time;
     f32 time;
