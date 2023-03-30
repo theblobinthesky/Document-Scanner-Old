@@ -209,7 +209,7 @@ void sticky_particle_system::render(engine_backend* backend) {
 
     gen_and_fill_quads(backend);
 
-    use_program(shader);
+    backend->use_program(shader);
     quads.draw();
 }
 

@@ -63,6 +63,8 @@ struct uvec2 {
 
 struct mat4 {
     f32 data[16];
+
+    static mat4 orthographic(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far);
 };
 
 f32 clamp(f32 val, f32 min, f32 max);

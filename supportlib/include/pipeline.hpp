@@ -4,7 +4,12 @@
 NAMESPACE_BEGIN
 
 struct pipeline {
+    engine_backend backend;
+    mat4 projection_matrix;
+
+    uvec2 preview_size;
     cam_preview cam_preview_screen;
+    
     u64 start_time;
     f32 time;
 

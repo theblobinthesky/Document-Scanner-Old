@@ -82,9 +82,7 @@ void docscanner::instanced_quads::draw() {
     glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null, quads_size);
 }
 
-void docscanner::engine_backend::init(mat4 projection_mat) {
-    this->projection_mat = projection_mat;
-
+void docscanner::engine_backend::init() {
     glEnable(GL_BLEND);  
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -131,10 +129,6 @@ shader_program docscanner::engine_backend::compile_and_link(const std::string& v
     if(true || program_found == program_map.end()) {
         shader_program program = compile_and_link_program(vert_shader, frag_shader);
         program_map.emplace(program_id, program.program);
-
-        use_program(program);
-        get_variable(program, "projection").set_mat4(projection_mat);
-
         return program;
     } else {
         return {program_found->second};
@@ -154,6 +148,13 @@ shader_program docscanner::engine_backend::compile_and_link(const std::string& c
     } else {
         return {program_found->second};
     }
+}
+
+void docscanner::engine_backend::use_program(const shader_program &program) {
+    glUseProgram(program.program);
+    check_gl_error("glUseProgram");
+    
+    get_variable(program, "projection").set_mat4(projection_mat);
 }
 
 void docscanner::engine_backend::draw_quad(const vec2& pos, const vec2& size) {
@@ -183,7 +184,19 @@ void docscanner::engine_backend::DEBUG_draw() {
 }
 #endif
 
+scoped_camera_matrix::scoped_camera_matrix(engine_backend* backend, const mat4& camera_matrix) {
+    this->backend = backend;
+
+    previous_matrix = backend->projection_mat;
+    backend->projection_mat = camera_matrix;
+}
+
+scoped_camera_matrix::~scoped_camera_matrix() {
+    backend->projection_mat = previous_matrix;
+}
+
 void docscanner::texture_downsampler::init(engine_backend* backend, uvec2 input_size, svec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor) {
+    this->backend = backend;
     this->input_size = input_size;
     this->output_size = output_size;
     this->input_is_oes_texture = input_is_oes_texture;
@@ -215,16 +228,7 @@ void docscanner::texture_downsampler::init(engine_backend* backend, uvec2 input_
     gauss_blur_y_program = backend->compile_and_link(vert_src, gauss_frag_src_y);
     ASSERT(gauss_blur_y_program.program, "gauss_blur_y_program program could not be compiled.");
 
-    mat4 projection_mat;
-    mat4f_load_ortho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f, projection_mat.data);
-
-    use_program(gauss_blur_x_program);
-    auto proj_matrix_x_var = get_variable(gauss_blur_x_program, "projection");
-    proj_matrix_x_var.set_mat4(projection_mat);
-
-    use_program(gauss_blur_y_program);
-    auto proj_matrix_y_var = get_variable(gauss_blur_y_program, "projection");    
-    proj_matrix_y_var.set_mat4(projection_mat);
+    projection_matrix = mat4::orthographic(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
 
     vertex vertices[] = {
         {{1.f, 0.f}, {1, 0}},
@@ -243,13 +247,15 @@ void docscanner::texture_downsampler::init(engine_backend* backend, uvec2 input_
 }
 
 texture* docscanner::texture_downsampler::downsample() {
+    SCOPED_CAMERA_MATRIX(backend, projection_matrix);
+
     int viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
 
     glBindVertexArray(gauss_quad_buffer.id);
 
     // first blur pass    
-    use_program(gauss_blur_x_program);
+    backend->use_program(gauss_blur_x_program);
     bind_framebuffer(temp_fb);
 
     if(!input_is_oes_texture) {
@@ -261,7 +267,7 @@ texture* docscanner::texture_downsampler::downsample() {
     check_gl_error("glDrawElements");
 
     // second blur pass
-    use_program(gauss_blur_y_program);
+    backend->use_program(gauss_blur_y_program);
     bind_texture_to_slot(0, temp_tex);
     bind_framebuffer(output_fb);
     
@@ -316,6 +322,8 @@ instanced_shader_buffer make_joins_buffer(s32 resolution) {
 }
 
 void docscanner::lines::init(engine_backend* backend, vec2* points, s32 points_size, f32 thickness) {
+    this->backend = backend;
+
     this->points = points;
     closed_points = new vec2[points_size + 1];
     this->points_size = points_size;
@@ -342,14 +350,14 @@ void docscanner::lines::fill() {
 }
 
 void docscanner::lines::draw() {
-    use_program(joins_program);
+    backend->use_program(joins_program);
     get_variable(joins_program, "scale").set_f32(thickness);
     
     glBindVertexArray(joins_buffer.vao);
     glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 16, points_size - 1);
 
 
-    use_program(lines_program);
+    backend->use_program(lines_program);
     get_variable(lines_program, "thickness").set_f32(thickness);
     
     glBindVertexArray(lines_buffer.vao);
@@ -457,11 +465,6 @@ void docscanner::delete_program(shader_program &program) {
         glDeleteProgram(program.program);
         program.program = 0;
     }
-}
-
-void docscanner::use_program(const shader_program &program) {
-    glUseProgram(program.program);
-    check_gl_error("glUseProgram");
 }
 
 void docscanner::dispatch_compute_program(const uvec2 size, u32 depth) {

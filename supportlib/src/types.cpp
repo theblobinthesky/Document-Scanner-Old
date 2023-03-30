@@ -84,6 +84,40 @@ f32 svec2::angle_between(const svec2& a, const svec2& b) {
     return acosf(cos_angle);
 }
 
+
+mat4 mat4::orthographic(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far) {
+    mat4 mat = {};
+
+    f32 r_l = right - left;
+    f32 t_b = top - bottom;
+    f32 f_n = far - near;
+    f32 tx = -(right + left) / (right - left);
+    f32 ty = -(top + bottom) / (top - bottom);
+    f32 tz = -(far + near) / (far - near);
+
+    mat.data[0] = 2.0f / r_l;
+    mat.data[1] = 0.0f;
+    mat.data[2] = 0.0f;
+    mat.data[3] = 0.0f;
+
+    mat.data[4] = 0.0f;
+    mat.data[5] = 2.0f / t_b;
+    mat.data[6] = 0.0f;
+    mat.data[7] = 0.0f;
+
+    mat.data[8] = 0.0f;
+    mat.data[9] = 0.0f;
+    mat.data[10] = -2.0f / f_n;
+    mat.data[11] = 0.0f;
+
+    mat.data[12] = tx;
+    mat.data[13] = ty;
+    mat.data[14] = tz;
+    mat.data[15] = 1.0f;
+
+    return mat;
+}
+
 f32 clamp(f32 val, f32 min, f32 max) {
     if(val < min) return min;
     if(val > max) return max;

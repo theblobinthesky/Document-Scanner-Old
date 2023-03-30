@@ -93,10 +93,11 @@ struct engine_backend {
 
     f32 time;
 
-    void init(mat4 projection_mat);
+    void init();
 
     shader_program compile_and_link(const std::string& vert_src, const std::string& frag_src);
     shader_program compile_and_link(const std::string& comp_src);
+    void use_program(const shader_program& program);
 
     void draw_quad(const vec2& pos, const vec2& size);
 
@@ -106,7 +107,20 @@ struct engine_backend {
 #endif
 };
 
+struct scoped_camera_matrix {
+    engine_backend* backend;
+    mat4 previous_matrix;
+
+    scoped_camera_matrix(engine_backend* backend, const mat4& camera_matrix);
+    ~scoped_camera_matrix();
+};
+
+#define SCOPED_CAMERA_MATRIX(backend, matrix) scoped_camera_matrix SCOPED_CAMERA_MATRIX_VAR((backend), (matrix))
+
 struct texture_downsampler {
+    engine_backend* backend;
+    mat4 projection_matrix;
+
     uvec2 input_size;
     svec2 output_size;
     bool input_is_oes_texture;
@@ -128,6 +142,8 @@ struct texture_downsampler {
 // https://wwwtyro.net/2019/11/18/instanced-lines.html
 
 struct lines {
+    engine_backend* backend;
+
     vec2* points;
     vec2* closed_points;
     s32 points_size;
@@ -155,8 +171,6 @@ shader_program compile_and_link_program(u32 comp_shader);
 void delete_shader(u32 id);
 
 void delete_program(shader_program &program);
-
-void use_program(const shader_program &program);
 
 void dispatch_compute_program(const uvec2 size, u32 depth);
 
@@ -191,7 +205,5 @@ void set_texture_data(const texture &tex, u8* data, int width, int height);
 variable get_variable(const shader_program& program, const char* name);
 
 void draw(const canvas &canvas);
-
-void mat4f_load_ortho(float left, float right, float bottom, float top, float near, float far, float* mat4f);
 
 NAMESPACE_END

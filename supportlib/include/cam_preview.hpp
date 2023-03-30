@@ -14,7 +14,8 @@ struct ANativeWindow;
 NAMESPACE_BEGIN
 
 struct cam_preview {
-    engine_backend backend;
+    engine_backend* backend;
+    mat4 projection_matrix;
 
     shader_program preview_program;
     camera cam;
@@ -42,7 +43,7 @@ struct cam_preview {
     bool is_init;
 
     void pre_init(uvec2 preview_size, int* cam_width, int* cam_height);
-    void init_backend(file_context* file_ctx);
+    void init_backend(engine_backend* backend, file_context* file_ctx, f32 bottom_edge);
 
 #ifdef ANDROID
     void init_cam(ANativeWindow* texture_window);

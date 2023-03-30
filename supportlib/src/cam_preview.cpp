@@ -24,13 +24,15 @@ void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* 
     *cam_height = (int) cam_tex_size.y;
 }
 
-void docscanner::cam_preview::init_backend(file_context* file_ctx) {
-    f32 aspect_ratio = 16.0f / 9.0f;
+void docscanner::cam_preview::init_backend(engine_backend* backend, file_context* file_ctx, f32 bottom_edge) {
+    this->backend = backend;
+
+    f32 aspect_ratio = 4.0f / 3.0f;
     f32 preview_aspect_ratio = preview_size.y / (f32)preview_size.x;
     f32 preview_y_perc = aspect_ratio / preview_aspect_ratio;
-    f32 half_border_y_size = (1.0f - preview_y_perc) / 2.0f;
+    f32 full_border_y_size = 1.0f - preview_y_perc;
 
-    vec2 fit_between_ys = { half_border_y_size, 1.0f - half_border_y_size };
+    vec2 fit_between_ys = { 1.0f - (full_border_y_size - bottom_edge), bottom_edge };
 
     f32 t = (1.0f - fit_between_ys.x) / (fit_between_ys.y - fit_between_ys.x);
     f32 b = 1.0f - fit_between_ys.y / (fit_between_ys.y - fit_between_ys.x);
@@ -39,11 +41,9 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx) {
     f32 l = (1.0f - p) / 2.0f;
     f32 r = 1.0f - l;
 
-    mat4 projection;
-    mat4f_load_ortho(l, r, b, t, -1.0f, 1.0f, projection.data);
-    backend.init(projection);
+    projection_matrix = mat4::orthographic(l, r, t, b, -1.0f, 1.0f);
 
-    preview_program = backend.compile_and_link(vert_src, frag_simple_tex_sampler_src(CAM_USES_OES_TEXTURE, 0));
+    preview_program = backend->compile_and_link(vert_src, frag_simple_tex_sampler_src(CAM_USES_OES_TEXTURE, 0));
 
     // buffer stuff
     vertex vertices[] = {
@@ -70,17 +70,17 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx) {
     nn_contour_out = new u8[nn_contour_out_size];
 
 #if CAM_USES_OES_TEXTURE
-    tex_downsampler.init(&backend, cam_tex_size, downsampled_size, true, null, 1.0);
+    tex_downsampler.init(backend, cam_tex_size, downsampled_size, true, null, 1.0);
 #else
-    tex_downsampler.init(&backend, cam_tex_size, downsampled_size, false, &cam.cam_tex, 2.0);
+    tex_downsampler.init(backend, cam_tex_size, downsampled_size, false, &cam.cam_tex, 2.0);
 #endif
 
     mesher.init(&nn_exists_out, (f32*)nn_contour_out, downsampled_size, 0.4f);
 
     auto buffer = make_shader_buffer();
 
-    particles.init(&backend, &mesher, svec2({ 5, 5 }), 0.2f, 0.02f, 2.0f);
-    border.init(&backend, &mesher, svec2({ 16, 16 }), 0.01f);
+    particles.init(backend, &mesher, svec2({ 5, 5 }), 0.2f, 0.02f, 2.0f);
+    border.init(backend, &mesher, svec2({ 16, 16 }), 0.01f);
     
     nn = create_neural_network_from_path(file_ctx, "contour_model.tflite", execution_pref::sustained_speed);
 
@@ -98,7 +98,7 @@ void docscanner::cam_preview::init_cam() {
 #endif
 
 void docscanner::cam_preview::render(f32 time) {
-    backend.time = time; // todo: this entire structure is ugly
+    SCOPED_CAMERA_MATRIX(backend, projection_matrix);
 
     if(!is_init) return;
     cam.get();
@@ -112,13 +112,13 @@ void docscanner::cam_preview::render(f32 time) {
     u32 out_sizes[out_size] = { nn_contour_out_size }; // , sizeof(f32) };
     invoke_neural_network_on_data(nn, nn_input_buffer, nn_input_buffer_size, out_datas, out_sizes, out_size);
 
-    mesher.mesh(&backend);
+    mesher.mesh(backend);
 
     canvas c = {
         .bg_color={0, 1, 0}
     };
     
-    use_program(preview_program);
+    backend->use_program(preview_program);
 
     unbind_framebuffer();
     bind_shader_buffer(cam_quad_buffer);
@@ -131,12 +131,12 @@ void docscanner::cam_preview::render(f32 time) {
 
 #if true
     if(mesher.does_mesh_exist()) {
-        particles.render(&backend);
+        particles.render(backend);
         border.render(time);
     }
 #endif
 
-    backend.DEBUG_draw();
+    backend->DEBUG_draw();
 
     auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
     auto dur = end - last_time;
