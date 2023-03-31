@@ -33,6 +33,9 @@ def export(model, tflite_path):
     converter.inference_output_type = tf.float32
     tflite_model = converter.convert()
 
+    print()
+    tf.lite.experimental.Analyzer.analyze(model_content=tflite_model, gpu_compatibility=True)
+
     with open(tflite_path, "wb") as f:
         f.write(tflite_model)
 
