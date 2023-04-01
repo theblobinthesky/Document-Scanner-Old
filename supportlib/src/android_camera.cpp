@@ -136,12 +136,11 @@ camera docscanner::find_and_open_back_camera(const uvec2& min_size, uvec2& size)
     return { device };
 }
 
-void docscanner::init_camera_capture(const camera& camera, ANativeWindow* texture_window) {
+void docscanner::init_camera_capture(camera& camera, ANativeWindow* texture_window) {
     ACameraDevice* cam = camera.device;
 
     // prepare request with desired template
-    ACaptureRequest* request = nullptr;
-    ACameraDevice_createCaptureRequest(cam, TEMPLATE_STILL_CAPTURE, &request);
+    ACameraDevice_createCaptureRequest(cam, TEMPLATE_STILL_CAPTURE, &camera.request);
 
     // prepare temp_compute_output surface
     ANativeWindow_acquire(texture_window);
@@ -149,7 +148,7 @@ void docscanner::init_camera_capture(const camera& camera, ANativeWindow* textur
     // finalize capture request
     ACameraOutputTarget* texture_target = nullptr;
     ACameraOutputTarget_create(texture_window, &texture_target);
-    ACaptureRequest_addTarget(request, texture_target);
+    ACaptureRequest_addTarget(camera.request, texture_target);
 
     // prepare capture session output...
     ACaptureSessionOutput* texture_output = nullptr;
@@ -167,6 +166,13 @@ void docscanner::init_camera_capture(const camera& camera, ANativeWindow* textur
         .onActive = onSessionActive
     };
 
+    // prepare capture session
+    ACameraDevice_createCaptureSession(cam, outputs, &state_callbacks, &camera.session);
+
+    resume_camera_capture(camera);
+}
+
+void docscanner::resume_camera_capture(camera& cam) {
     ACameraCaptureSession_captureCallbacks capture_callbacks = {
             .context = nullptr,
             .onCaptureStarted = nullptr,
@@ -178,12 +184,12 @@ void docscanner::init_camera_capture(const camera& camera, ANativeWindow* textur
             .onCaptureBufferLost = nullptr,
     };
 
-    // prepare capture session
-    ACameraCaptureSession* session = nullptr;
-    ACameraDevice_createCaptureSession(cam, outputs, &state_callbacks, &session);
-
     // start capturing continuously
-    ACameraCaptureSession_setRepeatingRequest(session, &capture_callbacks, 1, &request, nullptr);
+    ACameraCaptureSession_setRepeatingRequest(cam.session, &capture_callbacks, 1, &cam.request, nullptr);
+}
+
+void docscanner::pause_camera_capture(camera& cam) {
+    ACameraCaptureSession_stopRepeating(cam.session);
 }
 
 void docscanner::camera::get() {}

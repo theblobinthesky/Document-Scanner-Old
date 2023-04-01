@@ -3,6 +3,8 @@
 
 #ifdef ANDROID
 struct ACameraDevice;
+struct ACaptureRequest;
+struct ACameraCaptureSession;
 struct ANativeWindow;
 #elif defined(LINUX)
 #include "backend.hpp"
@@ -14,10 +16,14 @@ NAMESPACE_BEGIN
 #ifdef ANDROID
 struct camera {
     ACameraDevice* device;
+    ACaptureRequest* request;
+    ACameraCaptureSession* session;
     void get();
 };
 
-void init_camera_capture(const camera& cam, ANativeWindow* texture_window);
+void init_camera_capture(camera& cam, ANativeWindow* texture_window);
+void resume_camera_capture(camera& cam);
+void pause_camera_capture(camera& cam);
 #elif defined(LINUX)
 struct camera {
     int fd;

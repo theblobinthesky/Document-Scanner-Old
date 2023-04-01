@@ -36,6 +36,7 @@ struct cam_preview {
     mask_mesher mesher;
     sticky_particle_system particles;
     mesh_border border;
+    mesh_cutout cutout;
 
     animation<f32> unwrap_animation;
 

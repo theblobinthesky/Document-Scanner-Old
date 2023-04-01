@@ -106,6 +106,8 @@ constexpr const char* frag_debug_src = version_head R"(precision mediump float;
         }
 )";
 
+std::string frag_sampler_src(bool use_oes);
+
 constexpr const char* frag_DEBUG_marker_src = version_head R"(precision mediump float;
         in vec2 out_uvs;
         out vec4 out_col;

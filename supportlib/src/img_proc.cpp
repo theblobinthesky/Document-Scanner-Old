@@ -79,14 +79,9 @@ void interpolate_mesh(vertex* vertices, const vec2* left, const vec2* top, const
     const s32 n = points_per_side;
     for(s32 y = 0; y < n; y++) {
         for(s32 x = 0; x < n; x++) {
-            vertex vert = {
-                .pos = left_right[y * n + x] * 0.5f + top_bottom[x * n + (n - 1 - y)] * 0.5f,
-                .uv = { x / (f32)(n - 1), y / (f32)(n - 1) }
-            };
-
-            vert.pos = { vert.pos.x, vert.pos.y };
-
-            vertices[y * n + x] = vert;
+            vec2 pos = left_right[y * n + x] * 0.5f + top_bottom[x * n + (n - 1 - y)] * 0.5f;
+            
+            vertices[y * n + x] = { pos, pos };
         }
     }
 
@@ -314,4 +309,39 @@ void mesh_border::render(f32 time) {
     gen_and_fill_lines();
 
     border_lines.draw();
+}
+
+void mesh_cutout::gen_and_fill_mesh() {
+    fill_shader_buffer(buffer, mesher->blend_vertices, mesher->mesh_size.area() * sizeof(vertex), indices.data(), indices.size() * sizeof(u32));
+    bind_shader_buffer(buffer);
+}
+
+void mesh_cutout::init(engine_backend* backend, const mask_mesher* mesher) {
+    this->backend = backend;
+    this->mesher = mesher;
+
+    for(s32 x = 0; x < mesher->mesh_size.x - 1; x++) {
+        for(s32 y = 0; y < mesher->mesh_size.y - 1; y++) {
+            indices.push_back(x * mesher->mesh_size.y + y);
+            indices.push_back((x + 1) * mesher->mesh_size.y + y);
+            indices.push_back((x + 1) * mesher->mesh_size.y + (y + 1));
+
+            indices.push_back(x * mesher->mesh_size.y + y);
+            indices.push_back((x + 1) * mesher->mesh_size.y + (y + 1));
+            indices.push_back(x * mesher->mesh_size.y + (y + 1));
+        }
+    }
+
+    buffer = make_shader_buffer();
+    fill_shader_buffer(buffer, mesher->blend_vertices, mesher->mesh_size.area() * sizeof(vertex), indices.data(), indices.size() * sizeof(u32));
+
+    shader = backend->compile_and_link(vert_src, frag_sampler_src(CAM_USES_OES_TEXTURE));
+}
+
+void mesh_cutout::render(f32 time) {
+    gen_and_fill_mesh();
+
+    backend->use_program(shader);
+    bind_shader_buffer(buffer);
+    glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, null);
 }

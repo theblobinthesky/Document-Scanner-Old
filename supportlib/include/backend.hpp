@@ -29,7 +29,7 @@ struct texture {
 };
 
 struct shader_buffer {
-    u32 id;
+    u32 vao, vbo, ebo;
 };
 
 struct instanced_shader_buffer {

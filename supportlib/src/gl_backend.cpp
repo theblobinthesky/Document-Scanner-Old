@@ -229,9 +229,6 @@ void texture_downsampler_stage::init(engine_backend* backend, svec2 input_size, 
     std::string gauss_frag_src_y = frag_gauss_blur_src(false, req_kernel_size.y, {0.0f, 1.0f / (f32)input_size.y});
     gauss_blur_y_program = backend->compile_and_link(vert_src, gauss_frag_src_y);
     ASSERT(gauss_blur_y_program.program, "gauss_blur_y_program program could not be compiled.");
-
-    LOGI("gauss_frag_src_x: %s", gauss_frag_src_x.c_str());
-    LOGI("gauss_frag_src_y: %s", gauss_frag_src_y.c_str());
 }
 
 void texture_downsampler_stage::downsample() {
@@ -323,7 +320,7 @@ void docscanner::texture_downsampler::downsample() {
     int viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
 
-    glBindVertexArray(gauss_quad_buffer.id);
+    glBindVertexArray(gauss_quad_buffer.vao);
 
     for(s32 i = 0; i < stages_size; i++) {
         stages[i].downsample();
@@ -528,15 +525,16 @@ void docscanner::dispatch_compute_program(const uvec2 size, u32 depth) {
 }
 
 shader_buffer docscanner::make_shader_buffer() {
-    GLuint vao;
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
+    shader_buffer buffer = {};
 
-    GLuint buffers[2];
+    glGenVertexArrays(1, &buffer.vao);
+    glBindVertexArray(buffer.vao);
+
+    GLuint buffers[2];  
     glGenBuffers(2, buffers);
 
-    GLuint vbo = buffers[0];
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    buffer.vbo = buffers[0];
+    glBindBuffer(GL_ARRAY_BUFFER, buffer.vbo);
 
 #define attrib_enable(index, num_comp, var_name) \
         glVertexAttribPointer(index, num_comp, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*) offsetof(vertex, var_name)); \
@@ -547,10 +545,10 @@ shader_buffer docscanner::make_shader_buffer() {
 
 #undef attrib_enable
 
-    GLuint ebo = buffers[1];
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    buffer.ebo = buffers[1];
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer.ebo);
 
-    return {vao};
+    return buffer;
 }
 
 instanced_shader_buffer docscanner::make_instanced_quad_shader_buffer(shader_buffer buff) {
@@ -573,7 +571,7 @@ instanced_shader_buffer docscanner::make_instanced_quad_shader_buffer(shader_buf
 #undef attrib_enable
 
     return {
-        .vao=buff.id,
+        .vao=buff.vao,
         .instance_vbo=instance_vbo
     };
 }
@@ -601,7 +599,7 @@ instanced_shader_buffer docscanner::make_instanced_point_shader_buffer(shader_bu
 #undef attrib_enable
 
     return {
-        .vao=buff.id,
+        .vao=buff.vao,
         .instance_vbo=instance_vbo
     };
 }
@@ -620,7 +618,7 @@ instanced_shader_buffer docscanner::make_instanced_line_shader_buffer(shader_buf
 #undef attrib_enable
 
     return {
-        .vao=buff.id,
+        .vao=buff.vao,
         .instance_vbo=instance_vbo
     };
 }
@@ -628,19 +626,23 @@ instanced_shader_buffer docscanner::make_instanced_line_shader_buffer(shader_buf
 void docscanner::fill_shader_buffer(const shader_buffer& buff, vertex* vertices, u32 vertices_size, u32* indices, u32 indices_size) {
     ASSERT(vertices || indices, "Neither vertices nor indices can be updated.");
 
-    glBindVertexArray(buff.id);
-
     if(vertices) {
+        glBindBuffer(GL_ARRAY_BUFFER, buff.vbo);
         glBufferData(GL_ARRAY_BUFFER, vertices_size, vertices, GL_STATIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        check_gl_error("glBufferData");
     }
         
     if(indices) {
+        glBindVertexArray(buff.vao);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices_size, indices, GL_STATIC_DRAW);
+        check_gl_error("glBufferData");
     }
 }
 
 void docscanner::bind_shader_buffer(const shader_buffer& buff) {
-    glBindVertexArray(buff.id);
+    glBindVertexArray(buff.vao);
+    check_gl_error("glBindVertexArray");
 }
 
 texture docscanner::create_texture(uvec2 size, u32 format) {

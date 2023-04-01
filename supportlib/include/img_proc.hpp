@@ -6,6 +6,14 @@
 
 NAMESPACE_BEGIN
 
+#ifdef ANDROID
+#define CAM_USES_OES_TEXTURE true
+#elif defined(LINUX)
+#define CAM_USES_OES_TEXTURE false
+#else
+#error "Platform not supported yet."
+#endif
+
 extern const s32 points_per_side_incl_start_corner;
 extern const s32 points_per_contour;
 
@@ -72,6 +80,20 @@ struct mesh_border {
 
     void gen_and_fill_lines();
     void init(engine_backend* backend, const mask_mesher* mesher, svec2 size, f32 thickness);
+    void render(f32 time);
+};
+
+struct mesh_cutout {
+    engine_backend* backend;
+    const mask_mesher* mesher;
+
+    std::vector<u32> indices;
+
+    shader_buffer buffer;
+    shader_program shader;
+
+    void gen_and_fill_mesh();
+    void init(engine_backend* backend, const mask_mesher* mesher);
     void render(f32 time);
 };
 

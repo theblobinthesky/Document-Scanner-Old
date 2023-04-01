@@ -7,14 +7,6 @@
 
 using namespace docscanner;
 
-#ifdef ANDROID
-#define CAM_USES_OES_TEXTURE true
-#elif defined(LINUX)
-#define CAM_USES_OES_TEXTURE false
-#else
-#error "Platform not supported yet."
-#endif
-
 constexpr f32 preview_aspect_ratio = 4.0f / 3.0f;
 constexpr f32 paper_aspect_ratio = 1.41421356237;
 
@@ -77,7 +69,7 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx, f32 bottom_ed
 #if CAM_USES_OES_TEXTURE
     tex_downsampler.init(backend, { (s32)cam_tex_size.x, (s32)cam_tex_size.y }, downsampled_size, true, null, 2, 1.0f);
 #else
-    tex_downsampler.init(backend, cam_tex_size, downsampled_size, false, &cam.cam_tex, 2);
+    tex_downsampler.init(backend, { (s32)cam_tex_size.x, (s32)cam_tex_size.y }, downsampled_size, false, &cam.cam_tex, 2, 1.0f);
 #endif
 
     mesher.init(&nn_exists_out, (f32*)nn_contour_out, downsampled_size, point_range, point_dst, 0.4f);
@@ -102,6 +94,7 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx, f32 bottom_ed
 
     particles.init(backend, &mesher, svec2({ 5, 5 }), 0.2f, 0.02f, 2.0f);
     border.init(backend, &mesher, svec2({ 16, 16 }), 0.01f);
+    cutout.init(backend, &mesher);
     
     nn = create_neural_network_from_path(file_ctx, "contour_model.tflite", execution_pref::sustained_speed);
 
@@ -160,6 +153,7 @@ void docscanner::cam_preview::render(f32 time) {
     draw(c);
 
     if(mesher.does_mesh_exist()) {
+        cutout.render(time);
         particles.render(backend);
         border.render(time);
     }

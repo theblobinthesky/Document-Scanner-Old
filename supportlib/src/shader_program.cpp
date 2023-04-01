@@ -66,8 +66,8 @@ std::string compute_gauss_coefficients(s32 N, s32 M) {
     return ret;
 }
 
-std::string docscanner::frag_gauss_blur_src(bool use_oes, u32 N, const vec2& pixel_shift) {
-    std::string sampler_src = use_oes ? 
+std::string get_sampler_src(bool use_oes) {
+    return use_oes ? 
     R"( 
         #extension GL_OES_EGL_image_external_essl3 : require
         uniform layout(binding = 0) samplerExternalOES sampler;
@@ -75,10 +75,12 @@ std::string docscanner::frag_gauss_blur_src(bool use_oes, u32 N, const vec2& pix
     R"(
         uniform layout(binding = 0) sampler2D sampler;
     )";
+}
 
+std::string docscanner::frag_gauss_blur_src(bool use_oes, u32 N, const vec2& pixel_shift) {
     u32 M = N / 2 + 1;
 
-    return version_head + sampler_src + R"(
+    return version_head + get_sampler_src(use_oes) + R"(
         precision mediump float;
         
         in vec2 out_uvs;
@@ -103,6 +105,19 @@ std::string docscanner::frag_gauss_blur_src(bool use_oes, u32 N, const vec2& pix
             }
 
             out_col = col;
+        }
+    )";
+}
+
+
+std::string docscanner::frag_sampler_src(bool use_oes) {
+    return version_head + get_sampler_src(use_oes) + R"(
+        precision mediump float;
+        in vec2 out_uvs;
+        out vec4 out_col;
+    
+        void main() {
+             out_col = texture(sampler, vec2(out_uvs.y, 1.0 - out_uvs.x));
         }
     )";
 }
