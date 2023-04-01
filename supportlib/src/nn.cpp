@@ -109,7 +109,7 @@ void docscanner::invoke_neural_network_on_data(const neural_network& nn, u8* inp
         TfLiteTensorCopyToBuffer(out_ten, out_datas[i], out_sizes[i]);
     }
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    LOGI("Duration of nn inference: %lldms", dur.count());
+    // auto end = std::chrono::high_resolution_clock::now();
+    // auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    // LOGI("Duration of nn inference: %lldms", dur.count());
 }

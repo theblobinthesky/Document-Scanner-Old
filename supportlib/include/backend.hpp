@@ -1,5 +1,7 @@
 #pragma once
+#include "log.hpp"
 #include "utils.hpp"
+#include "input.hpp"
 #include "shader_program.hpp"
 #include <vector>
 
@@ -80,11 +82,15 @@ struct DEBUG_marker {
 #endif
 
 struct engine_backend {
+    input_manager input;
+
     std::unordered_map<u64, u32> shader_map;
     std::unordered_map<u64, u32> program_map;
     mat4 projection_mat;
     
     shader_buffer quad_buffer;
+
+    f32 preview_height;
 
 #ifdef DEBUG
     shader_program DEBUG_marker_program;
@@ -93,7 +99,7 @@ struct engine_backend {
 
     f32 time;
 
-    void init();
+    void init(f32 preview_height);
 
     shader_program compile_and_link(const std::string& vert_src, const std::string& frag_src);
     shader_program compile_and_link(const std::string& comp_src);
@@ -116,6 +122,75 @@ struct scoped_camera_matrix {
 };
 
 #define SCOPED_CAMERA_MATRIX(backend, matrix) scoped_camera_matrix SCOPED_CAMERA_MATRIX_VAR((backend), (matrix))
+
+enum class animation_curve {
+    LINEAR = 0, EASE_IN, EASE_IN_OUT
+};
+
+enum animation_flags {
+    RESET_AFTER_COMPLETION = 1,
+    CONTINUE_PLAYING_REVERSED = 2
+};
+
+template<typename T>
+struct animation {
+    const engine_backend* backend;
+
+    animation_curve curve;
+    T start_value;
+    T end_value;
+    T value;
+
+    f32 start_time;
+    f32 duration;
+    bool is_running;
+    u32 flags;
+
+    animation(engine_backend* backend, animation_curve curve, T start_value, T end_value, f32 duration, u32 flags) 
+        : backend(backend), curve(curve), start_value(start_value), end_value(end_value), value(start_value), 
+          duration(duration), is_running(false), flags(flags) {}
+
+    void start() {
+        is_running = true;
+        value = start_value;
+
+        start_time = backend->time;
+    }
+
+    T update() {
+        if(!is_running) return value;
+
+        f32 time_elapsed = backend->time - start_time;
+        f32 t = time_elapsed / duration;
+        
+        if(t > 1.0f) {
+            is_running = false;
+
+            if(flags & animation_flags::RESET_AFTER_COMPLETION) value = start_value;
+            else value = end_value;
+
+            return value;
+        }
+
+        if(flags & animation_flags::CONTINUE_PLAYING_REVERSED) {
+            t = 1.0f - 2.0f * abs(t - 0.5f);
+        }
+        
+        switch(curve) {
+        case animation_curve::LINEAR: break;
+        case animation_curve::EASE_IN: {
+            t = ease_in_sine(t);
+        } break;
+        case animation_curve::EASE_IN_OUT: {
+            t = ease_in_out_quad(t);
+        } break;
+        default: LOGE_AND_BREAK("Animation curve is not supported.");
+        }
+
+        value = end_value * t + start_value * (1.0f - t); 
+        return value;
+    }
+};
 
 struct texture_downsampler_stage {
     engine_backend* backend;

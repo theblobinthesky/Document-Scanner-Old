@@ -50,11 +50,13 @@ struct svec2 {
     f32 length_squared() const;
     s32 area() const;
     
-    static vec2 lerp(const svec2& a, const svec2& b, f32 t);
     static f32 dot(const svec2& a, const svec2& b);
     static f32 angle_between(const svec2& a, const svec2& b);
 };
 
+struct rect {
+    vec2 tl, br;
+};
 
 struct uvec2 {
     u32 x;
@@ -76,6 +78,8 @@ f32 ease_in_sine(f32 t);
 f32 ease_in_out_quad(f32 t);
 
 f32 lerp(f32 a, f32 b, f32 t);
+
+vec2 map_to_rect(const vec2& pt, const rect* rect);
 
 #define NAMESPACE_BEGIN namespace docscanner {
 #define NAMESPACE_END }

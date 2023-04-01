@@ -14,7 +14,10 @@ const s32 docscanner::points_per_contour = points_per_side_incl_start_corner * 4
 constexpr f32 binarize_threshold = 0.8f;
 constexpr s32 points_per_side = 10;
 
-void mask_mesher::init(const f32* exists, f32* heatmap, const svec2& heatmap_size, f32 smoothness) {
+void mask_mesher::init(const f32* exists, f32* heatmap, const svec2& heatmap_size, const rect& point_range, const rect& point_dst, f32 smoothness) {
+    this->point_range = point_range;
+    this->point_dst = point_dst;
+
     this->exists = exists;
     this->heatmap = heatmap;
     this->mesh_size = { points_per_side, points_per_side };
@@ -27,6 +30,8 @@ void mask_mesher::init(const f32* exists, f32* heatmap, const svec2& heatmap_siz
     bottom_contour = new vec2[points_per_side];
     left_contour = new vec2[points_per_side];
     vertices = new vertex[mesh_size.area()];
+    blend_to_vertices = new vec2[mesh_size.area()];
+    blend_vertices = new vertex[mesh_size.area()];
 }
 
 void sample_points_from_contour(vec2* pts, const vec2* contour, s32 points_per_contour, s32 corner_idx, s32 n) {
@@ -60,7 +65,7 @@ vec2* interpolate_lines(const vec2* start, const vec2* end_backwards) {
         const vec2& e = end_backwards[points_per_side - 1 - y];
 
         for(u32 x = 0; x < points_per_side; x++) {
-            positions[x * points_per_side + y] = vec2::lerp(s, e, x / (f32)(points_per_side - 1));
+            positions[x * points_per_side + y] = vec2::lerp(s, e, 1.0f - x / (f32)(points_per_side - 1));
         }
     }
 
@@ -79,7 +84,9 @@ void interpolate_mesh(vertex* vertices, const vec2* left, const vec2* top, const
                 .uv = { x / (f32)(n - 1), y / (f32)(n - 1) }
             };
 
-            vertices[x * n + y] = vert;
+            vert.pos = { vert.pos.x, vert.pos.y };
+
+            vertices[y * n + x] = vert;
         }
     }
 
@@ -100,10 +107,10 @@ vec2 mask_mesher::sample_at(vec2 pt) const {
     s32 x = (s32)x_i;
     s32 y = (s32)y_i;
 
-    const vec2& tl = vertices[x * mesh_size.y + y].pos;
-    const vec2& tr = vertices[(x + 1) * mesh_size.y + y].pos;
-    const vec2& br = vertices[(x + 1) * mesh_size.y + (y + 1)].pos;
-    const vec2& bl = vertices[x * mesh_size.y + (y + 1)].pos;
+    const vec2& tl = blend_vertices[x * mesh_size.y + y].pos;
+    const vec2& tr = blend_vertices[(x + 1) * mesh_size.y + y].pos;
+    const vec2& br = blend_vertices[(x + 1) * mesh_size.y + (y + 1)].pos;
+    const vec2& bl = blend_vertices[x * mesh_size.y + (y + 1)].pos;
 
     const vec2 t = tr * x_t + tl * (1.0f - x_t);
     const vec2 b = br * x_t + bl * (1.0f - x_t);
@@ -112,7 +119,17 @@ vec2 mask_mesher::sample_at(vec2 pt) const {
 
     return ret;
 }
-    
+
+inline vec2 map_from_range_to_dst(vec2 pt, const rect& range, const rect& dst) {
+    pt.x = (pt.x - range.tl.x) / (range.br.x - range.tl.x);
+    pt.y = (pt.y - range.tl.y) / (range.br.y - range.tl.y);
+
+    pt.x = dst.tl.x + pt.x * (dst.br.x - dst.tl.x);
+    pt.y = dst.tl.y + pt.y * (dst.br.y - dst.tl.y);
+
+    return pt;
+}
+
 void mask_mesher::mesh(engine_backend* backend) {
     if (!does_mesh_exist()) return;
 
@@ -132,7 +149,7 @@ void mask_mesher::mesh(engine_backend* backend) {
             }
         }
 
-        const vec2 pt = { 1.0f - max_x / (f32)(heatmap_size.x - 1), 1.0f - max_y / (f32)(heatmap_size.y - 1) };
+        const vec2 pt = { 1.0f - max_x / (f32)(heatmap_size.x - 1), max_y / (f32)(heatmap_size.y - 1) };
         contour[c] = contour[c] * smoothness + pt * (1.0f - smoothness);
     }
 
@@ -142,6 +159,20 @@ void mask_mesher::mesh(engine_backend* backend) {
     sample_points_from_contour(left_contour, contour, points_per_contour, 3, points_per_side);
     
     interpolate_mesh(vertices, left_contour, top_contour, right_contour, bottom_contour);
+
+    for(s32 i = 0; i < mesh_size.area(); i++) {
+        vertices[i].pos = map_from_range_to_dst(vertices[i].pos, point_range, point_dst);
+    }
+}
+
+void mask_mesher::blend(f32 t) {
+    for(s32 i = 0; i < mesh_size.area(); i++) {
+        const vertex& vertex = vertices[i];
+        blend_vertices[i] = {
+            .pos = vec2::lerp(vertex.pos, blend_to_vertices[i], t),
+            .uv = vertex.uv
+        };
+    }
 }
 
 bool mask_mesher::does_mesh_exist() const {
@@ -169,7 +200,7 @@ void sticky_particle_system::gen_and_fill_quads(const engine_backend* backend) {
             const vec2& from = pos_from[x * size.y + y];
             const vec2& to = pos_to[x * size.y + y];
 
-            vec2 curr = vec2::lerp(from, to, t);
+            vec2 curr = vec2::lerp(from, to, 1.0f - t);
 
             const vec2 uv = {
                 (x + curr.x) / (f32)size.x,

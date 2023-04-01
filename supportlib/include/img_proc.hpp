@@ -10,23 +10,29 @@ extern const s32 points_per_side_incl_start_corner;
 extern const s32 points_per_contour;
 
 struct mask_mesher {
+    rect point_range, point_dst;
+
     vec2* contour;
     vec2* top_contour;
     vec2* right_contour;
     vec2* bottom_contour;
     vec2* left_contour;
-    vertex* vertices;
-    svec2 mesh_size;
-    svec2 heatmap_size;
 
     const f32* exists;
     f32* heatmap;
+    svec2 heatmap_size;
+
+    svec2 mesh_size;
+    vertex* vertices;
+    vertex* blend_vertices;
+    vec2* blend_to_vertices;
 
     f32 smoothness;
 
-    void init(const f32* exists, f32* heatmap, const svec2& heatmap_size, f32 smoothness);
+    void init(const f32* exists, f32* heatmap, const svec2& heatmap_size, const rect& point_range, const rect& point_dst, f32 smoothness);
     vec2 sample_at(vec2 pt) const;
     void mesh(engine_backend* backend);
+    void blend(f32 t);
 
     bool does_mesh_exist() const;
 };

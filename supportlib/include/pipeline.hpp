@@ -17,10 +17,10 @@ struct pipeline {
     f32 anim_start_time;
     f32 anim_duration;
 
-    input_manager input;
-    
     u64 start_time;
-    f32 time;
+    animation<f32> shutter_animation;
+
+    pipeline();
 
     void pre_init(uvec2 preview_size, int* cam_width, int* cam_height);
 

@@ -82,7 +82,9 @@ void docscanner::instanced_quads::draw() {
     glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null, quads_size);
 }
 
-void docscanner::engine_backend::init() {
+void docscanner::engine_backend::init(f32 preview_height) {
+    this->preview_height = preview_height;
+
     glEnable(GL_BLEND);  
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 

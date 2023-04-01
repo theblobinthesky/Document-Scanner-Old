@@ -54,7 +54,7 @@ DECL_FUNC(void, GLSurfaceRenderer, nativeMotionEvent)(JNIEnv* env, jobject obj, 
     }
 
     docscanner::pipeline *pipeline = docscanner::get_persistent_pipeline(env, obj);
-    if (pipeline) pipeline->input.handle_motion_event(motion_event);
+    if (pipeline) pipeline->backend.input.handle_motion_event(motion_event);
 }
 
 DECL_FUNC(void, GLSurfaceRenderer, nativeRender)(JNIEnv *env, jobject obj) {

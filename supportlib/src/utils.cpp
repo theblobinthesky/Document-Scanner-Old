@@ -32,9 +32,10 @@ vec2 vec2::normalize() const {
     return { x / len, y / len };
 }
 
+// todo: investigate all uses of lerp. i changed the order of a and b
 vec2 vec2::lerp(const vec2& a, const vec2& b, f32 t) {
     f32 it = 1.0f - t;
-    return { a.x * t + b.x * it, a.y * t + b.y * it };
+    return { a.x * it + b.x * t, a.y * it + b.y * t };
 }
 
 f32 vec2::dot(const vec2& a, const vec2& b) {
@@ -70,11 +71,6 @@ s32 svec2::area() const {
     return x * y;
 }
 
-vec2 svec2::lerp(const svec2& a, const svec2& b, f32 t) {
-    f32 it = 1.0f - t;
-    return { a.x * t + b.x * it, a.y * t + b.y * it };
-}
-
 f32 svec2::dot(const svec2& a, const svec2& b) {
     return (f32)(a.x * b.x + a.y * b.y);
 }
@@ -83,7 +79,6 @@ f32 svec2::angle_between(const svec2& a, const svec2& b) {
     f32 cos_angle = std::abs(svec2::dot(a, b)) / (a.length_squared() * b.length_squared());
     return acosf(cos_angle);
 }
-
 
 mat4 mat4::orthographic(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far) {
     mat4 mat = {};
@@ -147,4 +142,8 @@ f32 ease_in_out_quad(f32 t) {
 
 f32 lerp(f32 a, f32 b, f32 t) {
     return b * t + a * (1.0f - t);
+}
+
+vec2 map_to_rect(const vec2& pt, const rect* rect) {
+    return { lerp(rect->tl.x, rect->br.x, pt.x), lerp(rect->tl.y, rect->br.y, pt.y) };
 }
