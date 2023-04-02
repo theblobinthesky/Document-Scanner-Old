@@ -21,7 +21,7 @@ void get_time(u64& start_time, f32& time) {
 
 pipeline::pipeline() 
     : start_time(0), cam_preview_screen(&backend),
-      shutter_animation(&backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.15f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED) {}
+      shutter_animation(&backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.0f, 0.15f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED) {}
     
 void docscanner::pipeline::pre_init(uvec2 preview_size, int* cam_width, int* cam_height) {
     this->preview_size = preview_size;
@@ -40,11 +40,12 @@ void docscanner::pipeline::init_backend() {
 
     projection_matrix = mat4::orthographic(0.0f, 1.0f, aspect_ratio, 0.0f, -1.0f, 1.0f);
 
+    f32 cam_preview_bottom_edge = 0.1f;
 #ifdef ANDROID
-    cam_preview_screen.init_backend(file_ctx, 0.25f);
+    cam_preview_screen.init_backend(file_ctx, cam_preview_bottom_edge);
     cam_preview_screen.init_cam(texture_window);
 #elif defined(LINUX)
-    cam_preview_screen.init_backend(null, 0.05f);
+    cam_preview_screen.init_backend(null, cam_preview_bottom_edge);
     cam_preview_screen.init_cam();
 #endif
 

@@ -1,18 +1,21 @@
 package com.erikstern.documentscanner
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.content.res.AssetManager
 import android.graphics.SurfaceTexture
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
+import android.util.Log
 import android.view.MotionEvent
 import android.view.Surface
+import android.view.Window
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
-class GLSurfaceRenderer : GLSurfaceView.Renderer {
+class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
     lateinit var context: Context
 
     var surfaceTextureId = -1
@@ -26,13 +29,15 @@ class GLSurfaceRenderer : GLSurfaceView.Renderer {
     private external fun nativeCreate()
     private external fun nativeDestroy()
     private external fun nativePreInit(preview_width: Int, preview_height: Int) : IntArray
-    private external fun nativeInit(assetManager: AssetManager, surface: Surface)
+    private external fun nativeInit(assetManager: AssetManager, surface: Surface, window: Window)
     private external fun nativeMotionEvent(event: Int, x: Float, y: Float)
 
     private external fun nativeRender()
 
     @SuppressLint("ClickableViewAccessibility")
     fun setSurfaceView(surfaceView: GLSurfaceView) {
+        Log.i("test", "setSurfaceView");
+
         surfaceView.setEGLContextClientVersion(3)
         surfaceView.setRenderer(this)
         surfaceView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
@@ -53,6 +58,8 @@ class GLSurfaceRenderer : GLSurfaceView.Renderer {
     }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
+        Log.i("test", "onSurfaceCreated");
+
         val textures = IntArray(1)
         GLES20.glGenTextures(1, textures, 0)
         surfaceTextureId = textures[0]
@@ -67,11 +74,13 @@ class GLSurfaceRenderer : GLSurfaceView.Renderer {
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
+        Log.i("test", "onSurfaceChanged");
+
         surface = Surface(surfaceTexture)
         val dimens = nativePreInit(width, height)
         surfaceTexture.setDefaultBufferSize(dimens[0], dimens[1])
         
-        nativeInit(context.assets, surface)
+        nativeInit(context.assets, surface, activity.window)
     }
 
     override fun onDrawFrame(gl: GL10?) {

@@ -11,7 +11,7 @@ import com.erikstern.documentscanner.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
-    private val surfaceRenderer = GLSurfaceRenderer()
+    private val surfaceRenderer = GLSurfaceRenderer(this)
 
     private fun initSurfaceViewWithGivenPermissions() {
         surfaceRenderer.setSurfaceView(binding.glSurfaceView)

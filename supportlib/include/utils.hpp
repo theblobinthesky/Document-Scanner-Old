@@ -37,6 +37,8 @@ struct vec2 {
 
 struct vec3 {
     f32 x, y, z;
+
+    static vec3 lerp(const vec3& a, const vec3& b, f32 t);
 };
 
 struct svec2 {

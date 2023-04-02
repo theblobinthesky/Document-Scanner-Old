@@ -27,6 +27,7 @@ bool docscanner::destroy_persistent_pipeline(JNIEnv* env, jobject obj) {
     delete pipeline;
 
     env->SetLongField(obj, field_id, 0);
+
     return true;
 }
 

@@ -33,14 +33,47 @@ DECL_FUNC(jintArray, GLSurfaceRenderer, nativePreInit)(JNIEnv* env, jobject obj,
     return jintArray_from_ptr(env, dimens, 2);
 }
 
-DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject asset_mngr, jobject surface) {
+DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject asset_mngr, jobject surface, jobject window_obj) {
     auto* mngr_from_java = AAssetManager_fromJava(env, asset_mngr);
     auto file_ctx = docscanner::get_file_ctx_from_asset_mngr(mngr_from_java);
 
-    auto *window = ANativeWindow_fromSurface(env, surface);
+    ANativeWindow *window = ANativeWindow_fromSurface(env, surface);
 
     docscanner::pipeline *pipeline = docscanner::get_persistent_pipeline(env, obj);
     if (pipeline) pipeline->init_backend(window, &file_ctx);
+
+    /*jclass windowClass = env->FindClass("android/view/Window");
+    jmethodID setStatusBarColorMethod = env->GetMethodID(windowClass, "setStatusBarColor", "(I)V");
+    env->CallVoidMethod(window_obj, setStatusBarColorMethod, 0xcecece);*/
+}
+
+#include <jni.h>
+#include <android/configuration.h>
+#include <android/native_activity.h>
+
+#define UI_MODE_NIGHT_YES 0x00000002
+
+bool isDarkModeEnabled(ANativeActivity* activity) {
+    JNIEnv* env;
+    activity->vm->AttachCurrentThread(&env, NULL);
+
+    jclass contextClass = env->GetObjectClass(activity->clazz);
+    jmethodID getResources = env->GetMethodID(contextClass, "getResources", "()Landroid/content/res/Resources;");
+    jobject resourcesObject = env->CallObjectMethod(activity->clazz, getResources);
+
+    jclass resourcesClass = env->GetObjectClass(resourcesObject);
+    jmethodID getConfiguration = env->GetMethodID(resourcesClass, "getConfiguration", "()Landroid/content/res/Configuration;");
+    jobject configurationObject = env->CallObjectMethod(resourcesObject, getConfiguration);
+
+    jclass configurationClass = env->GetObjectClass(configurationObject);
+    jfieldID uiModeField = env->GetFieldID(configurationClass, "uiMode", "I");
+    jint uiMode = env->GetIntField(configurationObject, uiModeField);
+
+    bool isDarkMode = (uiMode & UI_MODE_NIGHT_YES) == UI_MODE_NIGHT_YES;
+
+    activity->vm->DetachCurrentThread();
+
+    return isDarkMode;
 }
 
 DECL_FUNC(void, GLSurfaceRenderer, nativeMotionEvent)(JNIEnv* env, jobject obj, jint event, jfloat x, jfloat y) {

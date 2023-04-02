@@ -47,6 +47,10 @@ f32 vec2::angle_between(const vec2& a, const vec2& b) {
     return acosf(cos_angle);
 }
 
+vec3 vec3::lerp(const vec3& a, const vec3& b, f32 t) {
+    return { ::lerp(a.x, b.x, t), ::lerp(a.y, b.y, t), ::lerp(a.z, b.z, t) };
+}
+
 svec2 svec2::operator+(svec2 other) const {
     return { x + other.x, y + other.y }; 
 }

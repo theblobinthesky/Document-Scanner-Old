@@ -142,13 +142,14 @@ struct animation {
     T value;
 
     f32 start_time;
+    f32 start_delay;
     f32 duration;
     bool is_running;
     u32 flags;
 
-    animation(engine_backend* backend, animation_curve curve, T start_value, T end_value, f32 duration, u32 flags) 
+    animation(engine_backend* backend, animation_curve curve, T start_value, T end_value, f32 start_delay, f32 duration, u32 flags) 
         : backend(backend), curve(curve), start_value(start_value), end_value(end_value), value(start_value), 
-          duration(duration), is_running(false), flags(flags) {}
+          start_delay(start_delay), duration(duration), is_running(false), flags(flags) {}
 
     void start() {
         is_running = true;
@@ -161,7 +162,9 @@ struct animation {
         if(!is_running) return value;
 
         f32 time_elapsed = backend->time - start_time;
-        f32 t = time_elapsed / duration;
+        f32 t = (time_elapsed - start_delay) / duration;
+
+        if(t < 0.0f) return start_value;
         
         if(t > 1.0f) {
             is_running = false;

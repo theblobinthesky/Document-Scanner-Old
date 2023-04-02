@@ -12,8 +12,9 @@ constexpr f32 paper_aspect_ratio = 1.41421356237;
 
 cam_preview::cam_preview(engine_backend* backend) 
     : backend(backend), 
-      unwrap_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 1.0f, 0),
-      blendout_animation(backend, animation_curve::EASE_IN_OUT, 0.5f, 0.0f, 0.5f, 0),
+      unwrap_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0),
+      blendout_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 0.5f, 0),
+      blendin_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 1.0f, 0.5f, 0),
       is_live_camera_streaming(true) {}
 
 void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* cam_height) {
@@ -118,6 +119,7 @@ void cam_preview::unwrap() {
     is_live_camera_streaming = false;
     unwrap_animation.start();
     blendout_animation.start();
+    blendin_animation.start();
 }
 
 void docscanner::cam_preview::render(f32 time) {
@@ -140,12 +142,14 @@ void docscanner::cam_preview::render(f32 time) {
 
     mesher.blend(unwrap_animation.update());
 
+    blendout_animation.update();
+
     canvas c = {
-        .bg_color={0, 0, 0}
+        .bg_color=vec3::lerp({0, 0, 0}, {0.15f, 0.15f, 0.15f}, blendin_animation.update())
     };
-    
+
     backend->use_program(preview_program);
-    get_variable(preview_program, "alpha").set_f32(blendout_animation.update());
+    get_variable(preview_program, "alpha").set_f32(lerp(0.5f, 0.0f, blendout_animation.value));
 
     unbind_framebuffer();
     bind_shader_buffer(cam_quad_buffer);
