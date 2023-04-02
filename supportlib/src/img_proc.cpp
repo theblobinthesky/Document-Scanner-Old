@@ -79,7 +79,10 @@ void interpolate_mesh(vertex* vertices, const vec2* left, const vec2* top, const
     const s32 n = points_per_side;
     for(s32 y = 0; y < n; y++) {
         for(s32 x = 0; x < n; x++) {
-            vec2 pos = left_right[y * n + x] * 0.5f + top_bottom[x * n + (n - 1 - y)] * 0.5f;
+            const vec2 lr = left_right[y * n + x];
+            const vec2 tb = top_bottom[x * n + (n - 1 - y)];
+
+            vec2 pos = { lr.x, tb.y };
             
             vertices[y * n + x] = { pos, pos };
         }
@@ -126,8 +129,6 @@ inline vec2 map_from_range_to_dst(vec2 pt, const rect& range, const rect& dst) {
 }
 
 void mask_mesher::mesh(engine_backend* backend) {
-    if (!does_mesh_exist()) return;
-
     for(s32 c = 0; c < points_per_contour; c++) {
         f32 max_value = 0.0f;
         s32 max_x = -1, max_y = -1;
@@ -170,39 +171,39 @@ void mask_mesher::blend(f32 t) {
     }
 }
 
-bool mask_mesher::does_mesh_exist() const {
-    return true; // (*exists) >= binarize_threshold;
-}
-
 void sticky_particle_system::gen_from_and_to() {
     for(s32 x = 0; x < size.x; x++) {
         for(s32 y = 0; y < size.y; y++) {
-            f32 x_t0 = random_f32(margin, 1.0f - margin), x_t1 = random_f32(margin, 1.0f - margin);
-            f32 y_t0 = random_f32(margin, 1.0f - margin), y_t1 = random_f32(margin, 1.0f - margin);
-        
-            pos_from[x * size.y + y] = { x_t0, y_t0 };
-            pos_to[x * size.y + y] = { x_t1, y_t1 };
+            s32 i = x * size.y + y;
+            f32 d = random_f32(margin, 1.0f - margin);
+
+            const vec2 from = pos_to[i];
+            vec2 to = (random_f32(0, 1) < 0.5f) ? vec2({ d, from.y }) : vec2({ from.x, d });
+
+            pos_from[i] = from;
+            pos_to[i] = to;
         }
     }
 }
 
 void sticky_particle_system::gen_and_fill_quads(const engine_backend* backend) {
     f32 t = (backend->time - last_pos_reset_time) / anim_duration;
-    t = ease_in_out_quad(t);
+    t = ease_in_sine(t);
 
     for(s32 x = 0; x < size.x; x++) {
         for(s32 y = 0; y < size.y; y++) {
-            const vec2& from = pos_from[x * size.y + y];
-            const vec2& to = pos_to[x * size.y + y];
+            s32 i = x * size.y + y;
+            const vec2& from = pos_from[i];
+            const vec2& to = pos_to[i];
 
-            vec2 curr = vec2::lerp(from, to, 1.0f - t);
+            vec2 curr = vec2::lerp(from, to, t);
 
             const vec2 uv = {
                 (x + curr.x) / (f32)size.x,
                 (y + curr.y) / (f32)size.y
             };
 
-            instanced_quad* quad = quads.quads + (x * size.y + y);
+            instanced_quad* quad = quads.quads + i;
             quad->v0 = mesher->sample_at(uv + vec2({-particle_size, -particle_size}));
             quad->v1 = mesher->sample_at(uv + vec2({+particle_size, -particle_size}));
             quad->v2 = mesher->sample_at(uv + vec2({+particle_size, +particle_size}));
@@ -225,6 +226,13 @@ void sticky_particle_system::init(engine_backend* backend, const mask_mesher* me
     quads.init(size.area());
     pos_from = new vec2[size.area()];
     pos_to = new vec2[size.area()];
+
+    for(s32 i = 0; i < size.area(); i++) {
+        pos_to[i] = {
+            random_f32(margin, 1.0f - margin),
+            random_f32(margin, 1.0f - margin)
+        };
+    }
 }
 
 void sticky_particle_system::render(engine_backend* backend) {

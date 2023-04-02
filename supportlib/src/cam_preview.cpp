@@ -11,7 +11,10 @@ constexpr f32 preview_aspect_ratio = 4.0f / 3.0f;
 constexpr f32 paper_aspect_ratio = 1.41421356237;
 
 cam_preview::cam_preview(engine_backend* backend) 
-    : backend(backend), unwrap_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 2.0f, 0) {}
+    : backend(backend), 
+      unwrap_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 1.0f, 0),
+      blendout_animation(backend, animation_curve::EASE_IN_OUT, 0.5f, 0.0f, 0.5f, 0),
+      is_live_camera_streaming(true) {}
 
 void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* cam_height) {
     this->preview_size = preview_size;
@@ -92,7 +95,7 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx, f32 bottom_ed
         }
     }
 
-    particles.init(backend, &mesher, svec2({ 5, 5 }), 0.2f, 0.02f, 2.0f);
+    particles.init(backend, &mesher, svec2({ 4, 4 }), 0.05f, 0.015f, 2.0f);
     border.init(backend, &mesher, svec2({ 16, 16 }), 0.01f);
     cutout.init(backend, &mesher);
     
@@ -112,29 +115,29 @@ void docscanner::cam_preview::init_cam() {
 #endif
 
 void cam_preview::unwrap() {
+    is_live_camera_streaming = false;
     unwrap_animation.start();
+    blendout_animation.start();
 }
 
 void docscanner::cam_preview::render(f32 time) {
     if(!is_init) return;
 
-    motion_event event = backend->input.get_motion_event({0, 0}, {1, backend->preview_height});
-    if(event.type == motion_type::TOUCH_DOWN) {
-        LOGI("unwrapping...");
+    if(is_live_camera_streaming) {
+        cam.get();
+
+        tex_downsampler.downsample();
+
+        get_framebuffer_data(*tex_downsampler.output_fb, tex_downsampler.output_size, nn_input_buffer, nn_input_buffer_size);
+        
+        constexpr u32 out_size = 1; // 2;
+        u8* out_datas[out_size] = { nn_contour_out }; //, (u8*)&nn_exists_out };
+        u32 out_sizes[out_size] = { nn_contour_out_size }; // , sizeof(f32) };
+        invoke_neural_network_on_data(nn, nn_input_buffer, nn_input_buffer_size, out_datas, out_sizes, out_size);
+
+        mesher.mesh(backend);
     }
-    
-    cam.get();
 
-    tex_downsampler.downsample();
-
-    get_framebuffer_data(*tex_downsampler.output_fb, tex_downsampler.output_size, nn_input_buffer, nn_input_buffer_size);
-    
-    constexpr u32 out_size = 1; // 2;
-    u8* out_datas[out_size] = { nn_contour_out }; //, (u8*)&nn_exists_out };
-    u32 out_sizes[out_size] = { nn_contour_out_size }; // , sizeof(f32) };
-    invoke_neural_network_on_data(nn, nn_input_buffer, nn_input_buffer_size, out_datas, out_sizes, out_size);
-
-    mesher.mesh(backend);
     mesher.blend(unwrap_animation.update());
 
     canvas c = {
@@ -142,6 +145,7 @@ void docscanner::cam_preview::render(f32 time) {
     };
     
     backend->use_program(preview_program);
+    get_variable(preview_program, "alpha").set_f32(blendout_animation.update());
 
     unbind_framebuffer();
     bind_shader_buffer(cam_quad_buffer);
@@ -152,11 +156,9 @@ void docscanner::cam_preview::render(f32 time) {
 
     draw(c);
 
-    if(mesher.does_mesh_exist()) {
-        cutout.render(time);
-        particles.render(backend);
-        border.render(time);
-    }
+    cutout.render(time);
+    particles.render(backend);
+    border.render(time);
 
     backend->DEBUG_draw();
 

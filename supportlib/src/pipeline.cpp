@@ -21,7 +21,7 @@ void get_time(u64& start_time, f32& time) {
 
 pipeline::pipeline() 
     : start_time(0), cam_preview_screen(&backend),
-      shutter_animation(&backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.25f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED) {}
+      shutter_animation(&backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.15f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED) {}
     
 void docscanner::pipeline::pre_init(uvec2 preview_size, int* cam_width, int* cam_height) {
     this->preview_size = preview_size;

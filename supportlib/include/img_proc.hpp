@@ -41,8 +41,6 @@ struct mask_mesher {
     vec2 sample_at(vec2 pt) const;
     void mesh(engine_backend* backend);
     void blend(f32 t);
-
-    bool does_mesh_exist() const;
 };
 
 struct sticky_particle_system {

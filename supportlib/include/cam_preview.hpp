@@ -38,7 +38,9 @@ struct cam_preview {
     mesh_border border;
     mesh_cutout cutout;
 
+    bool is_live_camera_streaming;
     animation<f32> unwrap_animation;
+    animation<f32> blendout_animation;
 
     bool is_init;
 

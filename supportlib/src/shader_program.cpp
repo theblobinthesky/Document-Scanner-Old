@@ -6,24 +6,27 @@
 
 using namespace docscanner;
 
-std::string docscanner::frag_simple_tex_sampler_src(bool oes_input, u32 binding_slot) {
-    std::string sampler_src = oes_input ? 
+std::string get_sampler_src(bool use_oes) {
+    return use_oes ? 
     R"( 
         #extension GL_OES_EGL_image_external_essl3 : require
-
-        uniform layout(binding = )" + std::to_string(binding_slot) + R"() samplerExternalOES cam_sampler;
+        uniform layout(binding = 0) samplerExternalOES sampler;
     )" : 
-    R"( 
-        uniform layout(binding = )" + std::to_string(binding_slot) + R"() sampler2D cam_sampler;
+    R"(
+        uniform layout(binding = 0) sampler2D sampler;
     )";
+}
 
-    return version_head + sampler_src + R"(
+std::string docscanner::frag_simple_tex_sampler_src(bool oes_input, u32 binding_slot) {
+    return version_head + get_sampler_src(oes_input) + R"(
         precision mediump float;
         in vec2 out_uvs;
         out vec4 out_col;
 
+        uniform float alpha;
+
         void main() {
-            out_col = texture(cam_sampler, out_uvs);
+            out_col = vec4(texture(sampler, out_uvs).rgb, alpha);
         }
     )";
 }
@@ -64,17 +67,6 @@ std::string compute_gauss_coefficients(s32 N, s32 M) {
     delete[] coeffs;
 
     return ret;
-}
-
-std::string get_sampler_src(bool use_oes) {
-    return use_oes ? 
-    R"( 
-        #extension GL_OES_EGL_image_external_essl3 : require
-        uniform layout(binding = 0) samplerExternalOES sampler;
-    )" : 
-    R"(
-        uniform layout(binding = 0) sampler2D sampler;
-    )";
 }
 
 std::string docscanner::frag_gauss_blur_src(bool use_oes, u32 N, const vec2& pixel_shift) {
