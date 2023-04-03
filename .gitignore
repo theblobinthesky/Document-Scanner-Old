@@ -16,3 +16,4 @@
 supportlib/bin
 supportlib/deps
 *.npy
+*.ttf

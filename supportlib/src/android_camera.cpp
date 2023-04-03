@@ -41,7 +41,7 @@ void onCaptureSequenceAborted(void* context, ACameraCaptureSession* session, int
 void onCaptureCompleted(void* context, ACameraCaptureSession* session, ACaptureRequest* request, const ACameraMetadata* result) {
 }
 
-camera docscanner::find_and_open_back_camera(const uvec2& min_size, uvec2& size) {
+camera docscanner::find_and_open_back_camera(const svec2& min_size, svec2& size) {
     ACameraManager* mng = ACameraManager_create();
 
     ACameraIdList* camera_ids = nullptr;
@@ -70,14 +70,14 @@ camera docscanner::find_and_open_back_camera(const uvec2& min_size, uvec2& size)
 
                 size_t min_index = 0, max_index = 0;
                 s32 min_resolution = S32_MAX, max_resolution = 0;
-                uvec2 max_size;
+                svec2 max_size;
                 
                 for (size_t e = 0; e < entry.count; e += 4) {
                     if (entry.data.i32[e + 3]) continue; // skip input streams
                     if (entry.data.i32[e + 0] != AIMAGE_FORMAT_YUV_420_888) continue; // skip wrong input formats
                     // todo: support raw photography for increased quality!
 
-                    uvec2 entry_size = { (u32) entry.data.i32[e + 1], (u32) entry.data.i32[e + 2] };
+                    svec2 entry_size = { entry.data.i32[e + 1], entry.data.i32[e + 2] };
                     int32_t resolution = entry_size.x * entry_size.y;
 
                     // fallback max size

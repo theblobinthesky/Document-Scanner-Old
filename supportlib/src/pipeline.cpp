@@ -20,10 +20,10 @@ void get_time(u64& start_time, f32& time) {
 }
 
 pipeline::pipeline() 
-    : start_time(0), cam_preview_screen(&backend),
+    : ui(&backend), start_time(0), cam_preview_screen(&backend),
       shutter_animation(&backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.0f, 0.15f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED) {}
     
-void docscanner::pipeline::pre_init(uvec2 preview_size, int* cam_width, int* cam_height) {
+void docscanner::pipeline::pre_init(svec2 preview_size, int* cam_width, int* cam_height) {
     this->preview_size = preview_size;
     aspect_ratio = preview_size.y / (f32)preview_size.x;
 
@@ -33,10 +33,11 @@ void docscanner::pipeline::pre_init(uvec2 preview_size, int* cam_width, int* cam
 
 #ifdef ANDROID
 void docscanner::pipeline::init_backend(ANativeWindow* texture_window, file_context* file_ctx) {
+    backend.file_ctx = file_ctx;
 #elif defined(LINUX)
 void docscanner::pipeline::init_backend() {
 #endif
-    backend.init(aspect_ratio);
+    backend.init(preview_size, aspect_ratio);
 
     projection_matrix = mat4::orthographic(0.0f, 1.0f, aspect_ratio, 0.0f, -1.0f, 1.0f);
 
@@ -50,6 +51,9 @@ void docscanner::pipeline::init_backend() {
 #endif
 
     shutter_program = backend.compile_and_link(vert_quad_src, frag_shutter_src);
+
+    font = ui.get_font("font.ttf", 0.3f);
+    my_text.init(&backend, font, { 0.1f, 0.0f }, "String gAGAT");
 }
 
 void docscanner::pipeline::render() {
@@ -74,6 +78,8 @@ void docscanner::pipeline::render() {
 
     get_variable(shutter_program, "inner_out").set_f32(shutter_animation.update());
     backend.draw_quad(pos, size);
+
+    my_text.render();
 
     backend.input.end_frame();
 }

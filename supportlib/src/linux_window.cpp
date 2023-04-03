@@ -6,7 +6,7 @@
 
 using namespace docscanner;
 
-constexpr uvec2 size = { 1080 / 2, 2400 / 2 };
+constexpr svec2 size = { 1080 / 2, 2400 / 2 };
 
 int main() {
     if(!glfwInit()) {

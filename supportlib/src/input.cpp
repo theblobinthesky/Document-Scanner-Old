@@ -3,7 +3,7 @@
 
 using namespace docscanner;
 
-void input_manager::init(uvec2 preview_size, f32 aspect_ratio) {
+void input_manager::init(svec2 preview_size, f32 aspect_ratio) {
     this->preview_size = preview_size;
     this->aspect_ratio = aspect_ratio;
 }

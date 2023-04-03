@@ -27,8 +27,8 @@ struct cam_preview {
 
     neural_network nn;
 
-    uvec2 cam_tex_size;
-    uvec2 preview_size;
+    svec2 cam_tex_size;
+    svec2 preview_size;
 
     u64 last_time;
     
@@ -45,7 +45,7 @@ struct cam_preview {
     bool is_init;
 
     cam_preview(engine_backend* backend);
-    void pre_init(uvec2 preview_size, int* cam_width, int* cam_height);
+    void pre_init(svec2 preview_size, int* cam_width, int* cam_height);
     void init_backend(file_context* file_ctx, f32 bottom_edge);
 
 #ifdef ANDROID

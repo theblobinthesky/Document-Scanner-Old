@@ -17,7 +17,7 @@ cam_preview::cam_preview(engine_backend* backend)
       blendin_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 1.0f, 0.5f, 0),
       is_live_camera_streaming(true) {}
 
-void docscanner::cam_preview::pre_init(uvec2 preview_size, int* cam_width, int* cam_height) {
+void docscanner::cam_preview::pre_init(svec2 preview_size, int* cam_width, int* cam_height) {
     this->preview_size = preview_size;
 
     cam = find_and_open_back_camera(preview_size, cam_tex_size);

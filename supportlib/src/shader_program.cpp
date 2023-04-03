@@ -6,19 +6,19 @@
 
 using namespace docscanner;
 
-std::string get_sampler_src(bool use_oes) {
+std::string get_sampler_src(bool use_oes, u32 binding_slot) {
     return use_oes ? 
     R"( 
         #extension GL_OES_EGL_image_external_essl3 : require
-        uniform layout(binding = 0) samplerExternalOES sampler;
+        uniform layout(binding = )" + std::to_string(binding_slot) + R"() samplerExternalOES sampler;
     )" : 
     R"(
-        uniform layout(binding = 0) sampler2D sampler;
+        uniform layout(binding = )" + std::to_string(binding_slot) + R"() sampler2D sampler;
     )";
 }
 
 std::string docscanner::frag_simple_tex_sampler_src(bool oes_input, u32 binding_slot) {
-    return version_head + get_sampler_src(oes_input) + R"(
+    return version_head + get_sampler_src(oes_input, binding_slot) + R"(
         precision mediump float;
         in vec2 out_uvs;
         out vec4 out_col;
@@ -29,6 +29,21 @@ std::string docscanner::frag_simple_tex_sampler_src(bool oes_input, u32 binding_
             out_col = vec4(texture(sampler, out_uvs).rgb, alpha);
         }
     )";
+}
+
+std::string docscanner::frag_glyph_src(u32 binding_slot) {
+    return version_head + get_sampler_src(false, binding_slot) + R"(
+            precision mediump float;
+            in vec2 out_uvs;
+            out vec4 out_col;
+
+            uniform float alpha;
+
+            void main() {
+                float color = texture(sampler, out_uvs).r;
+                out_col = vec4(color, color, color, color);
+            }
+        )";
 }
 
 std::string compute_gauss_coefficients(s32 N, s32 M) {
@@ -72,7 +87,7 @@ std::string compute_gauss_coefficients(s32 N, s32 M) {
 std::string docscanner::frag_gauss_blur_src(bool use_oes, u32 N, const vec2& pixel_shift) {
     u32 M = N / 2 + 1;
 
-    return version_head + get_sampler_src(use_oes) + R"(
+    return version_head + get_sampler_src(use_oes, 0) + R"(
         precision mediump float;
         
         in vec2 out_uvs;
@@ -103,7 +118,7 @@ std::string docscanner::frag_gauss_blur_src(bool use_oes, u32 N, const vec2& pix
 
 
 std::string docscanner::frag_sampler_src(bool use_oes) {
-    return version_head + get_sampler_src(use_oes) + R"(
+    return version_head + get_sampler_src(use_oes, 0) + R"(
         precision mediump float;
         in vec2 out_uvs;
         out vec4 out_col;

@@ -82,7 +82,8 @@ void docscanner::instanced_quads::draw() {
     glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null, quads_size);
 }
 
-void docscanner::engine_backend::init(f32 preview_height) {
+void docscanner::engine_backend::init(svec2 preview_size_px, f32 preview_height) {
+    this->preview_size_px = preview_size_px;
     this->preview_height = preview_height;
 
     glEnable(GL_BLEND);  
@@ -216,8 +217,8 @@ void texture_downsampler_stage::init(engine_backend* backend, svec2 input_size, 
     req_kernel_size.x = even_to_uneven(req_kernel_size.x);
     req_kernel_size.y = even_to_uneven(req_kernel_size.y);
 
-    temp_tex = create_texture({(u32)output_size.x, (u32)input_size.y}, GL_RGBA16F);
-    output_tex = create_texture({(u32)output_size.x, (u32)output_size.y}, GL_RGBA32F);
+    temp_tex = make_texture({ output_size.x, input_size.y }, GL_RGBA16F);
+    output_tex = make_texture(output_size, GL_RGBA32F);
     
     temp_fb = framebuffer_from_texture(temp_tex);
     output_fb = framebuffer_from_texture(output_tex);
@@ -568,6 +569,9 @@ instanced_shader_buffer docscanner::make_instanced_quad_shader_buffer(shader_buf
     attrib_enable(2, 2, v2);
     attrib_enable(3, 2, v3);
 
+    attrib_enable(4, 2, uv_tl);
+    attrib_enable(5, 2, uv_br);
+
 #undef attrib_enable
 
     return {
@@ -645,7 +649,7 @@ void docscanner::bind_shader_buffer(const shader_buffer& buff) {
     check_gl_error("glBindVertexArray");
 }
 
-texture docscanner::create_texture(uvec2 size, u32 format) {
+texture docscanner::make_texture(svec2 size, u32 format) {
     u32 id;
     glGenTextures(1, &id);
     glBindTexture(GL_TEXTURE_2D, id);
@@ -693,7 +697,7 @@ void docscanner::get_framebuffer_data(const frame_buffer &fb, const svec2 &size,
     check_gl_error("glReadPixels");
 }
 
-void docscanner::set_texture_data(const texture &tex, u8* data, int width, int height) {
+void docscanner::set_texture_data(const texture &tex, u8* data, const svec2& size) {
     glBindTexture(GL_TEXTURE_2D, tex.id);
 
     GLenum format, type;
@@ -709,7 +713,8 @@ void docscanner::set_texture_data(const texture &tex, u8* data, int width, int h
     default: LOGE_AND_BREAK("Unsupported texture format in set_texture_data.");
     }
 
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, format, type, data);
+    check_gl_error("glTexSubImage2D1");
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, size.x, size.y, format, type, data);
     check_gl_error("glTexSubImage2D");
 }
 

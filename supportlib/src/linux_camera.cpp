@@ -21,7 +21,7 @@
 
 using namespace docscanner;
 
-camera docscanner::find_and_open_back_camera(const uvec2& min_size, uvec2& size) {
+camera docscanner::find_and_open_back_camera(const svec2& min_size, svec2& size) {
     camera cam = {};
 
     cam.fd = open("/dev/video0", O_RDWR);
@@ -63,7 +63,7 @@ camera docscanner::find_and_open_back_camera(const uvec2& min_size, uvec2& size)
         LOGE_AND_BREAK("Webcam format is not supported.");
     }
 
-    cam.cam_size = { image_format.fmt.pix.width, image_format.fmt.pix.height };
+    cam.cam_size = { (s32)image_format.fmt.pix.width, (s32)image_format.fmt.pix.height };
     size = cam.cam_size;
 
     v4l2_requestbuffers req_buffer = {};
@@ -105,8 +105,9 @@ camera docscanner::find_and_open_back_camera(const uvec2& min_size, uvec2& size)
         return {};
     }
 
+    cam.rot_f32_buffer = new f32[size.x * size.y * 4];
     cam.f32_buffer = new f32[size.x * size.y * 4];
-    cam.cam_tex = create_texture(size, 0x8814);
+    cam.cam_tex = make_texture(size, 0x8814);
 
     return cam;
 }
@@ -155,11 +156,12 @@ void docscanner::camera::get() {
         RGBFromYCbCr(Y02, Cb01, Cr01, C_R2, C_G2, C_B2);
         RGBFromYCbCr(Y03, Cb01, Cr01, C_R3, C_G3, C_B3);
 
+
 #define write_out_pixel(i) \
-        f32_buffer[f_i + 0] = C_R##i; \
-        f32_buffer[f_i + 1] = C_G##i; \
-        f32_buffer[f_i + 2] = C_B##i; \
-        f32_buffer[f_i + 3] = 1.0;  \
+        rot_f32_buffer[f_i + 0] = C_R##i; \
+        rot_f32_buffer[f_i + 1] = C_G##i; \
+        rot_f32_buffer[f_i + 2] = C_B##i; \
+        rot_f32_buffer[f_i + 3] = 1.0;  \
         f_i += 4;
 
         write_out_pixel(0);
@@ -168,7 +170,7 @@ void docscanner::camera::get() {
         write_out_pixel(3);
     }
 
-    set_texture_data(cam_tex, reinterpret_cast<u8*>(f32_buffer), cam_size.x, cam_size.y);
+    set_texture_data(cam_tex, reinterpret_cast<u8*>(rot_f32_buffer), cam_size);
 }
 
 void docscanner::init_camera_capture(const camera& cam) {

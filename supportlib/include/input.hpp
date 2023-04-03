@@ -15,10 +15,10 @@ struct motion_event {
 
 struct input_manager {
     motion_event event;
-    uvec2 preview_size;
+    svec2 preview_size;
     f32 aspect_ratio;
 
-    void init(uvec2 preview_size, f32 aspect_ratio);
+    void init(svec2 preview_size, f32 aspect_ratio);
     void handle_motion_event(const motion_event& event);
     motion_event get_motion_event(const vec2& tl, const vec2& br);
     void end_frame();

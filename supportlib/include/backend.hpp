@@ -2,6 +2,7 @@
 #include "log.hpp"
 #include "utils.hpp"
 #include "input.hpp"
+#include "assets.hpp"
 #include "shader_program.hpp"
 #include <vector>
 
@@ -62,6 +63,7 @@ struct variable {
 
 struct instanced_quad {
     vec2 v0, v1, v2, v3;
+    vec2 uv_tl, uv_br;
 };
 
 struct instanced_quads {
@@ -83,6 +85,7 @@ struct DEBUG_marker {
 
 struct engine_backend {
     input_manager input;
+    file_context* file_ctx;
 
     std::unordered_map<u64, u32> shader_map;
     std::unordered_map<u64, u32> program_map;
@@ -90,6 +93,7 @@ struct engine_backend {
     
     shader_buffer quad_buffer;
 
+    svec2 preview_size_px;
     f32 preview_height;
 
 #ifdef DEBUG
@@ -99,7 +103,7 @@ struct engine_backend {
 
     f32 time;
 
-    void init(f32 preview_height);
+    void init(svec2 preview_size_px, f32 preview_height);
 
     shader_program compile_and_link(const std::string& vert_src, const std::string& frag_src);
     shader_program compile_and_link(const std::string& comp_src);
@@ -283,7 +287,7 @@ void bind_shader_buffer(const shader_buffer& buff);
 
 void fill_shader_buffer(const shader_buffer& buff, vertex* vertices, u32 vertices_size, u32* indices, u32 indices_size);
 
-texture create_texture(uvec2 size, u32 format);
+texture make_texture(svec2 size, u32 format);
 
 void bind_image_to_slot(u32 slot, const texture &tex);
 
@@ -297,7 +301,7 @@ frame_buffer framebuffer_from_texture(const texture& tex);
 
 void get_framebuffer_data(const frame_buffer &fb, const svec2 &size, u8* &data, u32 data_size);
 
-void set_texture_data(const texture &tex, u8* data, int width, int height);
+void set_texture_data(const texture &tex, u8* data, const svec2& size);
 
 variable get_variable(const shader_program& program, const char* name);
 

@@ -29,12 +29,12 @@ DECL_FUNC(jintArray, GLSurfaceRenderer, nativePreInit)(JNIEnv* env, jobject obj,
     if (!pipeline) return {};
 
     int dimens[2];
-    pipeline->pre_init({(u32) preview_width, (u32) preview_height}, dimens + 0, dimens + 1);
+    pipeline->pre_init({preview_width, preview_height }, dimens + 0, dimens + 1);
     return jintArray_from_ptr(env, dimens, 2);
 }
 
 DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject asset_mngr, jobject surface, jobject window_obj) {
-    auto* mngr_from_java = AAssetManager_fromJava(env, asset_mngr);
+    auto* mngr_from_java  = AAssetManager_fromJava(env, asset_mngr);
     auto file_ctx = docscanner::get_file_ctx_from_asset_mngr(mngr_from_java);
 
     ANativeWindow *window = ANativeWindow_fromSurface(env, surface);

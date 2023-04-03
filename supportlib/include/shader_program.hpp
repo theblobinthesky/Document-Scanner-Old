@@ -37,6 +37,8 @@ constexpr const char* vert_quad_src = version_head R"(uniform mat4 projection;
 
 std::string frag_simple_tex_sampler_src(bool oes_input, u32 binding_slot);
 
+std::string frag_glyph_src(u32 binding_slot);
+
 constexpr const char* vert_instanced_quad_src = version_head R"(uniform mat4 projection;
     layout (location = 0) in vec2 pos;
     layout (location = 1) in vec2 uv;
@@ -46,12 +48,15 @@ constexpr const char* vert_instanced_quad_src = version_head R"(uniform mat4 pro
     layout (location = 4) in vec2 v2;
     layout (location = 5) in vec2 v3;
 
+    layout (location = 6) in vec2 uv_tl;
+    layout (location = 7) in vec2 uv_br;
+
     out vec2 out_uvs;
 
     void main() {
         vec2 v_pos = mix(mix(v0, v1, pos.x), mix(v3, v2, pos.x), pos.y);
         gl_Position = projection * vec4(v_pos, 0, 1);
-        out_uvs = uv;
+        out_uvs = vec2(mix(uv_tl.x, uv_br.x, uv.x), mix(uv_tl.y, uv_br.y, uv.y));
     }
 )";
 
