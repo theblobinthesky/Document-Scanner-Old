@@ -39,3 +39,5 @@ target_compile_definitions(docscanner PUBLIC ${TARGET_PLATFORM_UPPER})
 set(OUTPUT_DIR "${PROJECT_BINARY_DIR}/../../../bin/${TARGET_PLATFORM_LOWER}/${ABI}")
 set_target_properties(docscanner PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${OUTPUT_DIR})
 set_target_properties(docscanner PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${OUTPUT_DIR})
+
+set_target_properties(docscanner PROPERTIES POSITION_INDEPENDENT_CODE ON)

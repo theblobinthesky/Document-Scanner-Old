@@ -1,5 +1,6 @@
 #include "utils.hpp"
 #include "backend.hpp"
+#include "user_interface.hpp"
 #include "assets.hpp"
 #include "nn.hpp"
 #include "img_proc.hpp"
@@ -15,6 +16,7 @@ NAMESPACE_BEGIN
 
 struct cam_preview {
     engine_backend* backend;
+    ui_manager* ui;
 
     shader_program preview_program;
     camera cam;
@@ -30,13 +32,14 @@ struct cam_preview {
     svec2 cam_tex_size;
     svec2 preview_size;
 
-    u64 last_time;
-    
     texture_downsampler tex_downsampler;
     mask_mesher mesher;
     sticky_particle_system particles;
     mesh_border border;
     mesh_cutout cutout;
+
+    shader_program shutter_program;
+    animation<f32> shutter_animation;
 
     bool is_live_camera_streaming;
     animation<f32> unwrap_animation;
@@ -44,9 +47,9 @@ struct cam_preview {
 
     bool is_init;
 
-    cam_preview(engine_backend* backend);
+    cam_preview(engine_backend* backend, ui_manager* ui);
     void pre_init(svec2 preview_size, int* cam_width, int* cam_height);
-    void init_backend(file_context* file_ctx, f32 bottom_edge);
+    void init_backend(file_context* file_ctx, f32 bottom_edge, const rect& unwrapped_rect);
 
 #ifdef ANDROID
     void init_cam(ANativeWindow* texture_window);

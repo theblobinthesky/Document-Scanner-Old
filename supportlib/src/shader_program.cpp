@@ -23,10 +23,15 @@ std::string docscanner::frag_simple_tex_sampler_src(bool oes_input, u32 binding_
         in vec2 out_uvs;
         out vec4 out_col;
 
-        uniform float alpha;
+        uniform float saturation;
+        uniform float opacity;
 
         void main() {
-            out_col = vec4(texture(sampler, out_uvs).rgb, alpha);
+            vec3 rgb = texture(sampler, out_uvs).rgb;
+            float gray = (rgb.r + rgb.g + rgb.g) / 3.0;
+
+            vec3 color = mix(vec3(gray), rgb, saturation);
+            out_col = vec4(color * opacity, opacity);
         }
     )";
 }
@@ -40,8 +45,8 @@ std::string docscanner::frag_glyph_src(u32 binding_slot) {
             uniform float alpha;
 
             void main() {
-                float color = texture(sampler, out_uvs).r;
-                out_col = vec4(color, color, color, color);
+                float glyph_alpha = texture(sampler, out_uvs).r;
+                out_col = vec4(glyph_alpha, glyph_alpha, glyph_alpha, glyph_alpha);
             }
         )";
 }

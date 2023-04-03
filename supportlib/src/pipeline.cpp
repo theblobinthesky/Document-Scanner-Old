@@ -7,6 +7,8 @@
 
 using namespace docscanner;
 
+constexpr f32 paper_aspect_ratio = 1.41421356237;
+
 void get_time(u64& start_time, f32& time) {
     auto now = std::chrono::high_resolution_clock::now();
     u64 time_long = now.time_since_epoch().count();
@@ -19,9 +21,23 @@ void get_time(u64& start_time, f32& time) {
     }
 }
 
-pipeline::pipeline() 
-    : ui(&backend), start_time(0), cam_preview_screen(&backend),
-      shutter_animation(&backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.0f, 0.15f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED) {}
+unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui) : ui(ui) {}
+
+void unwrapped_options_screen::init(const rect& unwrapped_rect) {
+    this->unwrapped_rect = unwrapped_rect;
+    discard_button.init(ui, unwrapped_rect, "Discard");
+    next_button.init(ui, unwrapped_rect, "Keep");
+}
+
+void unwrapped_options_screen::draw() {
+    canvas c = { ui->theme.background_color };
+    ::draw(c);
+    discard_button.draw();
+    next_button.draw();
+}
+
+pipeline::pipeline()
+    : ui(&backend), start_time(0), cam_preview_screen(&backend, &ui), options_screen(&ui) {}
     
 void docscanner::pipeline::pre_init(svec2 preview_size, int* cam_width, int* cam_height) {
     this->preview_size = preview_size;
@@ -32,28 +48,35 @@ void docscanner::pipeline::pre_init(svec2 preview_size, int* cam_width, int* cam
 }
 
 #ifdef ANDROID
-void docscanner::pipeline::init_backend(ANativeWindow* texture_window, file_context* file_ctx) {
+void docscanner::pipeline::init_backend(ANativeWindow* texture_window, file_context* file_ctx, bool enable_dark_mode) {
     backend.file_ctx = file_ctx;
 #elif defined(LINUX)
-void docscanner::pipeline::init_backend() {
+void docscanner::pipeline::init_backend(bool enable_dark_mode) {
 #endif
     backend.init(preview_size, aspect_ratio);
+    ui.theme.init(enable_dark_mode);
 
     projection_matrix = mat4::orthographic(0.0f, 1.0f, aspect_ratio, 0.0f, -1.0f, 1.0f);
 
     f32 cam_preview_bottom_edge = 0.1f;
+    
+    f32 unwrap_top_border = 0.3f;
+    f32 margin = 0.1f;
+    f32 uw = 1.0f - 2.0f * margin;
+    rect unwrapped_mesh_rect = {
+        { margin, uw * unwrap_top_border }, 
+        { 1.0f - margin, uw * (unwrap_top_border + paper_aspect_ratio) }
+    };
+
 #ifdef ANDROID
-    cam_preview_screen.init_backend(file_ctx, cam_preview_bottom_edge);
+    cam_preview_screen.init_backend(file_ctx, cam_preview_bottom_edge, unwrapped_mesh_rect);
     cam_preview_screen.init_cam(texture_window);
 #elif defined(LINUX)
-    cam_preview_screen.init_backend(null, cam_preview_bottom_edge);
+    cam_preview_screen.init_backend(null, cam_preview_bottom_edge, unwrapped_mesh_rect);
     cam_preview_screen.init_cam();
 #endif
 
-    shutter_program = backend.compile_and_link(vert_quad_src, frag_shutter_src);
-
-    font = ui.get_font("font.ttf", 0.3f);
-    my_text.init(&backend, font, { 0.1f, 0.0f }, "String gAGAT");
+    options_screen.init(unwrapped_mesh_rect);
 }
 
 void docscanner::pipeline::render() {
@@ -61,25 +84,16 @@ void docscanner::pipeline::render() {
 
     get_time(start_time, backend.time);
 
-    cam_preview_screen.render(backend.time);
-
-    vec2 pos = { 0.5f, aspect_ratio - 0.25f };
-    vec2 size = { 0.25f, 0.25f };
-    backend.use_program(shutter_program);
-
-    motion_event event = backend.input.get_motion_event(pos - size * 0.5f, pos + size * 0.5f);
-    if(event.type == motion_type::TOUCH_DOWN) {
-#ifdef ANDROID
-        pause_camera_capture(cam_preview_screen.cam);
-#endif
-        cam_preview_screen.unwrap();
-        shutter_animation.start();
+    if(cam_preview_screen.blendin_animation.state == FINISHED) {
+        options_screen.draw();
+    } else {
+        cam_preview_screen.render(backend.time);
     }
 
-    get_variable(shutter_program, "inner_out").set_f32(shutter_animation.update());
-    backend.draw_quad(pos, size);
-
-    my_text.render();
-
     backend.input.end_frame();
+
+    auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+    auto dur = end - last_time;
+    LOGI("frame time: %ums, fps: %u", (u32)dur, (u32)(1000.0f / dur));
+    last_time = end;
 }

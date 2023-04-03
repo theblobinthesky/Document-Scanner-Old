@@ -84,6 +84,14 @@ f32 svec2::angle_between(const svec2& a, const svec2& b) {
     return acosf(cos_angle);
 }
 
+vec2 rect::middle() const {
+    return (tl + br) * 0.5f;
+}
+
+vec2 rect::size() const {
+    return br - tl;
+}
+
 mat4 mat4::orthographic(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far) {
     mat4 mat = {};
 
@@ -150,4 +158,12 @@ f32 lerp(f32 a, f32 b, f32 t) {
 
 vec2 map_to_rect(const vec2& pt, const rect* rect) {
     return { lerp(rect->tl.x, rect->br.x, pt.x), lerp(rect->tl.y, rect->br.y, pt.y) };
+}
+
+vec3 color_from_int(s32 c) {
+    u8 r = (c >> 16) & 0xff;
+    u8 g = (c >> 8) & 0xff;
+    u8 b = (c >> 0) & 0xff;
+
+    return { (f32)r / 255.0f, (f32)g / 255.0f, (f32)b / 255.0f };
 }

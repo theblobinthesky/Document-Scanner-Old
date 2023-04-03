@@ -33,14 +33,14 @@ DECL_FUNC(jintArray, GLSurfaceRenderer, nativePreInit)(JNIEnv* env, jobject obj,
     return jintArray_from_ptr(env, dimens, 2);
 }
 
-DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject asset_mngr, jobject surface, jobject window_obj) {
+DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject asset_mngr, jobject surface, jobject window_obj, jboolean enable_dark_mode) {
     auto* mngr_from_java  = AAssetManager_fromJava(env, asset_mngr);
     auto file_ctx = docscanner::get_file_ctx_from_asset_mngr(mngr_from_java);
 
     ANativeWindow *window = ANativeWindow_fromSurface(env, surface);
 
     docscanner::pipeline *pipeline = docscanner::get_persistent_pipeline(env, obj);
-    if (pipeline) pipeline->init_backend(window, &file_ctx);
+    if (pipeline) pipeline->init_backend(window, &file_ctx, enable_dark_mode);
 
     /*jclass windowClass = env->FindClass("android/view/Window");
     jmethodID setStatusBarColorMethod = env->GetMethodID(windowClass, "setStatusBarColor", "(I)V");

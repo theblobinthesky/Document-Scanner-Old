@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.18.1)
 
 set(LIBRARY_ROOT_DIRECTORY "/media/shared/Projekte/DocumentScanner/supportlib")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -v")
 
 project("documentscanner")
 add_library(documentscanner SHARED jni_interface.cpp)

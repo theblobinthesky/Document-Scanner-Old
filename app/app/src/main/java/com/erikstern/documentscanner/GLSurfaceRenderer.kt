@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.res.AssetManager
+import android.content.res.Configuration
 import android.graphics.SurfaceTexture
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
@@ -29,7 +30,7 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
     private external fun nativeCreate()
     private external fun nativeDestroy()
     private external fun nativePreInit(preview_width: Int, preview_height: Int) : IntArray
-    private external fun nativeInit(assetManager: AssetManager, surface: Surface, window: Window)
+    private external fun nativeInit(assetManager: AssetManager, surface: Surface, window: Window, enableDarkMode: Boolean)
     private external fun nativeMotionEvent(event: Int, x: Float, y: Float)
 
     private external fun nativeRender()
@@ -79,8 +80,13 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
         surface = Surface(surfaceTexture)
         val dimens = nativePreInit(width, height)
         surfaceTexture.setDefaultBufferSize(dimens[0], dimens[1])
-        
-        nativeInit(context.assets, surface, activity.window)
+
+        val enableDarkMode = when (context.resources?.configuration?.uiMode?.and(Configuration.UI_MODE_NIGHT_MASK)) {
+            Configuration.UI_MODE_NIGHT_YES -> true
+            else -> false
+        }
+
+        nativeInit(context.assets, surface, activity.window, enableDarkMode)
     }
 
     override fun onDrawFrame(gl: GL10?) {

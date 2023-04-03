@@ -7,14 +7,14 @@
 
 using namespace docscanner;
 
-constexpr f32 preview_aspect_ratio = 4.0f / 3.0f;
-constexpr f32 paper_aspect_ratio = 1.41421356237;
+constexpr f32 preview_aspect_ratio = 16.0f / 9.0f;
 
-cam_preview::cam_preview(engine_backend* backend) 
-    : backend(backend), 
+cam_preview::cam_preview(engine_backend* backend, ui_manager* ui) 
+    : backend(backend), ui(ui),
       unwrap_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0),
       blendout_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 0.5f, 0),
       blendin_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 1.0f, 0.5f, 0),
+      shutter_animation(backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.0f, 0.15f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED),
       is_live_camera_streaming(true) {}
 
 void docscanner::cam_preview::pre_init(svec2 preview_size, int* cam_width, int* cam_height) {
@@ -25,9 +25,8 @@ void docscanner::cam_preview::pre_init(svec2 preview_size, int* cam_width, int* 
     *cam_height = (int) cam_tex_size.y;
 }
 
-void docscanner::cam_preview::init_backend(file_context* file_ctx, f32 bottom_edge) {
-    f32 aspect_ratio = 16.0f / 9.0f;
-    f32 w = (1.0f / aspect_ratio) * (cam_tex_size.x / (f32)cam_tex_size.y);
+void docscanner::cam_preview::init_backend(file_context* file_ctx, f32 bottom_edge, const rect& unwrapped_rect) {
+    f32 w = (1.0f / preview_aspect_ratio) * (cam_tex_size.x / (f32)cam_tex_size.y);
     f32 l = 0.5f - w / 2.0f;
     f32 r = 0.5f + w / 2.0f;
 
@@ -35,7 +34,7 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx, f32 bottom_ed
 
     // buffer stuff
     f32 pb = backend->preview_height - bottom_edge;
-    f32 pt = pb - aspect_ratio;
+    f32 pt = pb - preview_aspect_ratio;
 
     rect point_range = {
         .tl = { l, 0 },
@@ -78,20 +77,14 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx, f32 bottom_ed
 
     mesher.init(&nn_exists_out, (f32*)nn_contour_out, downsampled_size, point_range, point_dst, 0.4f);
 
-    f32 unwrap_top_border = 0.3f;
-    f32 margin = 0.1f;
-    f32 ul = margin, ur = 1.0f - margin;
-    f32 uw = ur - ul;
-    f32 ut = uw * unwrap_top_border, ub = uw * (unwrap_top_border + paper_aspect_ratio);
-
     for(s32 x = 0; x < mesher.mesh_size.x; x++) {
         for(s32 y = 0; y < mesher.mesh_size.y; y++) {
             f32 x_t = x / (f32)(mesher.mesh_size.x - 1);
             f32 y_t = y / (f32)(mesher.mesh_size.y - 1);
 
             mesher.blend_to_vertices[x * mesher.mesh_size.y + y] = { 
-                lerp(ul, ur, x_t), 
-                lerp(ub, ut, y_t) // todo: fix these coordinate system inconsitencies
+                lerp(unwrapped_rect.tl.x, unwrapped_rect.br.x, x_t), 
+                lerp(unwrapped_rect.tl.y, unwrapped_rect.br.y, y_t) // todo: fix these coordinate system inconsitencies
             };
         }
     }
@@ -99,6 +92,8 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx, f32 bottom_ed
     particles.init(backend, &mesher, svec2({ 4, 4 }), 0.05f, 0.015f, 2.0f);
     border.init(backend, &mesher, svec2({ 16, 16 }), 0.01f);
     cutout.init(backend, &mesher);
+    
+    shutter_program = backend->compile_and_link(vert_quad_src, frag_shutter_src);
     
     nn = create_neural_network_from_path(file_ctx, "contour_model.tflite", execution_pref::sustained_speed);
 
@@ -117,6 +112,11 @@ void docscanner::cam_preview::init_cam() {
 
 void cam_preview::unwrap() {
     is_live_camera_streaming = false;
+
+#ifdef ANDROID
+        pause_camera_capture(cam);
+#endif
+
     unwrap_animation.start();
     blendout_animation.start();
     blendin_animation.start();
@@ -145,11 +145,12 @@ void docscanner::cam_preview::render(f32 time) {
     blendout_animation.update();
 
     canvas c = {
-        .bg_color=vec3::lerp({0, 0, 0}, {0.15f, 0.15f, 0.15f}, blendin_animation.update())
+        .bg_color=vec3::lerp(ui->theme.black, ui->theme.background_color, blendin_animation.update())
     };
 
     backend->use_program(preview_program);
-    get_variable(preview_program, "alpha").set_f32(lerp(0.5f, 0.0f, blendout_animation.value));
+    get_variable(preview_program, "saturation").set_f32(lerp(0.2f, 0.0f, blendout_animation.value));
+    get_variable(preview_program, "opacity").set_f32(lerp(0.5f, 0.0f, blendout_animation.value));
 
     unbind_framebuffer();
     bind_shader_buffer(cam_quad_buffer);
@@ -163,11 +164,21 @@ void docscanner::cam_preview::render(f32 time) {
     cutout.render(time);
     particles.render(backend);
     border.render(time);
+    
+    vec2 pos = { 0.5f, backend->preview_height - 0.25f };
+    vec2 size = { 0.25f, 0.25f };
+
+    motion_event event = backend->input.get_motion_event(pos - size * 0.5f, pos + size * 0.5f);
+    if(event.type == motion_type::TOUCH_DOWN) {
+        shutter_animation.start();
+        unwrap();
+    }
+
+    backend->use_program(shutter_program);
+    get_variable(shutter_program, "opacity").set_f32(lerp(1.0f, 0.0f, blendin_animation.value));
+
+    get_variable(shutter_program, "inner_out").set_f32(shutter_animation.update());
+    backend->draw_quad(shutter_program, pos, size);
 
     backend->DEBUG_draw();
-
-    // auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-    // auto dur = end - last_time;
-    // LOGI("frame time: %ums, fps: %u", (u32)dur, (u32)(1000.0f / dur));
-    // last_time = end;
 }

@@ -5,6 +5,17 @@
 
 NAMESPACE_BEGIN
 
+struct unwrapped_options_screen {
+    ui_manager* ui;
+    
+    rect unwrapped_rect;
+    button discard_button, next_button;
+
+    unwrapped_options_screen(ui_manager* ui);
+    void init(const rect& unwrapped_rect);
+    void draw();
+};
+
 struct pipeline {
     engine_backend backend;
     ui_manager ui;
@@ -13,27 +24,22 @@ struct pipeline {
 
     svec2 preview_size;
     f32 aspect_ratio;
-    cam_preview cam_preview_screen;
 
-    shader_program shutter_program;
-    bool anim_started;
-    f32 anim_start_time;
-    f32 anim_duration;
+    cam_preview cam_preview_screen;
+    unwrapped_options_screen options_screen;
 
     u64 start_time;
-    animation<f32> shutter_animation;
 
-    font_instance* font;
-    text my_text;
-
+    u64 last_time;
+    
     pipeline();
 
     void pre_init(svec2 preview_size, int* cam_width, int* cam_height);
 
 #ifdef ANDROID
-    void init_backend(ANativeWindow* texture_window, file_context* file_ctx);
+    void init_backend(ANativeWindow* texture_window, file_context* file_ctx, bool enable_dark_mode);
 #elif defined(LINUX)
-    void init_backend();
+    void init_backend(bool enable_dark_mode);
 #endif
 
     void render();

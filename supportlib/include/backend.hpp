@@ -109,7 +109,7 @@ struct engine_backend {
     shader_program compile_and_link(const std::string& comp_src);
     void use_program(const shader_program& program);
 
-    void draw_quad(const vec2& pos, const vec2& size);
+    void draw_quad(const shader_program& program, const vec2& pos, const vec2& size);
 
 #ifdef DEBUG
     void DEBUG_draw_marker(const vec2& pt, const vec3& col);
@@ -136,6 +136,10 @@ enum animation_flags {
     CONTINUE_PLAYING_REVERSED = 2
 };
 
+enum animation_state {
+    WAITING, STARTED, FINISHED
+};
+
 template<typename T>
 struct animation {
     const engine_backend* backend;
@@ -148,22 +152,22 @@ struct animation {
     f32 start_time;
     f32 start_delay;
     f32 duration;
-    bool is_running;
+    u32 state;
     u32 flags;
 
     animation(engine_backend* backend, animation_curve curve, T start_value, T end_value, f32 start_delay, f32 duration, u32 flags) 
         : backend(backend), curve(curve), start_value(start_value), end_value(end_value), value(start_value), 
-          start_delay(start_delay), duration(duration), is_running(false), flags(flags) {}
+          start_delay(start_delay), duration(duration), state(WAITING), flags(flags) {}
 
     void start() {
-        is_running = true;
+        state = STARTED;
         value = start_value;
 
         start_time = backend->time;
     }
 
     T update() {
-        if(!is_running) return value;
+        if(state != STARTED) return value;
 
         f32 time_elapsed = backend->time - start_time;
         f32 t = (time_elapsed - start_delay) / duration;
@@ -171,7 +175,7 @@ struct animation {
         if(t < 0.0f) return start_value;
         
         if(t > 1.0f) {
-            is_running = false;
+            state = FINISHED;
 
             if(flags & animation_flags::RESET_AFTER_COMPLETION) value = start_value;
             else value = end_value;

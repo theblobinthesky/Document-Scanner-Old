@@ -159,10 +159,11 @@ void docscanner::engine_backend::use_program(const shader_program &program) {
     get_variable(program, "projection").set_mat4(projection_mat);
 }
 
-void docscanner::engine_backend::draw_quad(const vec2& pos, const vec2& size) {
+void docscanner::engine_backend::draw_quad(const shader_program& program, const vec2& pos, const vec2& size) {
     bind_shader_buffer(quad_buffer);
 
-    get_variable(DEBUG_marker_program, "transform").set_vec4(pos, size);
+    use_program(program);
+    get_variable(program, "transform").set_vec4(pos, size);
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
     check_gl_error("glDrawElements");
@@ -178,7 +179,7 @@ void docscanner::engine_backend::DEBUG_draw() {
 
     for(const DEBUG_marker& marker: DEBUG_marker_queue) {
         get_variable(DEBUG_marker_program, "color").set_vec3(marker.color);
-        draw_quad(marker.pos, DEBUG_marker_size);
+        draw_quad(DEBUG_marker_program, marker.pos, DEBUG_marker_size);
     }
 
     DEBUG_marker_queue.clear();

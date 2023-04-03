@@ -168,13 +168,15 @@ constexpr const char* frag_shutter_src = version_head R"(precision mediump float
 
         const vec2 min_max_opacity = vec2(0.2, 1.0);
 
+        uniform float opacity;
+
         void main() {
             float len = length(2.0 * out_uvs - vec2(1));
             float alpha = min_max_opacity.y * smoothstep(outer_out + border_fadeout, outer_out, len); 
             alpha -= (min_max_opacity.y - min_max_opacity.x) * smoothstep(outer_in, outer_in - border_fadeout, len);
             alpha += (min_max_opacity.y - min_max_opacity.x) * smoothstep(inner_out + border_fadeout, inner_out, len);
 
-            out_col = vec4(1, 1, 1, alpha);
+            out_col = vec4(1, 1, 1, alpha * opacity);
         }
 )";
 

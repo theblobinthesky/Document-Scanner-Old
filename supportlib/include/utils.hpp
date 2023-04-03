@@ -58,6 +58,8 @@ struct svec2 {
 
 struct rect {
     vec2 tl, br;
+    vec2 middle() const;
+    vec2 size() const;
 };
 
 struct uvec2 {
@@ -82,6 +84,8 @@ f32 ease_in_out_quad(f32 t);
 f32 lerp(f32 a, f32 b, f32 t);
 
 vec2 map_to_rect(const vec2& pt, const rect* rect);
+
+vec3 color_from_int(s32 c);
 
 #define NAMESPACE_BEGIN namespace docscanner {
 #define NAMESPACE_END }

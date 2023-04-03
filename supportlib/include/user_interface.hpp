@@ -33,8 +33,18 @@ struct font_instance {
     void use(s32 slot) const;
 };
 
+struct ui_theme {
+    vec3 black = { 0, 0, 0 };
+    vec3 background_color;
+    vec3 primary_color;
+    vec3 primary_dark_color;
+    
+    void init(bool enable_dark_mode);
+};
+
 struct ui_manager {
     engine_backend* backend;
+    ui_theme theme;
 
     std::unordered_map<u64, font_instance> font_map;
 
@@ -42,20 +52,39 @@ struct ui_manager {
     font_instance* get_font(const std::string& path, f32 size);
 };
 
+enum class text_alignment {
+    TOP_LEFT, CENTER
+};
+
 struct text {
     engine_backend* backend;
 
-    vec2 pos;
+    rect bounds;
+    text_alignment align;
+
     const font_instance* font;
     std::string str;
 
     shader_program shader;
     instanced_quads quads;
 
-    void init(engine_backend* backend, const font_instance* font, const vec2& pos, const std::string str);
+    void init(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str);
 
     void set_text(const std::string str);
     void render();
+};
+
+struct button {
+    ui_manager* ui;
+
+    rect bounds;
+
+    shader_program shader;
+    font_instance* font;
+    text content;
+
+    void init(ui_manager* ui, const rect& bounds, const std::string& str);
+    void draw();
 };
 
 NAMESPACE_END

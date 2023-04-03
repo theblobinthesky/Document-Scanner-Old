@@ -37,7 +37,7 @@ int main() {
     pipeline pipe = {};
     svec2 cam_size = {};
     pipe.pre_init(size, &cam_size.x, &cam_size.y);
-    pipe.init_backend();
+    pipe.init_backend(false);
 
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
 

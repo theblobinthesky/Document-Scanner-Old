@@ -114,6 +114,12 @@ void font_instance::use(s32 slot) const {
     bind_texture_to_slot(slot, atlas_texture);
 }
 
+void ui_theme::init(bool enable_dark_mode) {
+    background_color    = enable_dark_mode ? vec3({ 0.1f, 0.1f, 0.1f }) : vec3({ 1, 1, 1 });
+    primary_color       = enable_dark_mode ? color_from_int(0xBB86FC) : color_from_int(0x6200EE);
+    primary_dark_color  = color_from_int(0x3700B3);
+}
+
 ui_manager::ui_manager(engine_backend* backend) {
     this->backend = backend;
 }
@@ -135,11 +141,12 @@ font_instance* ui_manager::get_font(const std::string& path, f32 size) {
     return &found->second;
 }
 
-void text::init(engine_backend* backend, const font_instance* font, const vec2& pos, const std::string str) {
+void text::init(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str) {
     this->backend = backend;
     this->font = font;
     this->str = str;
-    this->pos = pos;
+    this->bounds = bounds;
+    this->align = align;
 
     shader = backend->compile_and_link(vert_instanced_quad_src, frag_glyph_src(0));
     quads.init(str.size());
@@ -152,12 +159,32 @@ void text::set_text(const std::string str) {
 void text::render() {
     font->use(0);
 
-    f32 x = pos.x;
+    vec2 text_size = { 0.0f, font->font_height };
+    for(s32 i = 0; i < str.size(); i++) {
+        const glyph* g = font->get_glyph((s32)str.at(i));
+        
+        if(i == str.size() - 1) text_size.x += g->size.y;
+        else text_size.x += g->x_advance;
+    }
+
+    vec2 tl;
+    switch(align) {
+    case text_alignment::TOP_LEFT: {
+        tl = bounds.tl;
+    } break;
+    case text_alignment::CENTER: {
+        vec2 middle = (bounds.tl + bounds.br) * 0.5f;
+        tl = { middle - text_size * 0.5f };
+    } break;
+    default: {
+        LOGE_AND_BREAK("Text alignment is not supported.");
+    } break;
+    }
 
     for(s32 i = 0; i < str.size(); i++) {
         const glyph* g = font->get_glyph((s32)str.at(i));
 
-        vec2 q_pos = vec2({ x, pos.y + font->font_height }) + g->off;
+        vec2 q_pos = vec2({ tl.x, tl.y + font->font_height }) + g->off;
         
         instanced_quad& quad = quads.quads[i];
         quad.v0 = q_pos;
@@ -167,12 +194,26 @@ void text::render() {
         quad.uv_tl = g->uv.tl;
         quad.uv_br = g->uv.br;
 
-        x += g->x_advance;
-        if(i != str.size() - 1) x += font->get_kerning(str.at(i), str.at(i + 1));
+        tl.x += g->x_advance;
+        if(i != str.size() - 1) tl.x += font->get_kerning(str.at(i), str.at(i + 1));
     }
 
     quads.fill();
 
     backend->use_program(shader);
     quads.draw();
+}
+
+void button::init(ui_manager* ui, const rect& bounds, const std::string& str) {
+    this->ui = ui;
+    this->bounds = bounds;
+
+    shader = ui->backend->compile_and_link(vert_quad_src, frag_debug_src);
+    font = ui->get_font("font.ttf", 0.1f);
+    content.init(ui->backend, font, bounds, text_alignment::CENTER, str);
+}
+
+void button::draw() {
+    ui->backend->draw_quad(shader, bounds.middle(), bounds.size());
+    content.render();
 }
