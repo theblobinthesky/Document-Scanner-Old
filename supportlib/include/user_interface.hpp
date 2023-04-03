@@ -26,7 +26,7 @@ struct font_instance {
 
     f32 font_height, line_height;
 
-    void init(engine_backend* backend, const std::string& path, f32 height);
+    font_instance(engine_backend* backend, const std::string& path, f32 height);
 
     const glyph* get_glyph(s32 g) const;
     f32 get_kerning(s32 first, s32 next) const;
@@ -39,7 +39,7 @@ struct ui_theme {
     vec3 primary_color;
     vec3 primary_dark_color;
     
-    void init(bool enable_dark_mode);
+    ui_theme(bool enable_dark_mode);
 };
 
 struct ui_manager {
@@ -48,7 +48,7 @@ struct ui_manager {
 
     std::unordered_map<u64, font_instance> font_map;
 
-    ui_manager(engine_backend* backend);
+    ui_manager(engine_backend* backend, bool enable_dark_mode);
     font_instance* get_font(const std::string& path, f32 size);
 };
 
@@ -68,7 +68,7 @@ struct text {
     shader_program shader;
     instanced_quads quads;
 
-    void init(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str);
+    text(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str);
 
     void set_text(const std::string str);
     void render();
@@ -83,7 +83,7 @@ struct button {
     font_instance* font;
     text content;
 
-    void init(ui_manager* ui, const rect& bounds, const std::string& str);
+    button(ui_manager* ui, const rect& bounds, const std::string& str);
     void draw();
 };
 

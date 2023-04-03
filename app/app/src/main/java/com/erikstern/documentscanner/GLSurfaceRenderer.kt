@@ -29,8 +29,8 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
 
     private external fun nativeCreate()
     private external fun nativeDestroy()
-    private external fun nativePreInit(preview_width: Int, preview_height: Int) : IntArray
-    private external fun nativeInit(assetManager: AssetManager, surface: Surface, window: Window, enableDarkMode: Boolean)
+    private external fun nativePreInit(preview_width: Int, preview_height: Int) : LongArray
+    private external fun nativeInit(assetManager: AssetManager, surface: Surface, window: Window, preview_width: Int, preview_height: Int, cam_width: Int, cam_height: Int, cam_ptr: Long, enableDarkMode: Boolean)
     private external fun nativeMotionEvent(event: Int, x: Float, y: Float)
 
     private external fun nativeRender()
@@ -50,8 +50,6 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
             }
             true
         }
-
-        nativeCreate()
     }
 
     fun destroyRender() {
@@ -78,15 +76,15 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
         Log.i("test", "onSurfaceChanged");
 
         surface = Surface(surfaceTexture)
-        val dimens = nativePreInit(width, height)
-        surfaceTexture.setDefaultBufferSize(dimens[0], dimens[1])
+        val preInit = nativePreInit(width, height)
+        surfaceTexture.setDefaultBufferSize(preInit[0].toInt(), preInit[1].toInt())
 
         val enableDarkMode = when (context.resources?.configuration?.uiMode?.and(Configuration.UI_MODE_NIGHT_MASK)) {
             Configuration.UI_MODE_NIGHT_YES -> true
             else -> false
         }
 
-        nativeInit(context.assets, surface, activity.window, enableDarkMode)
+        nativeInit(context.assets, surface, activity.window, width, height, preInit[0].toInt(), preInit[1].toInt(), preInit[2], enableDarkMode)
     }
 
     override fun onDrawFrame(gl: GL10?) {

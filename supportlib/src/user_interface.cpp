@@ -4,7 +4,7 @@
 
 using namespace docscanner;
 
-void font_instance::init(engine_backend* backend, const std::string& path, f32 height) {
+font_instance::font_instance(engine_backend* backend, const std::string& path, f32 height) {
     stbtt_fontinfo f = {};
 
     u8* data;
@@ -114,15 +114,13 @@ void font_instance::use(s32 slot) const {
     bind_texture_to_slot(slot, atlas_texture);
 }
 
-void ui_theme::init(bool enable_dark_mode) {
+ui_theme::ui_theme(bool enable_dark_mode) {
     background_color    = enable_dark_mode ? vec3({ 0.1f, 0.1f, 0.1f }) : vec3({ 1, 1, 1 });
     primary_color       = enable_dark_mode ? color_from_int(0xBB86FC) : color_from_int(0x6200EE);
     primary_dark_color  = color_from_int(0x3700B3);
 }
 
-ui_manager::ui_manager(engine_backend* backend) {
-    this->backend = backend;
-}
+ui_manager::ui_manager(engine_backend* backend, bool enable_dark_mode) : backend(backend), theme(enable_dark_mode) {}
 
 font_instance* ui_manager::get_font(const std::string& path, f32 size) {
     u32 path_hash = std::hash<std::string>()(path);
@@ -131,8 +129,7 @@ font_instance* ui_manager::get_font(const std::string& path, f32 size) {
     auto found = font_map.find(key);
 
     if(found == font_map.end()) {
-        font_instance inst = {};
-        inst.init(backend, path, size);
+        font_instance inst(backend, path, size);
         font_map.emplace(key, inst);
 
         found = font_map.find(key);
@@ -141,13 +138,8 @@ font_instance* ui_manager::get_font(const std::string& path, f32 size) {
     return &found->second;
 }
 
-void text::init(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str) {
-    this->backend = backend;
-    this->font = font;
-    this->str = str;
-    this->bounds = bounds;
-    this->align = align;
-
+text::text(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str) :
+    backend(backend), font(font), str(str), bounds(bounds), align(align) {
     shader = backend->compile_and_link(vert_instanced_quad_src, frag_glyph_src(0));
     quads.init(str.size());
 }
@@ -204,13 +196,9 @@ void text::render() {
     quads.draw();
 }
 
-void button::init(ui_manager* ui, const rect& bounds, const std::string& str) {
-    this->ui = ui;
-    this->bounds = bounds;
-
+button::button(ui_manager* ui, const rect& bounds, const std::string& str) : ui(ui), bounds(bounds),
+    content(ui->backend, ui->get_font("font.ttf", 0.1f), bounds, text_alignment::CENTER, str) {
     shader = ui->backend->compile_and_link(vert_quad_src, frag_debug_src);
-    font = ui->get_font("font.ttf", 0.1f);
-    content.init(ui->backend, font, bounds, text_alignment::CENTER, str);
 }
 
 void button::draw() {

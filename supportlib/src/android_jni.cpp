@@ -1,19 +1,20 @@
 #ifdef ANDROID
-
 #include "android_jni.hpp"
+
+using namespace docscanner;
 
 jfieldID get_field_id(JNIEnv* env, jobject obj) {
     jclass cls = env->GetObjectClass(obj);
     return env->GetFieldID(cls, "nativeContext", "J");
 }
 
-bool docscanner::create_persistent_pipeline(JNIEnv* env, jobject obj) {
-    auto* pipeline = new docscanner::pipeline();
+bool docscanner::create_persistent_pipeline(JNIEnv* env, jobject obj, const pipeline_args& args) {
+    auto* ptr = new pipeline(args);
 
     auto field_id = get_field_id(env, obj);
     if(!field_id) return false;
 
-    env->SetLongField(obj, field_id, (jlong)pipeline);
+    env->SetLongField(obj, field_id, (jlong)ptr);
     return true;
 }
 

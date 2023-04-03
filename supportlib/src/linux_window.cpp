@@ -34,10 +34,17 @@ int main() {
         return -1;
     }
 
-    pipeline pipe = {};
     svec2 cam_size = {};
-    pipe.pre_init(size, &cam_size.x, &cam_size.y);
-    pipe.init_backend(false);
+    camera* cam = pipeline::pre_init(size, cam_size);
+
+    pipeline_args args = {
+        .preview_size = size,
+        .cam_size = cam_size,
+        .cam = cam,
+        .enable_dark_mode = false
+    };
+
+    pipeline pipe(args);
 
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
 

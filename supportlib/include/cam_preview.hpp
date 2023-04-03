@@ -29,9 +29,6 @@ struct cam_preview {
 
     neural_network nn;
 
-    svec2 cam_tex_size;
-    svec2 preview_size;
-
     texture_downsampler tex_downsampler;
     mask_mesher mesher;
     sticky_particle_system particles;
@@ -47,9 +44,8 @@ struct cam_preview {
 
     bool is_init;
 
-    cam_preview(engine_backend* backend, ui_manager* ui);
-    void pre_init(svec2 preview_size, int* cam_width, int* cam_height);
-    void init_backend(file_context* file_ctx, f32 bottom_edge, const rect& unwrapped_rect);
+    cam_preview(engine_backend* backend, ui_manager* ui, camera* cam);
+    void init_backend(f32 bottom_edge, const rect& unwrapped_rect);
 
 #ifdef ANDROID
     void init_cam(ANativeWindow* texture_window);

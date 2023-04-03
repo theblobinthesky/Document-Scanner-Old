@@ -9,24 +9,16 @@ using namespace docscanner;
 
 constexpr f32 preview_aspect_ratio = 16.0f / 9.0f;
 
-cam_preview::cam_preview(engine_backend* backend, ui_manager* ui) 
-    : backend(backend), ui(ui),
+cam_preview::cam_preview(engine_backend* backend, ui_manager* ui, camera* cam) 
+    : backend(backend), ui(ui), cam(*cam),
       unwrap_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0),
       blendout_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 0.5f, 0),
       blendin_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 1.0f, 0.5f, 0),
       shutter_animation(backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.0f, 0.15f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED),
       is_live_camera_streaming(true) {}
 
-void docscanner::cam_preview::pre_init(svec2 preview_size, int* cam_width, int* cam_height) {
-    this->preview_size = preview_size;
-
-    cam = find_and_open_back_camera(preview_size, cam_tex_size);
-    *cam_width = (int) cam_tex_size.x;
-    *cam_height = (int) cam_tex_size.y;
-}
-
-void docscanner::cam_preview::init_backend(file_context* file_ctx, f32 bottom_edge, const rect& unwrapped_rect) {
-    f32 w = (1.0f / preview_aspect_ratio) * (cam_tex_size.x / (f32)cam_tex_size.y);
+void docscanner::cam_preview::init_backend(f32 bottom_edge, const rect& unwrapped_rect) {
+    f32 w = (1.0f / preview_aspect_ratio) * (backend->cam_size_px.x / (f32)backend->cam_size_px.y);
     f32 l = 0.5f - w / 2.0f;
     f32 r = 0.5f + w / 2.0f;
 
@@ -70,9 +62,9 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx, f32 bottom_ed
     nn_contour_out = new u8[nn_contour_out_size];
 
 #if CAM_USES_OES_TEXTURE
-    tex_downsampler.init(backend, { (s32)cam_tex_size.x, (s32)cam_tex_size.y }, downsampled_size, true, null, 2, 1.0f);
+    tex_downsampler.init(backend, backend->cam_size_px, downsampled_size, true, null, 2, 1.0f);
 #else
-    tex_downsampler.init(backend, { (s32)cam_tex_size.x, (s32)cam_tex_size.y }, downsampled_size, false, &cam.cam_tex, 2, 1.0f);
+    tex_downsampler.init(backend, backend->cam_size_px, downsampled_size, false, &cam.cam_tex, 2, 1.0f);
 #endif
 
     mesher.init(&nn_exists_out, (f32*)nn_contour_out, downsampled_size, point_range, point_dst, 0.4f);
@@ -95,7 +87,7 @@ void docscanner::cam_preview::init_backend(file_context* file_ctx, f32 bottom_ed
     
     shutter_program = backend->compile_and_link(vert_quad_src, frag_shutter_src);
     
-    nn = create_neural_network_from_path(file_ctx, "contour_model.tflite", execution_pref::sustained_speed);
+    nn = create_neural_network_from_path(backend->file_ctx, "contour_model.tflite", execution_pref::sustained_speed);
 
     is_init = true;
 }

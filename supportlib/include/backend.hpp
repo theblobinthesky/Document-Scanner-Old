@@ -93,7 +93,7 @@ struct engine_backend {
     
     shader_buffer quad_buffer;
 
-    svec2 preview_size_px;
+    svec2 preview_size_px, cam_size_px;
     f32 preview_height;
 
 #ifdef DEBUG
@@ -103,7 +103,7 @@ struct engine_backend {
 
     f32 time;
 
-    void init(svec2 preview_size_px, f32 preview_height);
+    engine_backend(svec2 preview_size_px, svec2 cam_size_px, file_context* file_ctx);
 
     shader_program compile_and_link(const std::string& vert_src, const std::string& frag_src);
     shader_program compile_and_link(const std::string& comp_src);

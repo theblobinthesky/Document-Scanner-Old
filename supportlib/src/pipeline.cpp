@@ -9,6 +9,17 @@ using namespace docscanner;
 
 constexpr f32 paper_aspect_ratio = 1.41421356237;
 
+constexpr f32 cam_preview_bottom_edge = 0.1f;
+
+constexpr f32 unwrap_top_border = 0.3f;
+constexpr f32 margin = 0.1f;
+constexpr f32 uw = 1.0f - 2.0f * margin;
+constexpr rect unwrapped_mesh_rect = {
+    { margin, uw * unwrap_top_border }, 
+    { 1.0f - margin, uw * (unwrap_top_border + paper_aspect_ratio) }
+};
+
+
 void get_time(u64& start_time, f32& time) {
     auto now = std::chrono::high_resolution_clock::now();
     u64 time_long = now.time_since_epoch().count();
@@ -21,13 +32,8 @@ void get_time(u64& start_time, f32& time) {
     }
 }
 
-unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui) : ui(ui) {}
-
-void unwrapped_options_screen::init(const rect& unwrapped_rect) {
-    this->unwrapped_rect = unwrapped_rect;
-    discard_button.init(ui, unwrapped_rect, "Discard");
-    next_button.init(ui, unwrapped_rect, "Keep");
-}
+unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect) : ui(ui), 
+    discard_button(ui, unwrapped_rect, "Discard"), next_button(ui, unwrapped_rect, "Keep") {}
 
 void unwrapped_options_screen::draw() {
     canvas c = { ui->theme.background_color };
@@ -36,47 +42,40 @@ void unwrapped_options_screen::draw() {
     next_button.draw();
 }
 
-pipeline::pipeline()
-    : ui(&backend), start_time(0), cam_preview_screen(&backend, &ui), options_screen(&ui) {}
-    
-void docscanner::pipeline::pre_init(svec2 preview_size, int* cam_width, int* cam_height) {
-    this->preview_size = preview_size;
-    aspect_ratio = preview_size.y / (f32)preview_size.x;
-
-    cam_preview_screen.pre_init(preview_size, cam_width, cam_height);
-    backend.input.init(preview_size, aspect_ratio);
+camera* docscanner::pipeline::pre_init(svec2 preview_size, svec2& cam_size) {
+    camera* cam = new camera();
+    *cam = find_and_open_back_camera(preview_size, cam_size);
+    return cam;
 }
-
-#ifdef ANDROID
-void docscanner::pipeline::init_backend(ANativeWindow* texture_window, file_context* file_ctx, bool enable_dark_mode) {
-    backend.file_ctx = file_ctx;
-#elif defined(LINUX)
-void docscanner::pipeline::init_backend(bool enable_dark_mode) {
-#endif
-    backend.init(preview_size, aspect_ratio);
-    ui.theme.init(enable_dark_mode);
-
-    projection_matrix = mat4::orthographic(0.0f, 1.0f, aspect_ratio, 0.0f, -1.0f, 1.0f);
-
-    f32 cam_preview_bottom_edge = 0.1f;
     
-    f32 unwrap_top_border = 0.3f;
-    f32 margin = 0.1f;
-    f32 uw = 1.0f - 2.0f * margin;
-    rect unwrapped_mesh_rect = {
-        { margin, uw * unwrap_top_border }, 
-        { 1.0f - margin, uw * (unwrap_top_border + paper_aspect_ratio) }
-    };
+#if false
+    engine_backend backend;
+    ui_manager ui;
+
+    mat4 projection_matrix;
+
+    svec2 preview_size;
+    f32 aspect_ratio;
+
+    cam_preview cam_preview_screen;
+    unwrapped_options_screen options_screen;
+
+    u64 start_time;
+    u64 last_time;
+#endif
+
+pipeline::pipeline(const pipeline_args& args)
+    : backend(args.preview_size, args.cam_size, args.file_ctx), ui(&backend, args.enable_dark_mode), start_time(0), 
+    cam_preview_screen(&backend, &ui, args.cam), options_screen(&ui, unwrapped_mesh_rect) {
+    projection_matrix = mat4::orthographic(0.0f, 1.0f, backend.preview_height, 0.0f, -1.0f, 1.0f);
 
 #ifdef ANDROID
-    cam_preview_screen.init_backend(file_ctx, cam_preview_bottom_edge, unwrapped_mesh_rect);
-    cam_preview_screen.init_cam(texture_window);
+    cam_preview_screen.init_backend(cam_preview_bottom_edge, unwrapped_mesh_rect);
+    cam_preview_screen.init_cam(args.texture_window);
 #elif defined(LINUX)
-    cam_preview_screen.init_backend(null, cam_preview_bottom_edge, unwrapped_mesh_rect);
+    cam_preview_screen.init_backend(cam_preview_bottom_edge, unwrapped_mesh_rect);
     cam_preview_screen.init_cam();
 #endif
-
-    options_screen.init(unwrapped_mesh_rect);
 }
 
 void docscanner::pipeline::render() {

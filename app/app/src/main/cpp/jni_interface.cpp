@@ -8,39 +8,40 @@
 
 constexpr s32 MOTION_EVENT_ACTION_DOWN = 0;
 
-DECL_FUNC(void, GLSurfaceRenderer, nativeCreate)(JNIEnv *env, jobject obj) {
-    docscanner::create_persistent_pipeline(env, obj);
-}
-
 DECL_FUNC(void, GLSurfaceRenderer, nativeDestroy)(JNIEnv *env, jobject obj) {
     docscanner::destroy_persistent_pipeline(env, obj);
 }
 
-jintArray jintArray_from_ptr(JNIEnv *env, const int *ptr, int len) {
-    jintArray intJavaArray = env->NewIntArray(len);
-    env->SetIntArrayRegion(intJavaArray, 0, len, ptr);
+jlongArray jlongArray_from_ptr(JNIEnv *env, const s64 *ptr, int len) {
+    jlongArray longJavaArray = env->NewLongArray(len);
+    env->SetLongArrayRegion(longJavaArray, 0, len, ptr);
 
-    return intJavaArray;
+    return longJavaArray;
 }
 
 
-DECL_FUNC(jintArray, GLSurfaceRenderer, nativePreInit)(JNIEnv* env, jobject obj, jint preview_width, jint preview_height) {
-    docscanner::pipeline* pipeline = docscanner::get_persistent_pipeline(env, obj);
-    if (!pipeline) return {};
+DECL_FUNC(jlongArray, GLSurfaceRenderer, nativePreInit)(JNIEnv* env, jobject obj, jint preview_width, jint preview_height) {
+    svec2 cam_size{};
+    docscanner::camera* cam = docscanner::pipeline::pre_init({preview_width, preview_height }, cam_size);
 
-    int dimens[2];
-    pipeline->pre_init({preview_width, preview_height }, dimens + 0, dimens + 1);
-    return jintArray_from_ptr(env, dimens, 2);
+    s64 dimens[3] = { cam_size.x, cam_size.y, (s64)cam };
+    return jlongArray_from_ptr(env, dimens, 3);
 }
 
-DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject asset_mngr, jobject surface, jobject window_obj, jboolean enable_dark_mode) {
+DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject asset_mngr, jobject surface, jobject window_obj,
+        jint preview_width, jint preview_height, jint cam_width, jint cam_height, jlong cam_ptr, jboolean enable_dark_mode) {
     auto* mngr_from_java  = AAssetManager_fromJava(env, asset_mngr);
     auto file_ctx = docscanner::get_file_ctx_from_asset_mngr(mngr_from_java);
+    svec2 preview_size = { preview_width, preview_height };
+    svec2 cam_size = { cam_width, cam_height };
 
     ANativeWindow *window = ANativeWindow_fromSurface(env, surface);
 
-    docscanner::pipeline *pipeline = docscanner::get_persistent_pipeline(env, obj);
-    if (pipeline) pipeline->init_backend(window, &file_ctx, enable_dark_mode);
+    docscanner::pipeline_args args = {
+            .texture_window = window, .file_ctx = &file_ctx, .preview_size = preview_size, .cam_size = cam_size,
+            .cam = (docscanner::camera*)cam_ptr, .enable_dark_mode = (bool)enable_dark_mode
+    };
+    docscanner::create_persistent_pipeline(env, obj, args);
 
     /*jclass windowClass = env->FindClass("android/view/Window");
     jmethodID setStatusBarColorMethod = env->GetMethodID(windowClass, "setStatusBarColor", "(I)V");
