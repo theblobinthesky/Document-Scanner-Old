@@ -30,6 +30,8 @@ struct cam_preview {
     neural_network nn;
 
     texture_downsampler tex_downsampler;
+    texture_sampler tex_sampler;
+
     mask_mesher mesher;
     sticky_particle_system particles;
     mesh_border border;

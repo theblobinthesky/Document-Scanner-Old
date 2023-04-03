@@ -222,7 +222,7 @@ void sticky_particle_system::init(engine_backend* backend, const mask_mesher* me
     this->anim_duration = anim_duration;
     this->last_pos_reset_time = -anim_duration;
 
-    shader = backend->compile_and_link(vert_instanced_quad_src, frag_particle_src);
+    shader = backend->compile_and_link(vert_instanced_quad_src(), frag_particle_src());
     quads.init(size.area());
     pos_from = new vec2[size.area()];
     pos_to = new vec2[size.area()];
@@ -343,7 +343,7 @@ void mesh_cutout::init(engine_backend* backend, const mask_mesher* mesher) {
     buffer = make_shader_buffer();
     fill_shader_buffer(buffer, mesher->blend_vertices, mesher->mesh_size.area() * sizeof(vertex), indices.data(), indices.size() * sizeof(u32));
 
-    shader = backend->compile_and_link(vert_src, frag_sampler_src(CAM_USES_OES_TEXTURE));
+    shader = backend->compile_and_link(vert_src(), frag_sampler_src(CAM_USES_OES_TEXTURE));
 }
 
 void mesh_cutout::render(f32 time) {

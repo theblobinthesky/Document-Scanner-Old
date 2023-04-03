@@ -9,9 +9,12 @@ struct unwrapped_options_screen {
     ui_manager* ui;
     
     rect unwrapped_rect;
+    const texture* unwrapped_texture;
+    shader_program sampler_program;
+
     button discard_button, next_button;
 
-    unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect);
+    unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect, const texture* unwrapped_texture);
     void draw();
 };
 

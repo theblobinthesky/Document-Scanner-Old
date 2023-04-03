@@ -47,6 +47,10 @@ f32 vec2::angle_between(const vec2& a, const vec2& b) {
     return acosf(cos_angle);
 }
 
+vec3 vec3::operator*(f32 other) const {
+    return { x * other, y * other, z * other };
+}
+
 vec3 vec3::lerp(const vec3& a, const vec3& b, f32 t) {
     return { ::lerp(a.x, b.x, t), ::lerp(a.y, b.y, t), ::lerp(a.z, b.z, t) };
 }
@@ -166,4 +170,31 @@ vec3 color_from_int(s32 c) {
     u8 b = (c >> 0) & 0xff;
 
     return { (f32)r / 255.0f, (f32)g / 255.0f, (f32)b / 255.0f };
+}
+
+rect cut_margins(const rect& r, f32 margin) {
+    return { r.tl + vec2({ margin, margin }), r.br - vec2({ margin, margin }) };
+}
+
+rect cut_margins(const rect& r, const rect& margin) {
+    return { r.tl + margin.tl, r.br - margin.br };
+}
+
+rect grid_split_x(const rect& r, s32 i, s32 splits) {
+    f32 w = r.size().x;
+    f32 sw = w / splits;
+
+    return {
+        { r.tl.x + i * sw, r.tl.y },
+        { r.tl.x + (i + 1) * sw, r.br.y }
+    };
+}
+
+rect get_between(const rect& r, f32 t, f32 b) {
+    f32 h = r.size().y;
+
+    return {
+        { r.tl.x, r.tl.y + t * h },
+        { r.br.x, r.tl.y + b * h }
+    };
 }

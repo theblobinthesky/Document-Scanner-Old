@@ -49,6 +49,19 @@ int main() {
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
 
     do {
+        int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+        if (state == GLFW_PRESS) {
+            double x, y;
+            glfwGetCursorPos(window, &x, &y);
+
+            motion_event event = {
+                .type = docscanner::motion_type::TOUCH_DOWN,
+                .pos = { (f32)x, (f32)y }
+            };
+
+            pipe.backend.input.handle_motion_event(event);
+        }
+        
         pipe.render();
         
         glfwSwapBuffers(window);

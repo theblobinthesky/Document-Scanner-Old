@@ -8,6 +8,7 @@
 using namespace docscanner;
 
 constexpr f32 preview_aspect_ratio = 16.0f / 9.0f;
+constexpr svec2 unwrap_size = { 1240, 1754 };
 
 cam_preview::cam_preview(engine_backend* backend, ui_manager* ui, camera* cam) 
     : backend(backend), ui(ui), cam(*cam),
@@ -22,7 +23,7 @@ void docscanner::cam_preview::init_backend(f32 bottom_edge, const rect& unwrappe
     f32 l = 0.5f - w / 2.0f;
     f32 r = 0.5f + w / 2.0f;
 
-    preview_program = backend->compile_and_link(vert_src, frag_simple_tex_sampler_src(CAM_USES_OES_TEXTURE, 0));
+    preview_program = backend->compile_and_link(vert_src(), frag_simple_tex_sampler_src(CAM_USES_OES_TEXTURE, 0));
 
     // buffer stuff
     f32 pb = backend->preview_height - bottom_edge;
@@ -76,7 +77,7 @@ void docscanner::cam_preview::init_backend(f32 bottom_edge, const rect& unwrappe
 
             mesher.blend_to_vertices[x * mesher.mesh_size.y + y] = { 
                 lerp(unwrapped_rect.tl.x, unwrapped_rect.br.x, x_t), 
-                lerp(unwrapped_rect.tl.y, unwrapped_rect.br.y, y_t) // todo: fix these coordinate system inconsitencies
+                lerp(unwrapped_rect.tl.y, unwrapped_rect.br.y, 1.0f - y_t) // todo: fix these coordinate system inconsitencies
             };
         }
     }
@@ -84,8 +85,14 @@ void docscanner::cam_preview::init_backend(f32 bottom_edge, const rect& unwrappe
     particles.init(backend, &mesher, svec2({ 4, 4 }), 0.05f, 0.015f, 2.0f);
     border.init(backend, &mesher, svec2({ 16, 16 }), 0.01f);
     cutout.init(backend, &mesher);
-    
-    shutter_program = backend->compile_and_link(vert_quad_src, frag_shutter_src);
+
+#if CAM_USES_OES_TEXTURE
+    tex_sampler.init(backend, backend->cam_size_px, true, null, mesher.blend_vertices, mesher.mesh_size.area(), cutout.indices.data(), cutout.indices.size());
+#else
+    tex_sampler.init(backend, backend->cam_size_px, false, &cam.cam_tex, mesher.blend_vertices, mesher.mesh_size.area(), cutout.indices.data(), cutout.indices.size());
+#endif
+
+    shutter_program = backend->compile_and_link(vert_quad_src(), frag_shutter_src());
     
     nn = create_neural_network_from_path(backend->file_ctx, "contour_model.tflite", execution_pref::sustained_speed);
 
@@ -117,7 +124,7 @@ void cam_preview::unwrap() {
 void docscanner::cam_preview::render(f32 time) {
     if(!is_init) return;
 
-    if(is_live_camera_streaming) {
+    if(is_live_camera_streaming || false) {
         cam.get();
 
         tex_downsampler.downsample();
@@ -151,12 +158,6 @@ void docscanner::cam_preview::render(f32 time) {
     bind_texture_to_slot(0, cam.cam_tex);
 #endif
 
-    draw(c);
-
-    cutout.render(time);
-    particles.render(backend);
-    border.render(time);
-    
     vec2 pos = { 0.5f, backend->preview_height - 0.25f };
     vec2 size = { 0.25f, 0.25f };
 
@@ -166,6 +167,13 @@ void docscanner::cam_preview::render(f32 time) {
         unwrap();
     }
 
+    unbind_framebuffer();
+    draw(c);
+
+    cutout.render(time);
+    particles.render(backend);
+    border.render(time);
+    
     backend->use_program(shutter_program);
     get_variable(shutter_program, "opacity").set_f32(lerp(1.0f, 0.0f, blendin_animation.value));
 

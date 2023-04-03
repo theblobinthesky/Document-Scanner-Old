@@ -58,6 +58,7 @@ struct variable {
     void set_mat4(const mat4& mat);
     void set_vec2(const vec2& v);
     void set_vec3(const vec3& v);
+    void set_vec4(const rect& r);
     void set_vec4(const vec2& a, const vec2& b);
 };
 
@@ -203,6 +204,29 @@ struct animation {
     }
 };
 
+struct texture_sampler {
+    engine_backend* backend;
+
+    bool input_is_oes_texture;
+    const texture* input_tex;
+
+    svec2 output_size;
+    texture output_tex;
+    frame_buffer output_fb;
+    
+    const vertex* vertices;
+    u32 vertices_size;
+    const u32* indices;
+    u32 indices_size;
+    shader_buffer buffer;
+
+    shader_program sampler_program;
+    
+    void init(engine_backend* backend, svec2 output_size, bool input_is_oes_texture, const texture* input_tex, 
+              const vertex* vertices, u32 vertices_size, const u32* indices, u32 indices_size);
+    void sample();
+};
+
 struct texture_downsampler_stage {
     engine_backend* backend;
 
@@ -289,7 +313,7 @@ instanced_shader_buffer make_instanced_line_shader_buffer(shader_buffer buff);
 
 void bind_shader_buffer(const shader_buffer& buff);
 
-void fill_shader_buffer(const shader_buffer& buff, vertex* vertices, u32 vertices_size, u32* indices, u32 indices_size);
+void fill_shader_buffer(const shader_buffer& buff, const vertex* vertices, u32 vertices_size, const u32* indices, u32 indices_size);
 
 texture make_texture(svec2 size, u32 format);
 

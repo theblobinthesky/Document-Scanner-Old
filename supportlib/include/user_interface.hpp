@@ -69,6 +69,7 @@ struct text {
     instanced_quads quads;
 
     text(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str);
+    void layout(const rect& bounds);
 
     void set_text(const std::string str);
     void render();
@@ -77,14 +78,17 @@ struct text {
 struct button {
     ui_manager* ui;
 
+    rect crad;
     rect bounds;
+    vec3 color;
 
     shader_program shader;
     font_instance* font;
     text content;
 
-    button(ui_manager* ui, const rect& bounds, const std::string& str);
-    void draw();
+    button(ui_manager* ui, const std::string& str, const rect& crad, vec3 color);
+    void layout(const rect& bounds);
+    bool draw();
 };
 
 NAMESPACE_END

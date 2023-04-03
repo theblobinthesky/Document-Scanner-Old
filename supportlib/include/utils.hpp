@@ -38,6 +38,8 @@ struct vec2 {
 struct vec3 {
     f32 x, y, z;
 
+    vec3 operator*(f32 other) const;
+
     static vec3 lerp(const vec3& a, const vec3& b, f32 t);
 };
 
@@ -86,6 +88,14 @@ f32 lerp(f32 a, f32 b, f32 t);
 vec2 map_to_rect(const vec2& pt, const rect* rect);
 
 vec3 color_from_int(s32 c);
+
+rect cut_margins(const rect& r, f32 margin);
+
+rect cut_margins(const rect& r, const rect& margin);
+
+rect grid_split_x(const rect& r, s32 i, s32 splits);
+
+rect get_between(const rect& r, f32 t, f32 b);
 
 #define NAMESPACE_BEGIN namespace docscanner {
 #define NAMESPACE_END }

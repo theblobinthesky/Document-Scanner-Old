@@ -140,7 +140,7 @@ font_instance* ui_manager::get_font(const std::string& path, f32 size) {
 
 text::text(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str) :
     backend(backend), font(font), str(str), bounds(bounds), align(align) {
-    shader = backend->compile_and_link(vert_instanced_quad_src, frag_glyph_src(0));
+    shader = backend->compile_and_link(vert_instanced_quad_src(), frag_glyph_src(0));
     quads.init(str.size());
 }
 
@@ -151,12 +151,14 @@ void text::set_text(const std::string str) {
 void text::render() {
     font->use(0);
 
-    vec2 text_size = { 0.0f, font->font_height };
+    vec2 text_size = { 0.0f, 0.0f };
     for(s32 i = 0; i < str.size(); i++) {
         const glyph* g = font->get_glyph((s32)str.at(i));
         
         if(i == str.size() - 1) text_size.x += g->size.y;
         else text_size.x += g->x_advance;
+
+        text_size.y = std::max(text_size.y, g->size.y);
     }
 
     vec2 tl;
@@ -176,7 +178,7 @@ void text::render() {
     for(s32 i = 0; i < str.size(); i++) {
         const glyph* g = font->get_glyph((s32)str.at(i));
 
-        vec2 q_pos = vec2({ tl.x, tl.y + font->font_height }) + g->off;
+        vec2 q_pos = vec2({ tl.x, tl.y + text_size.y }) + g->off;
         
         instanced_quad& quad = quads.quads[i];
         quad.v0 = q_pos;
@@ -196,12 +198,26 @@ void text::render() {
     quads.draw();
 }
 
-button::button(ui_manager* ui, const rect& bounds, const std::string& str) : ui(ui), bounds(bounds),
-    content(ui->backend, ui->get_font("font.ttf", 0.1f), bounds, text_alignment::CENTER, str) {
-    shader = ui->backend->compile_and_link(vert_quad_src, frag_debug_src);
+button::button(ui_manager* ui, const std::string& str, const rect& crad, vec3 color) 
+    : ui(ui), crad(crad), color(color), content(ui->backend, ui->get_font("font.ttf", 0.12f), bounds, text_alignment::CENTER, str) {
+    shader = ui->backend->compile_and_link(vert_quad_src(), frag_rounded_quad_src());
 }
 
-void button::draw() {
+void button::layout(const rect& bounds) {
+    this->bounds = bounds;
+    content.bounds = bounds;
+}
+
+bool button::draw() {
+    ui->backend->use_program(shader);
+    get_variable(shader, "quad_size").set_vec2(bounds.size());
+    get_variable(shader, "corner_rad").set_vec4(crad);
+    get_variable(shader, "light_color").set_vec3(color);
+    get_variable(shader, "dark_color").set_vec3(color * 0.8f);
     ui->backend->draw_quad(shader, bounds.middle(), bounds.size());
+
     content.render();
+
+    motion_event event = ui->backend->input.get_motion_event(bounds.middle(), bounds.size());
+    return (event.type == motion_type::TOUCH_DOWN);
 }

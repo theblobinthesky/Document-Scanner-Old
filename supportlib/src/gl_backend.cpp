@@ -44,6 +44,10 @@ void docscanner::variable::set_vec3(const vec3& v) {
     glUniform3f(location, v.x, v.y, v.z);
 }
 
+void docscanner::variable::set_vec4(const rect& r) {
+    set_vec4(r.tl, r.br);
+}
+
 void docscanner::variable::set_vec4(const vec2& a, const vec2& b) {
     glUniform4f(location, a.x, a.y, b.x, b.y);
 }
@@ -106,7 +110,7 @@ engine_backend::engine_backend(svec2 preview_size_px, svec2 cam_size_px, file_co
     fill_shader_buffer(quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
 
 #ifdef DEBUG
-    DEBUG_marker_program = compile_and_link(vert_quad_src, frag_DEBUG_marker_src);
+    DEBUG_marker_program = compile_and_link(vert_quad_src(), frag_DEBUG_marker_src());
 #endif
 }
 
@@ -203,6 +207,49 @@ u32 even_to_uneven(u32 N) {
     while((M = N / 2 + 1) % 2 == 0 || N % 2 == 0 || M < 1) N++;
     return N;
 }
+    
+void texture_sampler::init(engine_backend* backend, svec2 output_size, bool input_is_oes_texture, const texture* input_tex, 
+              const vertex* vertices, u32 vertices_size, const u32* indices, u32 indices_size) {
+    this->backend = backend;
+    this->input_is_oes_texture = input_is_oes_texture;
+    this->input_tex = input_tex;
+    this->output_size = output_size;
+    this->vertices = vertices;
+    this->vertices_size = vertices_size;
+    this->indices = indices;
+    this->indices_size = indices_size;
+
+    output_tex = make_texture(output_size, GL_RGBA32F);    
+    output_fb = framebuffer_from_texture(output_tex);
+
+    buffer = make_shader_buffer();
+    fill_shader_buffer(buffer, vertices, vertices_size * sizeof(vertex), indices, indices_size * sizeof(u32));
+
+    sampler_program = backend->compile_and_link(vert_src(), frag_simple_tex_sampler_src(input_is_oes_texture, 0));
+}
+
+void texture_sampler::sample() {
+    int viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+
+    bind_shader_buffer(buffer);
+    bind_framebuffer(output_fb);
+
+    if(!input_is_oes_texture) {
+        bind_texture_to_slot(0, *input_tex);
+    }
+
+    backend->use_program(sampler_program);
+    get_variable(sampler_program, "saturation").set_f32(1.0f);
+    get_variable(sampler_program, "opacity").set_f32(1.0f);
+
+    glViewport(0, 0, output_size.x, output_size.y);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
+    check_gl_error("glDrawElements");
+
+    // restore old viewport
+    glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+}
 
 void texture_downsampler_stage::init(engine_backend* backend, svec2 input_size, svec2 output_size, bool input_is_oes_texture, const texture* input_tex, f32 relaxation_factor) {
     this->backend = backend;
@@ -226,11 +273,11 @@ void texture_downsampler_stage::init(engine_backend* backend, svec2 input_size, 
     output_fb = framebuffer_from_texture(output_tex);
     
     std::string gauss_frag_src_x = frag_gauss_blur_src(input_is_oes_texture, req_kernel_size.x, {1.0f / (f32)input_size.x, 0.0f});
-    gauss_blur_x_program = backend->compile_and_link(vert_src, gauss_frag_src_x);
+    gauss_blur_x_program = backend->compile_and_link(vert_src(), gauss_frag_src_x);
     ASSERT(gauss_blur_x_program.program, "gauss_blur_x_program program could not be compiled.");
     
     std::string gauss_frag_src_y = frag_gauss_blur_src(false, req_kernel_size.y, {0.0f, 1.0f / (f32)input_size.y});
-    gauss_blur_y_program = backend->compile_and_link(vert_src, gauss_frag_src_y);
+    gauss_blur_y_program = backend->compile_and_link(vert_src(), gauss_frag_src_y);
     ASSERT(gauss_blur_y_program.program, "gauss_blur_y_program program could not be compiled.");
 }
 
@@ -384,8 +431,8 @@ void docscanner::lines::init(engine_backend* backend, vec2* points, s32 points_s
     lines_buffer = make_lines_buffer();
     joins_buffer = make_joins_buffer(16);
 
-    lines_program = backend->compile_and_link(vert_instanced_line_src, frag_border_src);
-    joins_program = backend->compile_and_link(vert_instanced_point_src, frag_border_src);
+    lines_program = backend->compile_and_link(vert_instanced_line_src(), frag_border_src());
+    joins_program = backend->compile_and_link(vert_instanced_point_src(), frag_border_src());
 
     fill();
 }
@@ -629,7 +676,7 @@ instanced_shader_buffer docscanner::make_instanced_line_shader_buffer(shader_buf
     };
 }
 
-void docscanner::fill_shader_buffer(const shader_buffer& buff, vertex* vertices, u32 vertices_size, u32* indices, u32 indices_size) {
+void docscanner::fill_shader_buffer(const shader_buffer& buff, const vertex* vertices, u32 vertices_size, const u32* indices, u32 indices_size) {
     ASSERT(vertices || indices, "Neither vertices nor indices can be updated.");
 
     if(vertices) {
