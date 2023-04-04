@@ -55,6 +55,16 @@ vec3 vec3::lerp(const vec3& a, const vec3& b, f32 t) {
     return { ::lerp(a.x, b.x, t), ::lerp(a.y, b.y, t), ::lerp(a.z, b.z, t) };
 }
 
+vec4 vec4::operator*(f32 other) const {
+    return { x * other, y * other, z * other, w * other };
+}
+
+vec4::vec4() {}
+
+vec4::vec4(f32 x, f32 y, f32 z, f32 w) : x(x), y(y), z(z), w(w) {}
+
+vec4::vec4(const vec3& v) : x(v.x), y(v.y), z(v.z), w(1.0f) {}
+
 svec2 svec2::operator+(svec2 other) const {
     return { x + other.x, y + other.y }; 
 }

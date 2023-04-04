@@ -35,6 +35,8 @@ struct mask_mesher {
     vertex* blend_vertices;
     vec2* blend_to_vertices;
 
+    std::vector<u32> mesh_indices;
+
     f32 smoothness;
 
     void init(const f32* exists, f32* heatmap, const svec2& heatmap_size, const rect& point_range, const rect& point_dst, f32 smoothness);
@@ -84,8 +86,6 @@ struct mesh_border {
 struct mesh_cutout {
     engine_backend* backend;
     const mask_mesher* mesher;
-
-    std::vector<u32> indices;
 
     shader_buffer buffer;
     shader_program shader;

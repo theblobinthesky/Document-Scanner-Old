@@ -32,6 +32,18 @@ void mask_mesher::init(const f32* exists, f32* heatmap, const svec2& heatmap_siz
     vertices = new vertex[mesh_size.area()];
     blend_to_vertices = new vec2[mesh_size.area()];
     blend_vertices = new vertex[mesh_size.area()];
+
+    for(s32 x = 0; x < mesh_size.x - 1; x++) {
+        for(s32 y = 0; y < mesh_size.y - 1; y++) {
+            mesh_indices.push_back(x * mesh_size.y + y);
+            mesh_indices.push_back((x + 1) * mesh_size.y + y);
+            mesh_indices.push_back((x + 1) * mesh_size.y + (y + 1));
+
+            mesh_indices.push_back(x * mesh_size.y + y);
+            mesh_indices.push_back((x + 1) * mesh_size.y + (y + 1));
+            mesh_indices.push_back(x * mesh_size.y + (y + 1));
+        }
+    }
 }
 
 void sample_points_from_contour(vec2* pts, const vec2* contour, s32 points_per_contour, s32 corner_idx, s32 n) {
@@ -207,7 +219,9 @@ void sticky_particle_system::gen_and_fill_quads(const engine_backend* backend) {
             quad->v0 = mesher->sample_at(uv + vec2({-particle_size, -particle_size}));
             quad->v1 = mesher->sample_at(uv + vec2({+particle_size, -particle_size}));
             quad->v2 = mesher->sample_at(uv + vec2({+particle_size, +particle_size}));
-            quad->v3 = mesher->sample_at(uv + vec2({-particle_size, +particle_size}));         
+            quad->v3 = mesher->sample_at(uv + vec2({-particle_size, +particle_size}));     
+            quad->uv_tl = {};
+            quad->uv_br = { 1, 1 };    
         }
     }
 
@@ -310,7 +324,7 @@ void docscanner::mesh_border::init(engine_backend* backend, const mask_mesher* m
     points_size = 2 * size.x + 2 * size.y - 4;
     points = new vec2[points_size];
 
-    border_lines.init(backend, points, points_size, thickness);
+    border_lines.init(backend, points, points_size, thickness, { 1, 1, 1 }, true);
 }
 
 void mesh_border::render(f32 time) {
@@ -320,7 +334,7 @@ void mesh_border::render(f32 time) {
 }
 
 void mesh_cutout::gen_and_fill_mesh() {
-    fill_shader_buffer(buffer, mesher->blend_vertices, mesher->mesh_size.area() * sizeof(vertex), indices.data(), indices.size() * sizeof(u32));
+    fill_shader_buffer(buffer, mesher->blend_vertices, mesher->mesh_size.area() * sizeof(vertex), mesher->mesh_indices.data(), mesher->mesh_indices.size() * sizeof(u32));
     bind_shader_buffer(buffer);
 }
 
@@ -328,21 +342,9 @@ void mesh_cutout::init(engine_backend* backend, const mask_mesher* mesher) {
     this->backend = backend;
     this->mesher = mesher;
 
-    for(s32 x = 0; x < mesher->mesh_size.x - 1; x++) {
-        for(s32 y = 0; y < mesher->mesh_size.y - 1; y++) {
-            indices.push_back(x * mesher->mesh_size.y + y);
-            indices.push_back((x + 1) * mesher->mesh_size.y + y);
-            indices.push_back((x + 1) * mesher->mesh_size.y + (y + 1));
-
-            indices.push_back(x * mesher->mesh_size.y + y);
-            indices.push_back((x + 1) * mesher->mesh_size.y + (y + 1));
-            indices.push_back(x * mesher->mesh_size.y + (y + 1));
-        }
-    }
-
     buffer = make_shader_buffer();
-    fill_shader_buffer(buffer, mesher->blend_vertices, mesher->mesh_size.area() * sizeof(vertex), indices.data(), indices.size() * sizeof(u32));
-
+    gen_and_fill_mesh();
+    
     shader = backend->compile_and_link(vert_src(), frag_sampler_src(CAM_USES_OES_TEXTURE));
 }
 
@@ -351,5 +353,5 @@ void mesh_cutout::render(f32 time) {
 
     backend->use_program(shader);
     bind_shader_buffer(buffer);
-    glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, null);
+    glDrawElements(GL_TRIANGLES, mesher->mesh_indices.size(), GL_UNSIGNED_INT, null);
 }

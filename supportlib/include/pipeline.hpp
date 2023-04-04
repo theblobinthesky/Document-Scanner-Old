@@ -13,6 +13,10 @@ struct unwrapped_options_screen {
     shader_program sampler_program;
 
     button discard_button, next_button;
+    lines border_lines;
+    lines tl_lines, tr_lines, br_lines, bl_lines;
+
+    animation<f32> bg_blendin_animation, fg_blendin_animation;
 
     unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect, const texture* unwrapped_texture);
     void draw();

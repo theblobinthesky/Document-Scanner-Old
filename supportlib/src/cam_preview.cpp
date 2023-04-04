@@ -13,8 +13,7 @@ constexpr svec2 unwrap_size = { 1240, 1754 };
 cam_preview::cam_preview(engine_backend* backend, ui_manager* ui, camera* cam) 
     : backend(backend), ui(ui), cam(*cam),
       unwrap_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0),
-      blendout_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 0.5f, 0),
-      blendin_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 1.0f, 0.5f, 0),
+      blendout_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.2f, 0.5f, 0),
       shutter_animation(backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.0f, 0.15f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED),
       is_live_camera_streaming(true) {}
 
@@ -62,35 +61,38 @@ void docscanner::cam_preview::init_backend(f32 bottom_edge, const rect& unwrappe
     nn_contour_out_size = downsampled_size.area() * points_per_contour * sizeof(f32);
     nn_contour_out = new u8[nn_contour_out_size];
 
+    mesher.init(&nn_exists_out, (f32*)nn_contour_out, downsampled_size, point_range, point_dst, 0.4f);
+
 #if CAM_USES_OES_TEXTURE
     tex_downsampler.init(backend, backend->cam_size_px, downsampled_size, true, null, 2, 1.0f);
+    tex_sampler.init(backend, backend->cam_size_px, true, null, mesher.blend_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
 #else
     tex_downsampler.init(backend, backend->cam_size_px, downsampled_size, false, &cam.cam_tex, 2, 1.0f);
 #endif
 
-    mesher.init(&nn_exists_out, (f32*)nn_contour_out, downsampled_size, point_range, point_dst, 0.4f);
-
+    unwrapped_vertices = new vertex[mesher.mesh_size.area()];
     for(s32 x = 0; x < mesher.mesh_size.x; x++) {
         for(s32 y = 0; y < mesher.mesh_size.y; y++) {
+            s32 i = x * mesher.mesh_size.y + y;
             f32 x_t = x / (f32)(mesher.mesh_size.x - 1);
             f32 y_t = y / (f32)(mesher.mesh_size.y - 1);
 
-            mesher.blend_to_vertices[x * mesher.mesh_size.y + y] = { 
+            mesher.blend_to_vertices[i] = { 
                 lerp(unwrapped_rect.tl.x, unwrapped_rect.br.x, x_t), 
                 lerp(unwrapped_rect.tl.y, unwrapped_rect.br.y, 1.0f - y_t) // todo: fix these coordinate system inconsitencies
             };
         }
     }
 
+#if CAM_USES_OES_TEXTURE
+    tex_sampler.init(backend, backend->cam_size_px, true, null, unwrapped_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
+#else
+    tex_sampler.init(backend, backend->cam_size_px, false, &cam.cam_tex, unwrapped_vertices, mesher.mesh_size.area(), cutout.indices.data(), cutout.indices.size());
+#endif
+
     particles.init(backend, &mesher, svec2({ 4, 4 }), 0.05f, 0.015f, 2.0f);
     border.init(backend, &mesher, svec2({ 16, 16 }), 0.01f);
     cutout.init(backend, &mesher);
-
-#if CAM_USES_OES_TEXTURE
-    tex_sampler.init(backend, backend->cam_size_px, true, null, mesher.blend_vertices, mesher.mesh_size.area(), cutout.indices.data(), cutout.indices.size());
-#else
-    tex_sampler.init(backend, backend->cam_size_px, false, &cam.cam_tex, mesher.blend_vertices, mesher.mesh_size.area(), cutout.indices.data(), cutout.indices.size());
-#endif
 
     shutter_program = backend->compile_and_link(vert_quad_src(), frag_shutter_src());
     
@@ -116,9 +118,23 @@ void cam_preview::unwrap() {
         pause_camera_capture(cam);
 #endif
 
+    for(s32 x = 0; x < mesher.mesh_size.x; x++) {
+        for(s32 y = 0; y < mesher.mesh_size.y; y++) {
+            s32 i = x * mesher.mesh_size.y + y;
+            f32 x_t = x / (f32)(mesher.mesh_size.x - 1);
+            f32 y_t = y / (f32)(mesher.mesh_size.y - 1);
+            unwrapped_vertices[i] = {
+                .pos = { lerp(0, 1, x_t), lerp(0, 1, 1.0f - y_t) },
+                .uv = mesher.blend_vertices[i].uv
+            };
+        }
+    }
+
+    tex_sampler.sample();
+    unbind_framebuffer();
+
     unwrap_animation.start();
     blendout_animation.start();
-    blendin_animation.start();
 }
 
 void docscanner::cam_preview::render(f32 time) {
@@ -143,9 +159,7 @@ void docscanner::cam_preview::render(f32 time) {
 
     blendout_animation.update();
 
-    canvas c = {
-        .bg_color=vec3::lerp(ui->theme.black, ui->theme.background_color, blendin_animation.update())
-    };
+    canvas c = { ui->theme.black };
 
     backend->use_program(preview_program);
     get_variable(preview_program, "saturation").set_f32(lerp(0.2f, 0.0f, blendout_animation.value));
@@ -175,7 +189,7 @@ void docscanner::cam_preview::render(f32 time) {
     border.render(time);
     
     backend->use_program(shutter_program);
-    get_variable(shutter_program, "opacity").set_f32(lerp(1.0f, 0.0f, blendin_animation.value));
+    get_variable(shutter_program, "opacity").set_f32(lerp(1.0f, 0.0f, blendout_animation.value));
 
     get_variable(shutter_program, "inner_out").set_f32(shutter_animation.update());
     backend->draw_quad(shutter_program, pos, size);

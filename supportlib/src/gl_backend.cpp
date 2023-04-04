@@ -52,6 +52,10 @@ void docscanner::variable::set_vec4(const vec2& a, const vec2& b) {
     glUniform4f(location, a.x, a.y, b.x, b.y);
 }
 
+void docscanner::variable::set_vec4(const vec4& v) {
+    glUniform4f(location, v.x, v.y, v.z, v.w);
+}
+
 void docscanner::instanced_quads::init(s32 size) {
     quads = new instanced_quad[size];
     quads_size = size;
@@ -219,16 +223,22 @@ void texture_sampler::init(engine_backend* backend, svec2 output_size, bool inpu
     this->indices = indices;
     this->indices_size = indices_size;
 
+    projection_matrix = mat4::orthographic(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
+
     output_tex = make_texture(output_size, GL_RGBA32F);    
     output_fb = framebuffer_from_texture(output_tex);
 
     buffer = make_shader_buffer();
     fill_shader_buffer(buffer, vertices, vertices_size * sizeof(vertex), indices, indices_size * sizeof(u32));
 
-    sampler_program = backend->compile_and_link(vert_src(), frag_simple_tex_sampler_src(input_is_oes_texture, 0));
+    sampler_program = backend->compile_and_link(vert_src(), frag_sampler_src(input_is_oes_texture));
 }
 
 void texture_sampler::sample() {
+    SCOPED_CAMERA_MATRIX(backend, projection_matrix);
+   
+    fill_shader_buffer(buffer, vertices, vertices_size * sizeof(vertex), null, 0);
+
     int viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
 
@@ -240,11 +250,9 @@ void texture_sampler::sample() {
     }
 
     backend->use_program(sampler_program);
-    get_variable(sampler_program, "saturation").set_f32(1.0f);
-    get_variable(sampler_program, "opacity").set_f32(1.0f);
 
     glViewport(0, 0, output_size.x, output_size.y);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
+    glDrawElements(GL_TRIANGLES, indices_size, GL_UNSIGNED_INT, null);
     check_gl_error("glDrawElements");
 
     // restore old viewport
@@ -420,13 +428,22 @@ instanced_shader_buffer make_joins_buffer(s32 resolution) {
     return make_instanced_point_shader_buffer(round_buffer);
 }
 
-void docscanner::lines::init(engine_backend* backend, vec2* points, s32 points_size, f32 thickness) {
+void docscanner::lines::init(engine_backend* backend, vec2* points, s32 points_size, f32 thickness, vec3 color, bool is_closed) {
     this->backend = backend;
 
     this->points = points;
-    closed_points = new vec2[points_size + 1];
-    this->points_size = points_size;
+    this->is_closed = is_closed;
+    
+    if(is_closed) {
+        this->points_size = points_size + 1;
+        closed_points = new vec2[points_size];
+    } else {
+        this->points_size = points_size;
+        closed_points = points;
+    }
+
     this->thickness = thickness;
+    this->color = color;
 
     lines_buffer = make_lines_buffer();
     joins_buffer = make_joins_buffer(16);
@@ -439,28 +456,31 @@ void docscanner::lines::init(engine_backend* backend, vec2* points, s32 points_s
 
 void docscanner::lines::fill() {
     glBindBuffer(GL_ARRAY_BUFFER, joins_buffer.instance_vbo);
-    glBufferData(GL_ARRAY_BUFFER, points_size * sizeof(vec2), points, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, (points_size - 1) * sizeof(vec2), points, GL_DYNAMIC_DRAW);
 
-    memcpy(closed_points, points, points_size * sizeof(vec2));
-    closed_points[points_size] = closed_points[0];
+    if(is_closed) {
+        memcpy(closed_points, points, (points_size - 1) * sizeof(vec2));
+        closed_points[points_size - 1] = closed_points[0];
+    }
 
     glBindBuffer(GL_ARRAY_BUFFER, lines_buffer.instance_vbo);
-    glBufferData(GL_ARRAY_BUFFER, (points_size + 1) * sizeof(vec2), points, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, points_size * sizeof(vec2), closed_points, GL_DYNAMIC_DRAW);
 }
 
 void docscanner::lines::draw() {
     backend->use_program(joins_program);
     get_variable(joins_program, "scale").set_f32(thickness);
+    get_variable(joins_program, "color").set_vec4(color);
     
     glBindVertexArray(joins_buffer.vao);
     glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 16, points_size - 1);
 
-
     backend->use_program(lines_program);
     get_variable(lines_program, "thickness").set_f32(thickness);
+    get_variable(joins_program, "color").set_vec4(color);
     
     glBindVertexArray(lines_buffer.vao);
-    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null, points_size);
+    glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null, points_size - 1);
 }
 
 

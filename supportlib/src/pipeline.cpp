@@ -37,7 +37,9 @@ void get_time(u64& start_time, f32& time) {
 
 unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect, const texture* unwrapped_texture) 
     : ui(ui), unwrapped_rect(unwrapped_rect), unwrapped_texture(unwrapped_texture),
-    discard_button(ui, "Discard", crad_thin_to_the_left, ui->theme.primary_color), next_button(ui, "Keep", crad_thin_to_the_right, ui->theme.primary_color) {
+    discard_button(ui, "Discard", crad_thin_to_the_left, ui->theme.primary_color), next_button(ui, "Keep", crad_thin_to_the_right, ui->theme.primary_color),
+    bg_blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0), 
+    fg_blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.2f, 1.0f, 0) {
     rect screen = {
         .tl = {},
         .br = { 1, ui->backend->preview_height }
@@ -50,10 +52,49 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     next_button.layout(cut_margins(grid_split_x(screen, 1, 2), left_right_margin));
 
     sampler_program = ui->backend->compile_and_link(vert_quad_src(), frag_simple_tex_sampler_src(false, 0));
+
+    vec2 unwrapped_size = unwrapped_rect.size();
+    vec2* border_points = new vec2[4] {
+        unwrapped_rect.tl, unwrapped_rect.tl + vec2({ unwrapped_size.x, 0 }),
+        unwrapped_rect.br, unwrapped_rect.tl + vec2({ 0, unwrapped_size.y })
+    };
+
+    f32 hl_border_perc = 0.1f;
+    vec2 hl_border_size_x = { hl_border_perc, 0 };
+    vec2 hl_border_size_y = { 0, hl_border_perc };
+
+    vec2* tl_border_points = new vec2[3] {
+        unwrapped_rect.tl + hl_border_size_y, unwrapped_rect.tl, unwrapped_rect.tl + hl_border_size_x
+    };
+
+    vec2 unwrapped_rect_tr = unwrapped_rect.tl + vec2({ unwrapped_size.x, 0 });    
+    vec2* tr_border_points = new vec2[3] {
+        unwrapped_rect_tr - hl_border_size_x, unwrapped_rect_tr, unwrapped_rect_tr + hl_border_size_y
+    };
+
+    vec2* br_border_points = new vec2[3] {
+        unwrapped_rect.br - hl_border_size_y, unwrapped_rect.br, unwrapped_rect.br - hl_border_size_x
+    };
+
+    vec2 unwrapped_rect_bl = unwrapped_rect.tl + vec2({ 0, unwrapped_size.y });
+    vec2* bl_border_points = new vec2[3] {
+        unwrapped_rect_bl - hl_border_size_y, unwrapped_rect_bl, unwrapped_rect_bl + hl_border_size_x
+    };
+
+    border_lines.init(ui->backend, border_points, 4, 0.01f, ui->theme.primary_color, true);
+    tl_lines.init(ui->backend, tl_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
+    tr_lines.init(ui->backend, tr_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
+    br_lines.init(ui->backend, br_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
+    bl_lines.init(ui->backend, bl_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
 }
 
 void unwrapped_options_screen::draw() {
-    canvas c = { ui->theme.background_color };
+    if(bg_blendin_animation.state == animation_state::WAITING) {
+        bg_blendin_animation.start();
+        fg_blendin_animation.start();
+    }
+
+    canvas c = { vec3::lerp(ui->theme.black, ui->theme.background_color, bg_blendin_animation.update()) };
     ::draw(c);
 
     bind_texture_to_slot(0, *unwrapped_texture);
@@ -62,6 +103,21 @@ void unwrapped_options_screen::draw() {
     get_variable(sampler_program, "saturation").set_f32(1.0f);
     get_variable(sampler_program, "opacity").set_f32(1.0f);
     ui->backend->draw_quad(sampler_program, unwrapped_rect.middle(), unwrapped_rect.size());
+
+    border_lines.color.w = fg_blendin_animation.update();
+    tl_lines.color.w = fg_blendin_animation.value;
+    tr_lines.color.w = fg_blendin_animation.value;
+    br_lines.color.w = fg_blendin_animation.value;
+    bl_lines.color.w = fg_blendin_animation.value;
+
+    border_lines.draw();
+    tl_lines.draw();
+    tr_lines.draw();
+    br_lines.draw();
+    bl_lines.draw();
+
+    discard_button.color.w = fg_blendin_animation.value;
+    next_button.color.w = fg_blendin_animation.value;
 
     discard_button.draw();
     next_button.draw();
@@ -92,10 +148,7 @@ void docscanner::pipeline::render() {
 
     get_time(start_time, backend.time);
 
-    cam_preview_screen.tex_sampler.sample();
-    unbind_framebuffer();
-    
-    if(cam_preview_screen.blendin_animation.state == FINISHED) {
+    if(cam_preview_screen.blendout_animation.state == FINISHED) {
         options_screen.draw();
     } else {
         cam_preview_screen.render(backend.time);

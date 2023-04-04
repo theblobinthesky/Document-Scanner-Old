@@ -31,6 +31,7 @@ struct cam_preview {
 
     texture_downsampler tex_downsampler;
     texture_sampler tex_sampler;
+    vertex* unwrapped_vertices;
 
     mask_mesher mesher;
     sticky_particle_system particles;
@@ -41,9 +42,7 @@ struct cam_preview {
     animation<f32> shutter_animation;
 
     bool is_live_camera_streaming;
-    animation<f32> unwrap_animation;
-    animation<f32> blendout_animation, blendin_animation;
-
+    animation<f32> unwrap_animation, blendout_animation;
     bool is_init;
 
     cam_preview(engine_backend* backend, ui_manager* ui, camera* cam);

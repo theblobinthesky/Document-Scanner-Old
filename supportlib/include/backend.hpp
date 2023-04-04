@@ -60,6 +60,7 @@ struct variable {
     void set_vec3(const vec3& v);
     void set_vec4(const rect& r);
     void set_vec4(const vec2& a, const vec2& b);
+    void set_vec4(const vec4& v);
 };
 
 struct instanced_quad {
@@ -206,6 +207,7 @@ struct animation {
 
 struct texture_sampler {
     engine_backend* backend;
+    mat4 projection_matrix;
 
     bool input_is_oes_texture;
     const texture* input_tex;
@@ -274,9 +276,11 @@ struct lines {
     engine_backend* backend;
 
     vec2* points;
+    bool is_closed;
     vec2* closed_points;
     s32 points_size;
     f32 thickness;
+    vec4 color;
 
     instanced_shader_buffer lines_buffer;
     instanced_shader_buffer joins_buffer;
@@ -284,7 +288,7 @@ struct lines {
     shader_program lines_program;
     shader_program joins_program;
 
-    void init(engine_backend* backend, vec2* points, s32 points_size, f32 thickness);
+    void init(engine_backend* backend, vec2* points, s32 points_size, f32 thickness, vec3 color, bool is_closed);
     void fill();
     void draw();
 };

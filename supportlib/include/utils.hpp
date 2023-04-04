@@ -43,6 +43,16 @@ struct vec3 {
     static vec3 lerp(const vec3& a, const vec3& b, f32 t);
 };
 
+struct vec4 {
+    f32 x, y, z, w;
+
+    vec4 operator*(f32 other) const;
+
+    vec4();
+    vec4(f32 x, f32 y, f32 z, f32 w);
+    vec4(const vec3& v);
+};
+
 struct svec2 {
     s32 x;
     s32 y;

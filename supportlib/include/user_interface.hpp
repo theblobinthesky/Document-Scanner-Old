@@ -38,6 +38,7 @@ struct ui_theme {
     vec3 background_color;
     vec3 primary_color;
     vec3 primary_dark_color;
+    vec3 foreground_color;
     
     ui_theme(bool enable_dark_mode);
 };
@@ -65,10 +66,12 @@ struct text {
     const font_instance* font;
     std::string str;
 
+    vec4 color;
+
     shader_program shader;
     instanced_quads quads;
 
-    text(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str);
+    text(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str, const vec3& color);
     void layout(const rect& bounds);
 
     void set_text(const std::string str);
@@ -80,7 +83,7 @@ struct button {
 
     rect crad;
     rect bounds;
-    vec3 color;
+    vec4 color;
 
     shader_program shader;
     font_instance* font;

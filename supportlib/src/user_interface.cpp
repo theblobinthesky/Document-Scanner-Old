@@ -118,6 +118,7 @@ ui_theme::ui_theme(bool enable_dark_mode) {
     background_color    = enable_dark_mode ? vec3({ 0.1f, 0.1f, 0.1f }) : vec3({ 1, 1, 1 });
     primary_color       = enable_dark_mode ? color_from_int(0xBB86FC) : color_from_int(0x6200EE);
     primary_dark_color  = color_from_int(0x3700B3);
+    foreground_color    = enable_dark_mode ? color_from_int(0xFFFFFF) : color_from_int(0xFFFFFF);
 }
 
 ui_manager::ui_manager(engine_backend* backend, bool enable_dark_mode) : backend(backend), theme(enable_dark_mode) {}
@@ -138,8 +139,8 @@ font_instance* ui_manager::get_font(const std::string& path, f32 size) {
     return &found->second;
 }
 
-text::text(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str) :
-    backend(backend), font(font), str(str), bounds(bounds), align(align) {
+text::text(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str, const vec3& color) :
+    backend(backend), bounds(bounds), align(align), font(font), str(str), color(color) {
     shader = backend->compile_and_link(vert_instanced_quad_src(), frag_glyph_src(0));
     quads.init(str.size());
 }
@@ -195,11 +196,13 @@ void text::render() {
     quads.fill();
 
     backend->use_program(shader);
+    get_variable(shader, "color").set_vec4(color);
     quads.draw();
 }
 
 button::button(ui_manager* ui, const std::string& str, const rect& crad, vec3 color) 
-    : ui(ui), crad(crad), color(color), content(ui->backend, ui->get_font("font.ttf", 0.12f), bounds, text_alignment::CENTER, str) {
+    : ui(ui), crad(crad), color(color), 
+      content(ui->backend, ui->get_font("font.ttf", 0.12f), bounds, text_alignment::CENTER, str, ui->theme.foreground_color) {
     shader = ui->backend->compile_and_link(vert_quad_src(), frag_rounded_quad_src());
 }
 
@@ -212,10 +215,11 @@ bool button::draw() {
     ui->backend->use_program(shader);
     get_variable(shader, "quad_size").set_vec2(bounds.size());
     get_variable(shader, "corner_rad").set_vec4(crad);
-    get_variable(shader, "light_color").set_vec3(color);
-    get_variable(shader, "dark_color").set_vec3(color * 0.8f);
+    get_variable(shader, "light_color").set_vec4(color);
+    get_variable(shader, "dark_color").set_vec4(color * 0.8f);
     ui->backend->draw_quad(shader, bounds.middle(), bounds.size());
 
+    content.color.w = color.w;
     content.render();
 
     motion_event event = ui->backend->input.get_motion_event(bounds.middle(), bounds.size());

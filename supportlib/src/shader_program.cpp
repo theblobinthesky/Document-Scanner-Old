@@ -143,11 +143,11 @@ std::string docscanner::frag_glyph_src(u32 binding_slot) {
             in vec2 out_uvs;
             out vec4 out_col;
 
-            uniform float alpha;
+            uniform vec4 color;
 
             void main() {
                 float glyph_alpha = texture(sampler, out_uvs).r;
-                out_col = vec4(glyph_alpha, glyph_alpha, glyph_alpha, glyph_alpha);
+                out_col = color * glyph_alpha;
             }
         )";
 }
@@ -266,6 +266,7 @@ std::string docscanner::frag_border_src() {
         const float border_fadeout = 0.03;
 
         uniform float time;
+        uniform vec4 color;
 
         void main() {
             float inner_core = -0.95;
@@ -274,7 +275,7 @@ std::string docscanner::frag_border_src() {
             float alpha = smoothstep(inner_core - border_fadeout, inner_core, out_uvs.y); 
             alpha -= smoothstep(outer_core, outer_core + border_fadeout, out_uvs.y);
 
-            out_col = vec4(1.0, 1.0, 1.0, 1.0);
+            out_col = vec4(color.rgb, 1.0 * color.a);
         }
     )";
 }
@@ -325,8 +326,8 @@ std::string docscanner::frag_rounded_quad_src() {
 
         uniform vec2 quad_size;
         uniform vec4 corner_rad;
-        uniform vec3 light_color;
-        uniform vec3 dark_color;
+        uniform vec4 light_color;
+        uniform vec4 dark_color;
 
         const float color_mix_dist = 0.05f;
         const float color_mix_width = 0.2f;
@@ -350,9 +351,9 @@ std::string docscanner::frag_rounded_quad_src() {
             float norm_distance = abs(distance) / length(half_size);
             float color_mix = smoothstep(color_mix_dist, color_mix_dist + color_mix_width, norm_distance);
 
-            vec3 color = mix(dark_color, light_color, color_mix);
+            vec4 color = mix(dark_color, light_color, color_mix);
 
-            out_col = vec4(color, smoothed_alpha);
+            out_col = vec4(color.rgb, smoothed_alpha * color.a);
         }
     )";
 }
