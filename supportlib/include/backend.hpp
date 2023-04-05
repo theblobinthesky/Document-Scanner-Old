@@ -111,7 +111,8 @@ struct engine_backend {
     shader_program compile_and_link(const std::string& comp_src);
     void use_program(const shader_program& program);
 
-    void draw_quad(const shader_program& program, const vec2& pos, const vec2& size);
+    void draw_quad(const shader_program& program, const rect& bounds);
+    void draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds);
 
 #ifdef DEBUG
     void DEBUG_draw_marker(const vec2& pt, const vec3& col);

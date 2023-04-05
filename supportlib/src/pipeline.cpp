@@ -39,7 +39,11 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     : ui(ui), unwrapped_rect(unwrapped_rect), unwrapped_texture(unwrapped_texture),
     discard_button(ui, "Discard", crad_thin_to_the_left, ui->theme.primary_color), next_button(ui, "Keep", crad_thin_to_the_right, ui->theme.primary_color),
     bg_blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0), 
-    fg_blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.2f, 1.0f, 0) {
+    fg_blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.2f, 1.0f, 0),
+    split_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0) {
+    top_unwrapped_rect = grid_split(unwrapped_rect, 0, 2, split_direction::VERTICAL);
+    bottom_unwrapped_rect = grid_split(unwrapped_rect, 1, 2, split_direction::VERTICAL);
+
     rect screen = {
         .tl = {},
         .br = { 1, ui->backend->preview_height }
@@ -48,8 +52,8 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     screen = get_between(screen, 0.8f, 0.9f);
 
     rect left_right_margin = { { 0.02f, 0 }, { 0.02f, 0 } };
-    discard_button.layout(cut_margins(grid_split_x(screen, 0, 2), left_right_margin));
-    next_button.layout(cut_margins(grid_split_x(screen, 1, 2), left_right_margin));
+    discard_button.layout(cut_margins(grid_split(screen, 0, 2, split_direction::HORIZONTAL), left_right_margin));
+    next_button.layout(cut_margins(grid_split(screen, 1, 2, split_direction::HORIZONTAL), left_right_margin));
 
     sampler_program = ui->backend->compile_and_link(vert_quad_src(), frag_simple_tex_sampler_src(false, 0));
 
@@ -98,11 +102,28 @@ void unwrapped_options_screen::draw() {
     ::draw(c);
 
     bind_texture_to_slot(0, *unwrapped_texture);
-        
+
+
+
+    split_animation.update();
+
     ui->backend->use_program(sampler_program);
     get_variable(sampler_program, "saturation").set_f32(1.0f);
     get_variable(sampler_program, "opacity").set_f32(1.0f);
-    ui->backend->draw_quad(sampler_program, unwrapped_rect.middle(), unwrapped_rect.size());
+
+    rect unwrapped_uv = { {}, { 1, 1 } };
+    rect split_unwrapped_uv = { {}, { 1, 0.5f } };
+
+    if(split_animation.state != animation_state::WAITING) {
+        ui->backend->draw_quad(sampler_program,
+            rect::from_middle_and_size(unwrapped_rect.tl, unwrapped_rect.br),// rect::lerp(unwrapped_rect, bottom_unwrapped_rect, split_animation.value),
+            rect::lerp(unwrapped_uv, split_unwrapped_uv, split_animation.value));
+    }
+
+    ui->backend->draw_quad(sampler_program, 
+            rect::lerp(unwrapped_rect, top_unwrapped_rect, split_animation.value),
+            rect::lerp(unwrapped_uv, split_unwrapped_uv, split_animation.value));
+
 
     border_lines.color.w = fg_blendin_animation.update();
     tl_lines.color.w = fg_blendin_animation.value;
@@ -119,8 +140,13 @@ void unwrapped_options_screen::draw() {
     discard_button.color.w = fg_blendin_animation.value;
     next_button.color.w = fg_blendin_animation.value;
 
-    discard_button.draw();
-    next_button.draw();
+    if(discard_button.draw()) {
+        LOGI("discard!");
+    }
+
+    if(next_button.draw()) {
+        split_animation.start();
+    }
 }
 
 camera* docscanner::pipeline::pre_init(svec2 preview_size, svec2& cam_size) {

@@ -72,6 +72,10 @@ struct rect {
     vec2 tl, br;
     vec2 middle() const;
     vec2 size() const;
+
+    static rect from_tl_and_size(const vec2& tl, const vec2& size);
+    static rect from_middle_and_size(const vec2& middle, const vec2& size);
+    static rect lerp(const rect& a, const rect& b, f32 t);
 };
 
 struct uvec2 {
@@ -83,6 +87,10 @@ struct mat4 {
     f32 data[16];
 
     static mat4 orthographic(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far);
+};
+
+enum class split_direction {
+    HORIZONTAL, VERTICAL
 };
 
 f32 clamp(f32 val, f32 min, f32 max);
@@ -103,7 +111,7 @@ rect cut_margins(const rect& r, f32 margin);
 
 rect cut_margins(const rect& r, const rect& margin);
 
-rect grid_split_x(const rect& r, s32 i, s32 splits);
+rect grid_split(const rect& r, s32 i, s32 splits, split_direction dir);
 
 rect get_between(const rect& r, f32 t, f32 b);
 

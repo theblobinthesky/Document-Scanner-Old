@@ -9,6 +9,8 @@ struct unwrapped_options_screen {
     ui_manager* ui;
     
     rect unwrapped_rect;
+    rect top_unwrapped_rect, bottom_unwrapped_rect;
+    
     const texture* unwrapped_texture;
     shader_program sampler_program;
 
@@ -17,6 +19,7 @@ struct unwrapped_options_screen {
     lines tl_lines, tr_lines, br_lines, bl_lines;
 
     animation<f32> bg_blendin_animation, fg_blendin_animation;
+    animation<f32> split_animation;
 
     unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect, const texture* unwrapped_texture);
     void draw();

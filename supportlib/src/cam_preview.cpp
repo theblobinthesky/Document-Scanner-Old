@@ -87,7 +87,7 @@ void docscanner::cam_preview::init_backend(f32 bottom_edge, const rect& unwrappe
 #if CAM_USES_OES_TEXTURE
     tex_sampler.init(backend, backend->cam_size_px, true, null, unwrapped_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
 #else
-    tex_sampler.init(backend, backend->cam_size_px, false, &cam.cam_tex, unwrapped_vertices, mesher.mesh_size.area(), cutout.indices.data(), cutout.indices.size());
+    tex_sampler.init(backend, backend->cam_size_px, false, &cam.cam_tex, unwrapped_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
 #endif
 
     particles.init(backend, &mesher, svec2({ 4, 4 }), 0.05f, 0.015f, 2.0f);
@@ -174,8 +174,9 @@ void docscanner::cam_preview::render(f32 time) {
 
     vec2 pos = { 0.5f, backend->preview_height - 0.25f };
     vec2 size = { 0.25f, 0.25f };
+    rect shutter_rect = rect::from_middle_and_size(pos, size);
 
-    motion_event event = backend->input.get_motion_event(pos - size * 0.5f, pos + size * 0.5f);
+    motion_event event = backend->input.get_motion_event(shutter_rect);
     if(event.type == motion_type::TOUCH_DOWN) {
         shutter_animation.start();
         unwrap();
@@ -192,7 +193,7 @@ void docscanner::cam_preview::render(f32 time) {
     get_variable(shutter_program, "opacity").set_f32(lerp(1.0f, 0.0f, blendout_animation.value));
 
     get_variable(shutter_program, "inner_out").set_f32(shutter_animation.update());
-    backend->draw_quad(shutter_program, pos, size);
+    backend->draw_quad(shutter_program, shutter_rect);
 
     backend->DEBUG_draw();
 }

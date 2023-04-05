@@ -16,10 +16,10 @@ void docscanner::input_manager::handle_motion_event(const motion_event& event) {
     LOGI("event.pos.x: %f, event.pos.y: %f", this->event.pos.x, this->event.pos.y);
 }
 
-motion_event input_manager::get_motion_event(const vec2& tl, const vec2& br) {
+motion_event input_manager::get_motion_event(const rect& bounds) {
     if(event.type != motion_type::NO_MOTION &&
-        tl.x <= event.pos.x && event.pos.x <= br.x &&
-        tl.y <= event.pos.y && event.pos.y <= br.y) {
+        bounds.tl.x <= event.pos.x && event.pos.x <= bounds.br.x &&
+        bounds.tl.y <= event.pos.y && event.pos.y <= bounds.br.y) {
         return event;
     }
 

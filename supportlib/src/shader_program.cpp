@@ -32,10 +32,11 @@ std::string docscanner::vert_quad_src() {
         in vec2 uvs;
         out vec2 out_uvs;
 
-        uniform vec4 transform;
+        uniform vec4 bounds;
+        uniform vec4 uv_bounds;
 
         void main() {
-            vec2 real_position = transform.xy + position * transform.zw;
+            vec2 real_position = mix(bounds.xy, bounds.zw, position);
             gl_Position = projection * vec4(real_position, 0, 1);
             out_uvs = uvs;
         }

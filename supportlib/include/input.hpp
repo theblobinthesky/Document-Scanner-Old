@@ -20,7 +20,7 @@ struct input_manager {
 
     void init(svec2 preview_size, f32 aspect_ratio);
     void handle_motion_event(const motion_event& event);
-    motion_event get_motion_event(const vec2& tl, const vec2& br);
+    motion_event get_motion_event(const rect& bounds);
     void end_frame();
 };
 

@@ -217,11 +217,11 @@ bool button::draw() {
     get_variable(shader, "corner_rad").set_vec4(crad);
     get_variable(shader, "light_color").set_vec4(color);
     get_variable(shader, "dark_color").set_vec4(color * 0.8f);
-    ui->backend->draw_quad(shader, bounds.middle(), bounds.size());
+    ui->backend->draw_quad(shader, bounds);
 
     content.color.w = color.w;
     content.render();
 
-    motion_event event = ui->backend->input.get_motion_event(bounds.middle(), bounds.size());
+    motion_event event = ui->backend->input.get_motion_event(bounds);
     return (event.type == motion_type::TOUCH_DOWN);
 }

@@ -45,7 +45,7 @@ void docscanner::variable::set_vec3(const vec3& v) {
 }
 
 void docscanner::variable::set_vec4(const rect& r) {
-    set_vec4(r.tl, r.br);
+    glUniform4f(location, r.tl.x, r.tl.y, r.br.x, r.br.y);
 }
 
 void docscanner::variable::set_vec4(const vec2& a, const vec2& b) {
@@ -104,10 +104,10 @@ engine_backend::engine_backend(svec2 preview_size_px, svec2 cam_size_px, file_co
     };
 
     vertex vertices[5] = {
-        {{-0.5f, -0.5f}, {0, 0}},
-        {{+0.5f, -0.5f}, {1, 0}},
-        {{+0.5f, +0.5f}, {1, 1}},
-        {{-0.5f, +0.5f}, {0, 1}}
+        {{0, 0}, {0, 0}},
+        {{1, 0}, {1, 0}},
+        {{1, 1}, {1, 1}},
+        {{0, 1}, {0, 1}}
     };
 
     quad_buffer = make_shader_buffer();
@@ -168,11 +168,16 @@ void docscanner::engine_backend::use_program(const shader_program &program) {
     get_variable(program, "projection").set_mat4(projection_mat);
 }
 
-void docscanner::engine_backend::draw_quad(const shader_program& program, const vec2& pos, const vec2& size) {
+void docscanner::engine_backend::draw_quad(const shader_program& program, const rect& bounds) {
+    draw_quad(program, bounds, rect({ {}, { 1, 1 } }));
+}
+
+void docscanner::engine_backend::draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds) {
     bind_shader_buffer(quad_buffer);
 
     use_program(program);
-    get_variable(program, "transform").set_vec4(pos, size);
+    get_variable(program, "bounds").set_vec4(bounds);
+    // get_variable(program, "uv_bounds").set_vec4(uv_bounds);
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
     check_gl_error("glDrawElements");
@@ -188,7 +193,7 @@ void docscanner::engine_backend::DEBUG_draw() {
 
     for(const DEBUG_marker& marker: DEBUG_marker_queue) {
         get_variable(DEBUG_marker_program, "color").set_vec3(marker.color);
-        draw_quad(DEBUG_marker_program, marker.pos, DEBUG_marker_size);
+        draw_quad(DEBUG_marker_program, rect::from_middle_and_size(marker.pos, DEBUG_marker_size));
     }
 
     DEBUG_marker_queue.clear();
@@ -340,7 +345,6 @@ void docscanner::texture_downsampler::init(engine_backend* backend, svec2 input_
     stages = new texture_downsampler_stage[downsampling_stages];
     stages_size = downsampling_stages;
 
-    // ASSERT(stages_size == 2, "Lol");    
 
     svec2 downsampling_fac = {
         (s32)sqrt(input_size.x / (f32)output_size.x),

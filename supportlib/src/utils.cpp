@@ -106,6 +106,18 @@ vec2 rect::size() const {
     return br - tl;
 }
 
+rect rect::from_tl_and_size(const vec2& tl, const vec2& size) {
+    return { tl, tl + size };
+}
+
+rect rect::from_middle_and_size(const vec2& middle, const vec2& size) {
+    return { middle - size * 0.5f, middle + size * 0.5f };
+}
+
+rect rect::lerp(const rect& a, const rect& b, f32 t) {
+    return { vec2::lerp(a.tl, b.tl, t), vec2::lerp(a.br, b.br, t) };
+}
+
 mat4 mat4::orthographic(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far) {
     mat4 mat = {};
 
@@ -190,14 +202,24 @@ rect cut_margins(const rect& r, const rect& margin) {
     return { r.tl + margin.tl, r.br - margin.br };
 }
 
-rect grid_split_x(const rect& r, s32 i, s32 splits) {
-    f32 w = r.size().x;
-    f32 sw = w / splits;
+rect grid_split(const rect& r, s32 i, s32 splits, split_direction dir) {
+    if(dir == split_direction::HORIZONTAL) {
+        f32 w = r.size().x;
+        f32 sw = w / splits;
 
-    return {
-        { r.tl.x + i * sw, r.tl.y },
-        { r.tl.x + (i + 1) * sw, r.br.y }
-    };
+        return {
+            { r.tl.x + i * sw, r.tl.y },
+            { r.tl.x + (i + 1) * sw, r.br.y }
+        };
+    } else {
+        f32 h = r.size().y;
+        f32 sh = h / splits;
+
+        return {
+            { r.tl.x, r.tl.y + i * sh },
+            { r.br.x, r.tl.y + (i + 1) * sh }
+        };
+    }
 }
 
 rect get_between(const rect& r, f32 t, f32 b) {
