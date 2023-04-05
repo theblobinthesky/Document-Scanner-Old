@@ -156,8 +156,9 @@ camera* docscanner::pipeline::pre_init(svec2 preview_size, svec2& cam_size) {
 }
 
 pipeline::pipeline(const pipeline_args& args)
-    : backend(args.preview_size, args.cam_size, args.file_ctx), ui(&backend, args.enable_dark_mode), start_time(0), 
-    cam_preview_screen(&backend, &ui, args.cam), options_screen(&ui, unwrapped_mesh_rect, &cam_preview_screen.tex_sampler.output_tex) {
+    : backend(args.preview_size, args.cam_size, args.file_ctx), ui(&backend, args.enable_dark_mode), 
+    cam_preview_screen(&backend, &ui, args.cam), options_screen(&ui, unwrapped_mesh_rect, &cam_preview_screen.tex_sampler.output_tex),
+    start_time(0), last_time(0) {
     projection_matrix = mat4::orthographic(0.0f, 1.0f, backend.preview_height, 0.0f, -1.0f, 1.0f);
 
 #ifdef ANDROID

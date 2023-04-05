@@ -12,12 +12,14 @@ constexpr svec2 unwrap_size = { 1240, 1754 };
 
 cam_preview::cam_preview(engine_backend* backend, ui_manager* ui, camera* cam) 
     : backend(backend), ui(ui), cam(*cam),
+      shutter_animation(backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.0f, 0.15f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED),
       unwrap_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0),
       blendout_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.2f, 0.5f, 0),
-      shutter_animation(backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.0f, 0.15f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED),
-      is_live_camera_streaming(true) {}
+      is_live_camera_streaming(true), is_init(false) {}
 
-void docscanner::cam_preview::init_backend(f32 bottom_edge, const rect& unwrapped_rect) {
+void docscanner::cam_preview::init_backend(f32 bottom_edge, const rect& unwrapped_rect) {    
+    SCOPED_TIMER("init_backend");
+
     f32 w = (1.0f / preview_aspect_ratio) * (backend->cam_size_px.x / (f32)backend->cam_size_px.y);
     f32 l = 0.5f - w / 2.0f;
     f32 r = 0.5f + w / 2.0f;
@@ -65,9 +67,12 @@ void docscanner::cam_preview::init_backend(f32 bottom_edge, const rect& unwrappe
 
 #if CAM_USES_OES_TEXTURE
     tex_downsampler.init(backend, backend->cam_size_px, downsampled_size, true, null, 2, 1.0f);
-    tex_sampler.init(backend, backend->cam_size_px, true, null, mesher.blend_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
+    tex_sampler.init(backend, unwrap_size, true, null, 
+        mesher.blend_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
 #else
     tex_downsampler.init(backend, backend->cam_size_px, downsampled_size, false, &cam.cam_tex, 2, 1.0f);
+    tex_sampler.init(backend, unwrap_size, false, &cam.cam_tex, 
+        mesher.blend_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
 #endif
 
     unwrapped_vertices = new vertex[mesher.mesh_size.area()];

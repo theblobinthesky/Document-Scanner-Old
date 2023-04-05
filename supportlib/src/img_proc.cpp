@@ -11,7 +11,6 @@ using namespace docscanner;
 const s32 docscanner::points_per_side_incl_start_corner = 4;
 const s32 docscanner::points_per_contour = points_per_side_incl_start_corner * 4;
 
-constexpr f32 binarize_threshold = 0.8f;
 constexpr s32 points_per_side = 10;
 
 void mask_mesher::init(const f32* exists, f32* heatmap, const svec2& heatmap_size, const rect& point_range, const rect& point_dst, f32 smoothness) {

@@ -91,7 +91,7 @@ void docscanner::instanced_quads::draw() {
 }
 
 engine_backend::engine_backend(svec2 preview_size_px, svec2 cam_size_px, file_context* file_ctx) 
-    : preview_size_px(preview_size_px), cam_size_px(cam_size_px), file_ctx(file_ctx) {
+    : file_ctx(file_ctx), preview_size_px(preview_size_px), cam_size_px(cam_size_px) {
     preview_height = preview_size_px.y / (f32)preview_size_px.x;
     input.init(preview_size_px, preview_height);
 
@@ -773,7 +773,7 @@ void docscanner::get_framebuffer_data(const frame_buffer &fb, const svec2 &size,
 void docscanner::set_texture_data(const texture &tex, u8* data, const svec2& size) {
     glBindTexture(GL_TEXTURE_2D, tex.id);
 
-    GLenum format, type;
+    GLenum format = 0, type = 0;
     switch(tex.format) {
     case GL_R32F: {
         format = GL_RED;

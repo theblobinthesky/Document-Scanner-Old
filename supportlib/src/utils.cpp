@@ -1,4 +1,5 @@
 #include "utils.hpp"
+#include "backend.hpp"
 #include <algorithm>
 #include <math.h>
 #include <random>
@@ -230,3 +231,19 @@ rect get_between(const rect& r, f32 t, f32 b) {
         { r.br.x, r.tl.y + b * h }
     };
 }
+
+#ifdef DEBUG
+#include <chrono>
+
+scoped_timer::scoped_timer(std::string name) : name(name) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    start = std::chrono::duration_cast<std::chrono::milliseconds>(start_time.time_since_epoch()).count();
+}
+
+scoped_timer::~scoped_timer() {
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto end = std::chrono::duration_cast<std::chrono::milliseconds>(end_time.time_since_epoch()).count();
+
+    LOGI("SCOPED_TIMER (%s) measured %dms.", name.c_str(), (s32)(end - start));
+}
+#endif

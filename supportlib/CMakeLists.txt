@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.4.1)
 
 set(CMAKE_BUILD_TYPE Debug)
 
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wno-sign-compare -Wno-unused-parameter")
+set(CMAKE_CXX_FLAGS_DEBUG "-g3")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+
 if(${TARGET_PLATFORM} STREQUAL Android)
     set(CMAKE_SYSTEM_NAME Android)
     set(CMAKE_SYSTEM_VERSION 26) # API level

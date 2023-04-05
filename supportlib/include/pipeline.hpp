@@ -42,8 +42,7 @@ struct pipeline {
     cam_preview cam_preview_screen;
     unwrapped_options_screen options_screen;
 
-    u64 start_time;
-    u64 last_time;
+    u64 start_time, last_time;
     
     static camera* pre_init(svec2 preview_size, svec2& cam_size);
 

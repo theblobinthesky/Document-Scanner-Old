@@ -41,8 +41,9 @@ struct cam_preview {
     shader_program shutter_program;
     animation<f32> shutter_animation;
 
-    bool is_live_camera_streaming;
     animation<f32> unwrap_animation, blendout_animation;
+    
+    bool is_live_camera_streaming;
     bool is_init;
 
     cam_preview(engine_backend* backend, ui_manager* ui, camera* cam);

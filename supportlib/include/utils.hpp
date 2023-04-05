@@ -1,5 +1,8 @@
 #pragma once
 #include <cstdint>
+#include <string>
+
+#define DEBUG
 
 #define null nullptr
 
@@ -114,6 +117,17 @@ rect cut_margins(const rect& r, const rect& margin);
 rect grid_split(const rect& r, s32 i, s32 splits, split_direction dir);
 
 rect get_between(const rect& r, f32 t, f32 b);
+
+#ifdef DEBUG
+struct scoped_timer {
+    u64 start;
+    std::string name;
+    scoped_timer(std::string name);
+    ~scoped_timer();
+};
+
+#define SCOPED_TIMER(name) scoped_timer SCOPED_TIMER_INSTANCE(name);
+#endif
 
 #define NAMESPACE_BEGIN namespace docscanner {
 #define NAMESPACE_END }
