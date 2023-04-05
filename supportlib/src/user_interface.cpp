@@ -121,7 +121,10 @@ ui_theme::ui_theme(bool enable_dark_mode) {
     foreground_color    = enable_dark_mode ? color_from_int(0xFFFFFF) : color_from_int(0xFFFFFF);
 }
 
-ui_manager::ui_manager(engine_backend* backend, bool enable_dark_mode) : backend(backend), theme(enable_dark_mode) {}
+ui_manager::ui_manager(engine_backend* backend, bool enable_dark_mode) : backend(backend), theme(enable_dark_mode) {
+    std::string font = "font.ttf";
+    middle_font = get_font(font, 0.12f);
+}
 
 font_instance* ui_manager::get_font(const std::string& path, f32 size) {
     u32 path_hash = std::hash<std::string>()(path);
@@ -139,10 +142,19 @@ font_instance* ui_manager::get_font(const std::string& path, f32 size) {
     return &found->second;
 }
 
-text::text(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str, const vec3& color) :
-    backend(backend), bounds(bounds), align(align), font(font), str(str), color(color) {
+text::text(engine_backend* backend, const font_instance* font, text_alignment align, const std::string str, const vec3& color) :
+    backend(backend), align(align), font(font), str(str), color(color) {
     shader = backend->compile_and_link(vert_instanced_quad_src(), frag_glyph_src(0));
     quads.init(str.size());
+}
+
+text::text(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str, const vec3& color) :
+    text(backend, font, align, str, color) {
+    layout(bounds);
+}
+
+void text::layout(const rect& bounds) {
+    this->bounds = bounds;
 }
 
 void text::set_text(const std::string str) {
@@ -202,7 +214,7 @@ void text::render() {
 
 button::button(ui_manager* ui, const std::string& str, const rect& crad, vec3 color) 
     : ui(ui), crad(crad), color(color), 
-      content(ui->backend, ui->get_font("font.ttf", 0.12f), bounds, text_alignment::CENTER, str, ui->theme.foreground_color) {
+      content(ui->backend, ui->middle_font, bounds, text_alignment::CENTER, str, ui->theme.foreground_color) {
     shader = ui->backend->compile_and_link(vert_quad_src(), frag_rounded_quad_src());
 }
 

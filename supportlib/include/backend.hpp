@@ -105,6 +105,9 @@ struct engine_backend {
 
     f32 time;
 
+    bool override_has_to_redraw;
+    s32 running_animations;
+
     engine_backend(svec2 preview_size_px, svec2 cam_size_px, file_context* file_ctx);
 
     shader_program compile_and_link(const std::string& vert_src, const std::string& frag_src);
@@ -113,6 +116,8 @@ struct engine_backend {
 
     void draw_quad(const shader_program& program, const rect& bounds);
     void draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds);
+
+    bool has_to_redraw();
 
 #ifdef DEBUG
     void DEBUG_draw_marker(const vec2& pt, const vec3& col);
@@ -145,7 +150,7 @@ enum animation_state {
 
 template<typename T>
 struct animation {
-    const engine_backend* backend;
+    engine_backend* backend;
 
     animation_curve curve;
     T start_value;
@@ -164,6 +169,8 @@ struct animation {
 
     void start() {
         state = STARTED;
+        backend->running_animations++;
+
         value = start_value;
 
         start_time = backend->time;
@@ -179,6 +186,7 @@ struct animation {
         
         if(t > 1.0f) {
             state = FINISHED;
+            backend->running_animations--;
 
             if(flags & animation_flags::RESET_AFTER_COMPLETION) value = start_value;
             else value = end_value;

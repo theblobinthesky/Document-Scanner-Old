@@ -46,6 +46,7 @@ struct ui_theme {
 struct ui_manager {
     engine_backend* backend;
     ui_theme theme;
+    font_instance* middle_font;
 
     std::unordered_map<u64, font_instance> font_map;
 
@@ -71,6 +72,7 @@ struct text {
     shader_program shader;
     instanced_quads quads;
 
+    text(engine_backend* backend, const font_instance* font, text_alignment align, const std::string str, const vec3& color);
     text(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str, const vec3& color);
     void layout(const rect& bounds);
 

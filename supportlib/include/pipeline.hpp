@@ -16,10 +16,13 @@ struct unwrapped_options_screen {
 
     button discard_button, next_button;
     lines border_lines;
-    lines tl_lines, tr_lines, br_lines, bl_lines;
-
+    lines corner_lines[4];
+    lines split_lines;
+    
     animation<f32> bg_blendin_animation, fg_blendin_animation;
     animation<f32> split_animation;
+
+    text plain_text, enhanced_text;
 
     unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect, const texture* unwrapped_texture);
     void draw();

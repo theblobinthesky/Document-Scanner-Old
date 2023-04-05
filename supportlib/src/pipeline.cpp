@@ -40,7 +40,9 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     discard_button(ui, "Discard", crad_thin_to_the_left, ui->theme.primary_color), next_button(ui, "Keep", crad_thin_to_the_right, ui->theme.primary_color),
     bg_blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0), 
     fg_blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.2f, 1.0f, 0),
-    split_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0) {
+    split_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 0.5f, 0),
+    plain_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Plain", ui->theme.foreground_color),
+    enhanced_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Enhanced", ui->theme.foreground_color) {
     top_unwrapped_rect = grid_split(unwrapped_rect, 0, 2, split_direction::VERTICAL);
     bottom_unwrapped_rect = grid_split(unwrapped_rect, 1, 2, split_direction::VERTICAL);
 
@@ -86,10 +88,18 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     };
 
     border_lines.init(ui->backend, border_points, 4, 0.01f, ui->theme.primary_color, true);
-    tl_lines.init(ui->backend, tl_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
-    tr_lines.init(ui->backend, tr_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
-    br_lines.init(ui->backend, br_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
-    bl_lines.init(ui->backend, bl_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
+    corner_lines[0].init(ui->backend, tl_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
+    corner_lines[1].init(ui->backend, tr_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
+    corner_lines[2].init(ui->backend, br_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
+    corner_lines[3].init(ui->backend, bl_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
+    
+
+    vec2* split_points = new vec2[2] { vec2::lerp(border_points[0], border_points[3], 0.5f), vec2::lerp(border_points[1], border_points[2], 0.5f) };
+    split_lines.init(ui->backend, split_points, 2, 0.01f, ui->theme.primary_color, false);
+
+
+    plain_text.layout(get_between(unwrapped_rect, 0.0f, 0.15f));
+    enhanced_text.layout(get_between(unwrapped_rect, 0.85f, 1.0f));
 }
 
 void unwrapped_options_screen::draw() {
@@ -114,28 +124,33 @@ void unwrapped_options_screen::draw() {
     rect unwrapped_uv = { {}, { 1, 1 } };
     rect split_unwrapped_uv = { {}, { 1, 0.5f } };
 
-    if(split_animation.state != animation_state::WAITING) {
-        ui->backend->draw_quad(sampler_program,
-            rect::from_middle_and_size(unwrapped_rect.tl, unwrapped_rect.br),// rect::lerp(unwrapped_rect, bottom_unwrapped_rect, split_animation.value),
-            rect::lerp(unwrapped_uv, split_unwrapped_uv, split_animation.value));
-    }
-
     ui->backend->draw_quad(sampler_program, 
             rect::lerp(unwrapped_rect, top_unwrapped_rect, split_animation.value),
             rect::lerp(unwrapped_uv, split_unwrapped_uv, split_animation.value));
 
+    if(split_animation.state != animation_state::WAITING) {
+        ui->backend->draw_quad(sampler_program,
+            rect::lerp(unwrapped_rect, bottom_unwrapped_rect, split_animation.value),
+            rect::lerp(unwrapped_uv, split_unwrapped_uv, split_animation.value));
+    
+        split_lines.color.w = split_animation.value;
+        split_lines.draw();
+
+        plain_text.color.w = split_animation.value;
+        enhanced_text.color.w = split_animation.value;
+
+        plain_text.render();
+        enhanced_text.render();
+    }
+
 
     border_lines.color.w = fg_blendin_animation.update();
-    tl_lines.color.w = fg_blendin_animation.value;
-    tr_lines.color.w = fg_blendin_animation.value;
-    br_lines.color.w = fg_blendin_animation.value;
-    bl_lines.color.w = fg_blendin_animation.value;
-
     border_lines.draw();
-    tl_lines.draw();
-    tr_lines.draw();
-    br_lines.draw();
-    bl_lines.draw();
+
+    for(s32 i = 0; i < 4; i++) {
+        corner_lines[i].color.w = fg_blendin_animation.value;
+        corner_lines[i].draw();
+    }
 
     discard_button.color.w = fg_blendin_animation.value;
     next_button.color.w = fg_blendin_animation.value;
@@ -175,16 +190,28 @@ void docscanner::pipeline::render() {
 
     get_time(start_time, backend.time);
 
-    if(cam_preview_screen.blendout_animation.state == FINISHED) {
-        options_screen.draw();
+    bool redraw = false;
+    if(cam_preview_screen.unwrap_animation.state == FINISHED) {
+        if(backend.has_to_redraw()) {
+            backend.override_has_to_redraw = false;
+            redraw = true;
+            options_screen.draw();
+        }
     } else {
+        backend.override_has_to_redraw = true;
+        redraw = true;
         cam_preview_screen.render(backend.time);
     }
 
     backend.input.end_frame();
 
+
     auto end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-    auto dur = end - last_time;
-    LOGI("frame time: %ums, fps: %u", (u32)dur, (u32)(1000.0f / dur));
+
+    if(redraw) {
+        auto dur = end - last_time;
+        LOGI("frame time: %ums, fps: %u", (u32)dur, (u32)(1000.0f / dur));
+    }
+
     last_time = end;
 }

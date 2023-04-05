@@ -13,7 +13,6 @@ void docscanner::input_manager::handle_motion_event(const motion_event& event) {
         .type = event.type,
         .pos = { event.pos.x / (f32)(preview_size.x - 1), aspect_ratio * event.pos.y / (f32)(preview_size.y - 1) }
     };
-    LOGI("event.pos.x: %f, event.pos.y: %f", this->event.pos.x, this->event.pos.y);
 }
 
 motion_event input_manager::get_motion_event(const rect& bounds) {

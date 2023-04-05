@@ -37,8 +37,9 @@ std::string docscanner::vert_quad_src() {
 
         void main() {
             vec2 real_position = mix(bounds.xy, bounds.zw, position);
+            vec2 real_uvs = mix(uv_bounds.xy, uv_bounds.zw, uvs);
             gl_Position = projection * vec4(real_position, 0, 1);
-            out_uvs = uvs;
+            out_uvs = real_uvs;
         }
     )";
 }

@@ -91,7 +91,8 @@ void docscanner::instanced_quads::draw() {
 }
 
 engine_backend::engine_backend(svec2 preview_size_px, svec2 cam_size_px, file_context* file_ctx) 
-    : file_ctx(file_ctx), preview_size_px(preview_size_px), cam_size_px(cam_size_px) {
+    : file_ctx(file_ctx), preview_size_px(preview_size_px), cam_size_px(cam_size_px),
+      override_has_to_redraw(false), running_animations(0) {
     preview_height = preview_size_px.y / (f32)preview_size_px.x;
     input.init(preview_size_px, preview_height);
 
@@ -177,10 +178,14 @@ void docscanner::engine_backend::draw_quad(const shader_program& program, const 
 
     use_program(program);
     get_variable(program, "bounds").set_vec4(bounds);
-    // get_variable(program, "uv_bounds").set_vec4(uv_bounds);
+    get_variable(program, "uv_bounds").set_vec4(uv_bounds);
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
     check_gl_error("glDrawElements");
+}
+
+bool engine_backend::has_to_redraw() {
+    return override_has_to_redraw || (input.event.type != motion_type::NO_MOTION) || (running_animations > 0);
 }
 
 #ifdef DEBUG
