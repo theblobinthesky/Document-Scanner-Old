@@ -11,7 +11,7 @@ import select
 import sys
 
 warmup_lr = 1e-5
-lr = 1e-3
+lr = 1e-4
 steps_per_epoch = 40
 seg_batch_size = 32
 contour_batch_size = 32
@@ -222,7 +222,7 @@ if __name__ == "__main__":
     if True:
         print("Training contour model")
 
-        name = "heatmap_7"
+        name = "heatmap_11"
         writer = SummaryWriter(f"runs/{name}")
         model = seg_model.ContourModel()
         model = model_to_device(model)

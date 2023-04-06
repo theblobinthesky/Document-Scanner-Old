@@ -12,6 +12,8 @@ finetuning_weight_amplitude = max_finetuning_weight - min_finetuning_weight
 points_per_side_incl_start_corner = 4
 contour_pts = 4 * points_per_side_incl_start_corner
 
+pos_weight = 100
+
 # Dilated Conv UNet based on:
 # https://arxiv.org/pdf/2004.03466.pdf
 # The actual dilation is removed to increase inference performance on mobile gpus.
@@ -151,7 +153,6 @@ class ContourModel(nn.Module):
         y = self.up0(u0, x)
 
         y = self.cvt_out(y)
-        y = torch.sigmoid(y)
         
         return y
 
@@ -175,6 +176,7 @@ class ContourModel(nn.Module):
     def contour_from_heatmap(self, heatmap):
         b, c, w, h = heatmap.shape
         heatmap = heatmap.reshape(b, c, -1)
+        heatmap = torch.sigmoid(heatmap)
 
         indices = torch.argmax(heatmap, dim=2)
         indices = indices.unsqueeze(2)
@@ -189,8 +191,10 @@ class ContourModel(nn.Module):
     def loss(self, heatmap_pred, dict, weight_metrics):
         _, heatmap_label = self.input_and_label_from_dict(dict)
 
-        diff = heatmap_label - heatmap_pred
-        loss = diff.pow(2) + 0.5 * diff.abs()
+        _, c, h, w = heatmap_pred.shape
+        pos_weight_ten = torch.tensor(pos_weight, device=device).expand(c, h, w)
+        loss = F.binary_cross_entropy_with_logits(heatmap_pred, heatmap_label, pos_weight=pos_weight_ten, reduction="none")
+        
 
         finetuning = min_finetuning_weight + weight_metrics["finetuning"] * finetuning_weight_amplitude
         

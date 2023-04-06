@@ -14,14 +14,15 @@ from model import Model, device
 from seg_model import ContourModel
 from bm_model import BMModel
 
-size = (32, 32)
-name = "bm_model2"
-model_type = Model.BM
+name = "heatmap_10"
+model_type = Model.CONTOUR
 
 # todo: remove this later bc. it needs to be all 4 channels to be fast for mobile inference
 if model_type == Model.CONTOUR:
+    size = (64, 64)
     dummy_input = torch.randn(1, 4, *size, device=device)
 elif model_type == Model.BM:
+    size = (32, 32)
     dummy_input = torch.randn(1, 3, *size, device=device)
 
 def export(model, tflite_path):

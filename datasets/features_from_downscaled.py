@@ -75,49 +75,10 @@ def save_compressed_npy(path, arr):
 
 
 def generate_heatmap(cx, cy, confidence, size):
-    # generate gaussian kernel
-    sigma = 1
-    kernel_size = 12 * sigma
-    middle = kernel_size // 2
-
-    arange = np.arange(0, kernel_size)
-    kernel = np.meshgrid(arange, arange)
-    
-    kernel = 1.0 / np.sqrt(2 * sigma) * np.exp(-0.5 * np.sqrt((kernel[0] - middle) ** 2 + (kernel[1] - middle) ** 2) / (sigma ** 2)) 
-    kernel /= kernel.sum()
-    kernel /= kernel[middle, middle]
-
-    # write into output map
-    map = np.zeros((cx.size, size[0], size[1]))
+    map = np.zeros((cx.size, size[0], size[1]), np.float32)
 
     for i in range(cx.size):
-        left = cx[i] - middle
-        right = cx[i] + middle
-        top = cy[i] - middle
-        bottom = cy[i] + middle
-
-        kernel_left = 0
-        kernel_right = kernel_size
-        kernel_top = 0
-        kernel_bottom = kernel_size
-
-        if left < 0:
-            kernel_left = -left
-            left = 0
-        
-        if right > size[0]:
-            kernel_right = kernel_size - (right - size[0])
-            right = size[0]
-
-        if top < 0:
-            kernel_top = -top
-            top = 0
-
-        if bottom > size[1]:
-            kernel_bottom = kernel_size - (bottom - size[1])
-            bottom = size[1]
-
-        map[i, left:right, top:bottom] = kernel[kernel_left:kernel_right, kernel_top:kernel_bottom]
+        map[i, cx[i], cy[i]] = 1.0
 
     return map
 
@@ -221,8 +182,8 @@ def task(pairs):
             is_contour_confident = is_contour_confident[:, np.newaxis]
 
             cx, cy = contour[:, 0], contour[:, 1]
-            cx = (downscale_size[0] * cx).astype("int32")
-            cy = (downscale_size[1] * cy).astype("int32")
+            cx = np.round(downscale_size[0] * cx, 0).astype("int32")
+            cy = np.round(downscale_size[1] * cy, 0).astype("int32")
             heatmap = generate_heatmap(cx, cy, is_contour_confident, downscale_size)
 
 

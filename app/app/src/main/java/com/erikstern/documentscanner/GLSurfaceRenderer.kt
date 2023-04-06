@@ -27,7 +27,6 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
     val lock = Any()
     var frameAvailable = false
 
-    private external fun nativeCreate()
     private external fun nativeDestroy()
     private external fun nativePreInit(preview_width: Int, preview_height: Int) : LongArray
     private external fun nativeInit(assetManager: AssetManager, surface: Surface, window: Window, preview_width: Int, preview_height: Int, cam_width: Int, cam_height: Int, cam_ptr: Long, enableDarkMode: Boolean)
