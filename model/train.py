@@ -11,7 +11,7 @@ import select
 import sys
 
 warmup_lr = 1e-5
-lr = 1e-4
+lr = 1e-3
 steps_per_epoch = 40
 seg_batch_size = 32
 contour_batch_size = 32
@@ -26,7 +26,7 @@ def epochs_from_iters(iters):
     return warmup_epochs + T_0 * sum([T_mul ** i for i in range(iters)]) - 2
 
 seg_epochs = epochs_from_iters(4)
-contour_epochs = epochs_from_iters(4)
+contour_epochs = epochs_from_iters(5)
 bm_epochs = epochs_from_iters(6)
 min_learning_rate_before_early_termination = 1e-7
 lr_plateau_patience = 3
@@ -219,22 +219,23 @@ if __name__ == "__main__":
     # train_seg_model(model, "models/seg_model.pth", summary_writer=writer)
     # writer.flush()
 
-    # print("Training contour model")
+    if True:
+        print("Training contour model")
 
-    # name = "heatmap_6"
-    # writer = SummaryWriter(f"runs/{name}")
-    # model = seg_model.ContourModel()
-    # model.load_state_dict(torch.load(f"models/heatmap_5.pth"))
-    # model = model_to_device(model)
-    # train_model(model, f"models/{name}.pth", Model.CONTOUR, summary_writer=writer)
-    # writer.flush()
+        name = "heatmap_7"
+        writer = SummaryWriter(f"runs/{name}")
+        model = seg_model.ContourModel()
+        model = model_to_device(model)
+        train_model(model, f"models/{name}.pth", Model.CONTOUR, summary_writer=writer)
+        writer.flush()
 
-    print()
-    print("Training bm model")
+    if False:
+        print()
+        print("Training bm model")
 
-    name = "bm_model_3"
-    writer = SummaryWriter(f"runs/{name}")
-    model = bm_model.BMModel(True, False)
-    model = model_to_device(model)
-    train_model(model, f"models/{name}.pth", Model.BM, summary_writer=writer)
-    writer.flush()
+        name = "bm_model_3"
+        writer = SummaryWriter(f"runs/{name}")
+        model = bm_model.BMModel(True, False)
+        model = model_to_device(model)
+        train_model(model, f"models/{name}.pth", Model.BM, summary_writer=writer)
+        writer.flush()
