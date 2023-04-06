@@ -9,9 +9,11 @@ from model import loss_smooth, loss_circle_consistency, metric_local_distortion
 # https://arxiv.org/pdf/2110.14968.pdf
 
 h_chs = 128
-iters = 5
+iters = 1
 alpha = 0.5
 use_relu = False
+large_bm_size = (32, 32)
+small_bm_size = (16, 16)
 
 class Upscale2(nn.Module):
     def __init__(self, inp, out):
@@ -100,7 +102,7 @@ class ResNetEncoder(nn.Module):
         self.layers = nn.Sequential(
             MultiscaleBlock(3, 64),
 
-            nn.MaxPool2d(2),
+            # nn.MaxPool2d(2),
 
             MultiscaleBlock(64, 64),
             ResNetBlockConst(64),
@@ -144,7 +146,7 @@ class ProgressiveModel(nn.Module):
         else:
             self.gru = ConvGru(2 + enc_all_out_chs + dc_enc_chs, 2)
             self.upscaler = nn.Sequential(
-                nn.UpsamplingBilinear2d((128, 128))
+                nn.UpsamplingBilinear2d(large_bm_size)
             )
 
 
@@ -157,17 +159,18 @@ class ProgressiveModel(nn.Module):
 
         b, _, h, w = x.size()
 
+        # todo: fix this
         bm = torch.cartesian_prod(
             torch.linspace(0.0, 1.0, h, device=device), 
             torch.linspace(0.0, 1.0, w, device=device)
-        ).reshape(1, h, w, 2).permute(0, 3, 1, 2).repeat(b, 1, 1, 1)
-
-        Lhs = [torch.zeros((b, h_chs, 32, 32), device=device)]
+        ).reshape(1, h, w, 2).permute(0, 3, 2, 1).repeat(b, 1, 1, 1)
+        
+        Lhs = [torch.zeros((b, h_chs, *small_bm_size), device=device)]
         bms = [bm]
 
         for _ in range(iters):
             Lh, bm_large = Lhs[-1], bms[-1]
-            bm = F.interpolate(bm_large, (32, 32), mode="bilinear")
+            bm = F.interpolate(bm_large, small_bm_size, mode="bilinear")
 
             bm_enc = self.bm_enc(bm)
 
@@ -219,7 +222,7 @@ class BMModel(nn.Module):
     def forward_all(self, x):
         return self.net.forward_all(x)
 
-    def loss(self, pred, dict):
+    def loss(self, pred, dict, weight_metrics):
         label = dict["bm"][:, :2]
         return loss_smooth(pred, label) + alpha * loss_circle_consistency(pred, dict)
 
@@ -227,5 +230,7 @@ class BMModel(nn.Module):
         return dict["img_masked"], dict["bm"][:, :2]
     
 
-    def eval_metrics(self):
-        return [metric_local_distortion]
+    def eval_metrics(self, pred, label):
+        return {
+            "local_distortion": metric_local_distortion(pred, label)
+        }

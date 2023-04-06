@@ -10,22 +10,39 @@ import tensorflow as tf
 # the library is not necessarily compatible with modern tensorflow. 
 from onnx2keras import onnx_to_keras
 import io
+from model import Model, device
+from seg_model import ContourModel
+from bm_model import BMModel
 
-size = (64, 64)
-name = "heatmap_6"
+size = (32, 32)
+name = "bm_model2"
+model_type = Model.BM
 
-dummy_input = torch.randn(1, 4, size[0], size[1])
+# todo: remove this later bc. it needs to be all 4 channels to be fast for mobile inference
+if model_type == Model.CONTOUR:
+    dummy_input = torch.randn(1, 4, *size, device=device)
+elif model_type == Model.BM:
+    dummy_input = torch.randn(1, 3, *size, device=device)
 
 def export(model, tflite_path):
     print(f"Exporting tflite file to {tflite_path}")
 
     onxx_file = io.BytesIO()
-    torch.onnx.export(model, dummy_input, onxx_file, opset_version=9, input_names=['input'], output_names=['output'])
-    # opset_version=9 is required since Upsampling is replaced by Resize in more recent versions.
-    # Also there seem to be other nontrivial changes.
 
-    onnx_model = onnx.load_model_from_string(onxx_file.getvalue())
-    keras_model = onnx_to_keras(onnx_model, ["input"], verbose=False, name_policy='renumerate', change_ordering=True)
+    global model_type
+    if model_type == Model.CONTOUR:
+        torch.onnx.export(model, dummy_input, onxx_file, opset_version=9, input_names=["input"], output_names=["output"])
+        # opset_version=9 is required since Upsampling is replaced by Resize in more recent versions.
+        # Also there seem to be other nontrivial changes.
+
+        onnx_model = onnx.load_model_from_string(onxx_file.getvalue())
+        keras_model = onnx_to_keras(onnx_model, ["input"], verbose=False, name_policy='renumerate', change_ordering=True)
+    elif model_type == Model.BM:
+        torch.onnx.export(model, dummy_input, onxx_file, opset_version=16, input_names=["input"], output_names=["output"])
+
+        onnx_model = onnx.load_model_from_string(onxx_file.getvalue())
+        keras_model = onnx_to_keras(onnx_model, ["input"], verbose=False, name_policy='renumerate')
+
 
     converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
@@ -39,23 +56,16 @@ def export(model, tflite_path):
     with open(tflite_path, "wb") as f:
         f.write(tflite_model)
 
-from seg_model import ContourModel
+if model_type == Model.SEG:
+    print("SEG model export is not supported yet.")
+    exit()
+elif model_type == Model.CONTOUR:
+    model = ContourModel()
+elif model_type == Model.BM:
+    model = BMModel(False, False)
 
-class ContourModelWrapper(nn.Module):
-    def __init__(self, model):
-        super().__init__()
-
-        self.model = model
-
-    def forward(self, x):
-        heatmap = self.model(x)
-
-        return heatmap
-
-model = ContourModel()
 model.load_state_dict(torch.load(f"models/{name}.pth"))
-
-model = ContourModelWrapper(model)
+model = model.to(device=device)
 export(model, f"exports/{name}.tflite")
 exit()
 

@@ -123,7 +123,7 @@ def load_datasets(dir, missing_names, transforms, datasets, weight_metrics, batc
                 if os.path.exists(path):
                     item[name] = path
                 else:
-                    print("path is missing.")
+                    print(f"path '{path}' is missing.")
                     exit()
 
             for name, path in missing_names.items():
@@ -149,6 +149,7 @@ def load_datasets(dir, missing_names, transforms, datasets, weight_metrics, batc
     return train_ds, valid_ds, test_ds
 
 color_jitter = ColorJitter(brightness=0.1, contrast=0.05, saturation=0.3, hue=0.1)
+resize = Resize(32)
 
 def load_seg_dataset(batch_size):
     return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {"uv": "blank_uv_64x64.exr"}, {"img": color_jitter}, [
@@ -168,9 +169,10 @@ def load_contour_dataset(batch_size):
     ], {"finetuning": "finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1)
 
 def load_bm_dataset(batch_size):
-    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets/Doc3d", [],
-                         {"img_masked": color_jitter}, [
-        [("img_masked", "img_masked/1", "png"), ("bm", "bm/1exr", "exr"), ("uv", "uv/1", "exr")],
-        [("img_masked", "img_masked/2", "png"), ("bm", "bm/2exr", "exr"), ("uv", "uv/2", "exr")],
-        [("img_masked", "img_masked/3", "png"), ("bm", "bm/3exr", "exr"), ("uv", "uv/3", "exr")]
-    ], batch_size=batch_size, valid_perc=0.1, test_perc=0.1)
+    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {}, { 
+        "img": resize, "img_masked": Compose([resize, color_jitter]), "bm": resize, "uv": resize }, [
+        [("img", "Doc3d_64x64/img/1", "png"), ("img_masked", "Doc3d_64x64/img_masked/1", "png"), ("bm", "Doc3d_64x64/bm/1exr", "exr"), ("uv", "Doc3d_64x64/uv/1", "exr")],
+        [("img", "Doc3d_64x64/img/2", "png"), ("img_masked", "Doc3d_64x64/img_masked/2", "png"), ("bm", "Doc3d_64x64/bm/2exr", "exr"), ("uv", "Doc3d_64x64/uv/2", "exr")],
+        [("img", "Doc3d_64x64/img/3", "png"), ("img_masked", "Doc3d_64x64/img_masked/3", "png"), ("bm", "Doc3d_64x64/bm/3exr", "exr"), ("uv", "Doc3d_64x64/uv/3", "exr")],
+        [("img", "Doc3d_64x64/img/4", "png"), ("img_masked", "Doc3d_64x64/img_masked/4", "png"), ("bm", "Doc3d_64x64/bm/4exr", "exr"), ("uv", "Doc3d_64x64/uv/4", "exr")]
+    ], {"finetuning": "finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1)

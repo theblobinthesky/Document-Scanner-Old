@@ -3,6 +3,8 @@ from model import binarize_threshold, device, Model
 from data import load_seg_dataset, load_contour_dataset, load_bm_dataset
 from seg_model import points_per_side_incl_start_corner
 import torch
+import torch.nn as nn
+from torchvision.transforms import Resize
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
@@ -74,7 +76,6 @@ def benchmark_plt_seg(model):
     return fig
 
 def apply_contour_to_img(img, contour):
-    w, h = img.shape[:2]
     img = np.ascontiguousarray(img.copy())
 
     def swap(pt):
@@ -153,10 +154,10 @@ def sample_from_bmap(img, bmap):
     bmap = bmap.clone().permute(0, 2, 3, 1)
     bmap = bmap * 2 - 1
 
-    out = torch.nn.functional.grid_sample(img, bmap, align_corners=False)                
+    out = nn.functional.grid_sample(img, bmap, align_corners=False)                
     return out
 
-def benchmark_plt_bm(model, ds):
+def benchmark_plt_bm(model):
     _, _, ds = load_bm_dataset(1)
 
     iterator = iter(ds)
@@ -214,7 +215,15 @@ def benchmark_plt_model(model, model_type):
     elif model_type == Model.BM:
         return benchmark_plt_bm(model)
 
-def benchmark_cam_contour_model(model):
+
+def to_torch_ten(ten):
+    ten = torch.from_numpy(ten).to(device=device)
+    ten = ten.permute((2, 0, 1)).unsqueeze(0)
+    ten = ten.float()    
+    return ten
+
+
+def benchmark_cam_model(model, model_type):
     import pygame
 
     pygame.init()
@@ -223,27 +232,43 @@ def benchmark_cam_contour_model(model):
     screen = pygame.display.set_mode((640, 480))
 
     # Initialize the video capture device
-    cap = cv2.VideoCapture(2)
+    cap = cv2.VideoCapture(0)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     while True:
         _, frame = cap.read()
-        frame = cv2.resize(frame, (64, 64))
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        img = torch.from_numpy(frame).to(device=device)
-        img = img.permute((2, 0, 1)).unsqueeze(0)
+        frame_npy = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        small_frame_npy = cv2.resize(frame, (64, 64))
 
-        b, _, h, w = img.shape
-        a_padding = torch.full((b, 1, h, w), 1.0, device=device)
-        img = torch.cat([img, a_padding], axis=1)
-   
-        heatmap = model(img)
-        contour = model.contour_from_heatmap(heatmap)
-        contour = cpu(contour, True)
 
-        frame = apply_contour_to_img(frame, contour)
+        
+        frame = to_torch_ten(frame_npy)
+        small_frame = to_torch_ten(small_frame_npy)
+
+        def pad_ten_channels(ten):
+            b, _, h, w = ten.shape
+            padding = torch.full((b, 1, h, w), 1.0, device=device)
+        
+            return torch.cat([ten, padding], axis=1)
+        
+        small_frame = pad_ten_channels(small_frame)
+        
+        if model_type == Model.CONTOUR:
+            heatmap = model(small_frame)
+            contour = model.contour_from_heatmap(heatmap)
+            contour = cpu(contour, True)
+
+            frame = apply_contour_to_img(small_frame_npy, contour)
+
+        elif model_type == Model.BM:
+            bm = model(small_frame)
+            
+            bm = Resize(256)(bm) 
+            frame = sample_from_bmap(frame, bm)
+            frame = cpu(frame)
+
 
         surf = pygame.surfarray.make_surface(np.rot90(frame))
         surf = pygame.transform.scale(surf, (width, height))
@@ -262,14 +287,63 @@ def benchmark_cam_contour_model(model):
 
 if __name__ == "__main__":
     from data import load_contour_dataset
+    from bm_model import BMModel
     from seg_model import ContourModel
 
-    model = ContourModel()
-    model.load_state_dict(torch.load("models/heatmap_6.pth"))
-    model = model.to(device=device)
+    class BMModelWrapper(nn.Module):
+        def __init__(self, contour_model, bm_model):
+            super().__init__()
+            
+            self.contour_model = contour_model
+            self.resize = Resize(32)
+            self.bm_model = bm_model
 
+        def forward(self, x):
+            heatmap = self.contour_model(x)
+            contour = self.contour_model.contour_from_heatmap(heatmap)
+
+            contour = cpu(contour, True)
+
+            contour = contour.squeeze(0)
+            contour = np.concatenate([contour[:, 1, np.newaxis] * x.shape[1], contour[:, 0, np.newaxis] * x.shape[0]], axis=1)
+            contour = contour.astype("int32")
+
+            mask = np.zeros((*x.shape[2:4], 1), np.float32)
+            mask = cv2.fillPoly(mask, [contour], (1.0))
+
+            mask = to_torch_ten(mask)
+
+            x = x[:, 0:3] * mask
+            x = self.resize(x)
+
+            y = self.bm_model(x)
+            return y
+
+
+    model_type = Model.BM
+
+    contour_model_path = "models/heatmap_6.pth"
+    bm_model_path = "models/bm_model.pth"
+
+    if model_type == Model.SEG:
+        print("SEG model not supported for benchmarking yet.")
+        exit()
+    elif model_type == Model.CONTOUR:
+        model = ContourModel()
+        model.load_state_dict(torch.load(contour_model_path))
+    elif model_type == Model.BM:
+        contour_model = ContourModel()
+        contour_model.load_state_dict(torch.load(contour_model_path))
+        
+        bm_model = BMModel(False, False)
+        bm_model.load_state_dict(torch.load(bm_model_path))
+
+        model = BMModelWrapper(contour_model, bm_model)
+
+    model = model.to(device=device)
+    
     if True:
-        benchmark_cam_contour_model(model)
+        benchmark_cam_model(model, model_type)
     else:
-        fig = benchmark_plt_contour(model)
+        fig = benchmark_plt_model(model, model_type)
         fig.savefig("fig.png")

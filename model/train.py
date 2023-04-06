@@ -27,7 +27,7 @@ def epochs_from_iters(iters):
 
 seg_epochs = epochs_from_iters(4)
 contour_epochs = epochs_from_iters(4)
-bm_epochs = epochs_from_iters(5)
+bm_epochs = epochs_from_iters(6)
 min_learning_rate_before_early_termination = 1e-7
 lr_plateau_patience = 3
 valid_batch_count = 16
@@ -219,21 +219,22 @@ if __name__ == "__main__":
     # train_seg_model(model, "models/seg_model.pth", summary_writer=writer)
     # writer.flush()
 
-    print("Training contour model")
+    # print("Training contour model")
 
-    name = "heatmap_6"
-    writer = SummaryWriter(f"runs/{name}")
-    model = seg_model.ContourModel()
-    model.load_state_dict(torch.load(f"models/heatmap_5.pth"))
-    model = model_to_device(model)
-    train_model(model, f"models/{name}.pth", Model.CONTOUR, summary_writer=writer)
-    writer.flush()
-
-    # print()
-    # print("Training bm model")
-
-    # writer = SummaryWriter("runs/main_bm_model_x2_10")
-    # model = bm_model.BMModel(True, False)
+    # name = "heatmap_6"
+    # writer = SummaryWriter(f"runs/{name}")
+    # model = seg_model.ContourModel()
+    # model.load_state_dict(torch.load(f"models/heatmap_5.pth"))
     # model = model_to_device(model)
-    # train_bm_model(model, "models/bm_model.pth", summary_writer=writer)
+    # train_model(model, f"models/{name}.pth", Model.CONTOUR, summary_writer=writer)
     # writer.flush()
+
+    print()
+    print("Training bm model")
+
+    name = "bm_model_3"
+    writer = SummaryWriter(f"runs/{name}")
+    model = bm_model.BMModel(True, False)
+    model = model_to_device(model)
+    train_model(model, f"models/{name}.pth", Model.BM, summary_writer=writer)
+    writer.flush()

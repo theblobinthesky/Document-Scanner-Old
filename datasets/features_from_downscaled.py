@@ -6,16 +6,18 @@ import gzip
 import os
 os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
 import cv2
+import imageio
+imageio.plugins.freeimage.download() # download the OpenEXR backend (if not already installed)
 from tqdm import tqdm
 import concurrent.futures
 import random
 
 dir_pairs = [
-    ("Doc3d/img/1", "Doc3d_64x64/img/1", "Doc3d_64x64/heatmap/1", "Doc3d/lines/1", "Doc3d_64x64/lines/1", "Doc3d/bm/1exr"),
-    ("Doc3d/img/2", "Doc3d_64x64/img/2", "Doc3d_64x64/heatmap/2", "Doc3d/lines/2", "Doc3d_64x64/lines/2", "Doc3d/bm/2exr"),
-    ("Doc3d/img/3", "Doc3d_64x64/img/3", "Doc3d_64x64/heatmap/3", "Doc3d/lines/3", "Doc3d_64x64/lines/3", "Doc3d/bm/3exr"),
-    ("Doc3d/img/4", "Doc3d_64x64/img/4", "Doc3d_64x64/heatmap/4", "Doc3d/lines/4", "Doc3d_64x64/lines/4", "Doc3d/bm/4exr"),
-    ("MitIndoor_64x64/img", None, None, None, None, None)
+    ("Doc3d/img/1", "Doc3d_64x64/img/1", "Doc3d_64x64/img_masked/1", "Doc3d_64x64/heatmap/1", "Doc3d/lines/1", "Doc3d_64x64/lines/1", "Doc3d/bm/1exr", "Doc3d_64x64/bm/1exr", "Doc3d/uv/1", "Doc3d_64x64/uv/1"),
+    ("Doc3d/img/2", "Doc3d_64x64/img/2", "Doc3d_64x64/img_masked/2", "Doc3d_64x64/heatmap/2", "Doc3d/lines/2", "Doc3d_64x64/lines/2", "Doc3d/bm/2exr", "Doc3d_64x64/bm/2exr", "Doc3d/uv/2", "Doc3d_64x64/uv/2"),
+    ("Doc3d/img/3", "Doc3d_64x64/img/3", "Doc3d_64x64/img_masked/3", "Doc3d_64x64/heatmap/3", "Doc3d/lines/3", "Doc3d_64x64/lines/3", "Doc3d/bm/3exr", "Doc3d_64x64/bm/3exr", "Doc3d/uv/3", "Doc3d_64x64/uv/3"),
+    ("Doc3d/img/4", "Doc3d_64x64/img/4", "Doc3d_64x64/img_masked/4", "Doc3d_64x64/heatmap/4", "Doc3d/lines/4", "Doc3d_64x64/lines/4", "Doc3d/bm/4exr", "Doc3d_64x64/bm/4exr", "Doc3d/uv/4", "Doc3d_64x64/uv/4"),
+    ("MitIndoor_64x64/img", None, None, None, None, None, None, None, None, None)
 ]
 
 blank_heatmap_path = "blank_heatmap.npy"
@@ -39,7 +41,7 @@ def random_between(between):
     return between[0] + random.random() * (between[1] - between[0])
 
 def generate_random_transform():
-    return random_between(min_max_scale), random_between(min_max_rot)
+    return 1.0, 0.0 # random_between(min_max_scale), random_between(min_max_rot)
 
 def get_mat_from_transform(size, scale, rot):
     size = np.array(size, np.int32)
@@ -121,22 +123,27 @@ def generate_heatmap(cx, cy, confidence, size):
 
 
 def task(pairs):
-    for (name, img_dir, img_down_dir, heatmap_dir, lines_dir, lines_down_dir, bm_dir) in pairs:
+    for (name, img_dir, img_down_dir, img_masked_down_dir, heatmap_dir, lines_dir, lines_down_dir, bm_dir, bm_down_dir, uv_dir, uv_down_dir) in pairs:
         img_path = f"{img_dir}/{name}.png"
         lines_path = f"{lines_dir}/{name}.png"
         bm_path = f"{bm_dir}/{name}.exr"
+        uv_path = f"{uv_dir}/{name}.exr"
 
         unaug_img = cv2.imread(img_path)
         unaug_img = cv2.resize(unaug_img, processing_size)
 
         unaug_lines = cv2.imread(lines_path)
         unaug_lines = cv2.resize(unaug_lines, processing_size)
-        unaug_mask = unaug_lines[:, :, 2]
 
         unaug_bm = cv2.imread(bm_path, cv2.IMREAD_UNCHANGED)
         unaug_bm = cv2.resize(unaug_bm, processing_size)
-        unaug_bm = unaug_bm[:, :, 1:3]
-        
+        unaug_bm = unaug_bm[:, :, 1:3].astype("float32")
+
+        unaug_uv = cv2.imread(uv_path, cv2.IMREAD_UNCHANGED)
+        unaug_uv = cv2.resize(unaug_uv, processing_size)
+        unaug_uv = unaug_uv.astype("float32")
+
+
         h, w, _ = unaug_bm.shape
 
         def interp(bm, start, end, i):
@@ -169,24 +176,33 @@ def task(pairs):
 
         for augment_index in range(augment_factor):
             img_down_path = f"{img_down_dir}/{name}_aug{augment_index}.png"
+            img_masked_down_path = f"{img_masked_down_dir}/{name}_aug{augment_index}.png"
             heatmap_path = f"{heatmap_dir}/{name}_aug{augment_index}.npy" 
-            lines_down_path = f"{lines_down_dir}/{name}_aug{augment_index}.png" 
+            lines_down_path = f"{lines_down_dir}/{name}_aug{augment_index}.png"
+            bm_down_path = f"{bm_down_dir}/{name}_aug{augment_index}.exr"
+            uv_down_path = f"{uv_down_dir}/{name}_aug{augment_index}.exr"
             
             # apply random transform
             scale, rot = generate_random_transform()
 
-            mat = get_mat_from_transform(unaug_img.shape[:2], scale, rot)
+            mat = get_mat_from_transform(processing_size, scale, rot)
             img = transform_image(unaug_img, mat)
             img_down = cv2.resize(img, downscale_size)
             
-            mat = get_mat_from_transform(unaug_lines.shape[:2], scale, rot)
             lines = transform_image(unaug_lines, mat)
             lines_down = cv2.resize(lines, downscale_size)
+
+            mask_down = lines_down[:, :, 2][:, :, np.newaxis]
+            mask_down = (mask_down == 255).astype("uint8") * 255
+            mask_down = mask_down.repeat(3, axis=2)          
+            img_masked_down = cv2.bitwise_and(img_down, mask_down)
             
+            uv = transform_image(unaug_uv, mat)
+            uv_down = cv2.resize(uv, downscale_size)
+
             # todo: understand -rot
             mat = get_mat_from_transform((1, 1), scale, -rot)
             contour = transform_points(unaug_contour, mat)
-
 
             # figure out which point is tl and adjust accordingly
             corners = np.array([
@@ -209,8 +225,20 @@ def task(pairs):
             cy = (downscale_size[1] * cy).astype("int32")
             heatmap = generate_heatmap(cx, cy, is_contour_confident, downscale_size)
 
+
+            bm_points = unaug_bm.reshape((-1, 2))
+            bm_points = transform_points(bm_points, mat)
+            bm_points = bm_points.reshape((*processing_size, 2)).astype("float32")
+            bm_down = cv2.resize(bm_points, downscale_size)
+            
+            zeros = np.zeros((*downscale_size, 1), np.float32)
+            bm_down = np.concatenate([zeros, bm_down], axis=2)
+
             cv2.imwrite(img_down_path, img_down)
+            cv2.imwrite(img_masked_down_path, img_masked_down)
             cv2.imwrite(lines_down_path, lines_down)
+            imageio.imsave(bm_down_path, bm_down)
+            imageio.imsave(uv_down_path, uv_down)
 
             save_compressed_npy(heatmap_path, heatmap)
 
@@ -221,13 +249,15 @@ def chunk(list, chunk_size):
 
 with concurrent.futures.ThreadPoolExecutor(8) as executor:
     pairs = []
-    for (img_dir, img_down_dir, heatmap_dir, lines_dir, lines_down_dir, bm_dir) in dir_pairs:
+    for dir_pair in dir_pairs:
+        img_dir, img_down_dir, img_masked_down_dir, heatmap_dir, lines_dir, lines_down_dir, bm_dir, bm_down_dir, uv_dir, uv_down_dir = dir_pair
+
         if heatmap_dir == None or bm_dir == None:
-            feature_map = np.zeros((contour_pts, downscale_size[0], downscale_size[1]), np.float32)
+            feature_map = np.zeros((contour_pts, *downscale_size), np.float32)
             save_compressed_npy(blank_heatmap_path, feature_map)
             continue
 
-        make_dirs([img_dir, img_down_dir, heatmap_dir, lines_dir, lines_down_dir, bm_dir])
+        make_dirs([*dir_pair])
 
         paths = []
         paths.extend(glob(f"{img_dir}/*.png"))
@@ -237,10 +267,11 @@ with concurrent.futures.ThreadPoolExecutor(8) as executor:
             name = Path(path).stem
             pairs.append((
                 name, 
-                img_dir, img_down_dir, heatmap_dir,
+                img_dir, img_down_dir, img_masked_down_dir, heatmap_dir,
                 lines_dir, lines_down_dir,
-                bm_dir
+                bm_dir, bm_down_dir, uv_dir, uv_down_dir
             ))
+
 
     chunkedPairs = chunk(pairs, 64)
 
