@@ -2,7 +2,6 @@
 from glob import glob
 from pathlib import Path
 import numpy as np
-import gzip
 import os
 os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
 import cv2
@@ -13,10 +12,10 @@ import concurrent.futures
 import random
 
 dir_pairs = [
-    ("Doc3d/img/1", "Doc3d_64x64/img/1", "Doc3d_64x64/img_masked/1", "Doc3d_64x64/heatmap/1", "Doc3d/lines/1", "Doc3d_64x64/lines/1", "Doc3d/bm/1exr", "Doc3d_64x64/bm/1exr", "Doc3d/uv/1", "Doc3d_64x64/uv/1"),
-    ("Doc3d/img/2", "Doc3d_64x64/img/2", "Doc3d_64x64/img_masked/2", "Doc3d_64x64/heatmap/2", "Doc3d/lines/2", "Doc3d_64x64/lines/2", "Doc3d/bm/2exr", "Doc3d_64x64/bm/2exr", "Doc3d/uv/2", "Doc3d_64x64/uv/2"),
-    ("Doc3d/img/3", "Doc3d_64x64/img/3", "Doc3d_64x64/img_masked/3", "Doc3d_64x64/heatmap/3", "Doc3d/lines/3", "Doc3d_64x64/lines/3", "Doc3d/bm/3exr", "Doc3d_64x64/bm/3exr", "Doc3d/uv/3", "Doc3d_64x64/uv/3"),
-    ("Doc3d/img/4", "Doc3d_64x64/img/4", "Doc3d_64x64/img_masked/4", "Doc3d_64x64/heatmap/4", "Doc3d/lines/4", "Doc3d_64x64/lines/4", "Doc3d/bm/4exr", "Doc3d_64x64/bm/4exr", "Doc3d/uv/4", "Doc3d_64x64/uv/4"),
+    ("Doc3d/img/1", "Doc3d_64x64/img/1", "Doc3d_64x64/img_masked/1", "Doc3d_64x64/contour/1", "Doc3d/lines/1", "Doc3d_64x64/lines/1", "Doc3d/bm/1exr", "Doc3d_64x64/bm/1exr", "Doc3d/uv/1", "Doc3d_64x64/uv/1"),
+    ("Doc3d/img/2", "Doc3d_64x64/img/2", "Doc3d_64x64/img_masked/2", "Doc3d_64x64/contour/2", "Doc3d/lines/2", "Doc3d_64x64/lines/2", "Doc3d/bm/2exr", "Doc3d_64x64/bm/2exr", "Doc3d/uv/2", "Doc3d_64x64/uv/2"),
+    ("Doc3d/img/3", "Doc3d_64x64/img/3", "Doc3d_64x64/img_masked/3", "Doc3d_64x64/contour/3", "Doc3d/lines/3", "Doc3d_64x64/lines/3", "Doc3d/bm/3exr", "Doc3d_64x64/bm/3exr", "Doc3d/uv/3", "Doc3d_64x64/uv/3"),
+    ("Doc3d/img/4", "Doc3d_64x64/img/4", "Doc3d_64x64/img_masked/4", "Doc3d_64x64/contour/4", "Doc3d/lines/4", "Doc3d_64x64/lines/4", "Doc3d/bm/4exr", "Doc3d_64x64/bm/4exr", "Doc3d/uv/4", "Doc3d_64x64/uv/4"),
     ("MitIndoor_64x64/img", None, None, None, None, None, None, None, None, None)
 ]
 
@@ -69,8 +68,8 @@ def get_tl_corners_idx(corners):
     return xs[0][1]
 
 
-def save_compressed_npy(path, arr):
-    with gzip.GzipFile(path, "w") as f:
+def save_uncompressed_npy(path, arr):
+    with open(path, "wb") as f:
         np.save(f, arr)
 
 
@@ -84,7 +83,7 @@ def generate_heatmap(cx, cy, confidence, size):
 
 
 def task(pairs):
-    for (name, img_dir, img_down_dir, img_masked_down_dir, heatmap_dir, lines_dir, lines_down_dir, bm_dir, bm_down_dir, uv_dir, uv_down_dir) in pairs:
+    for (name, img_dir, img_down_dir, img_masked_down_dir, contour_dir, lines_dir, lines_down_dir, bm_dir, bm_down_dir, uv_dir, uv_down_dir) in pairs:
         img_path = f"{img_dir}/{name}.png"
         lines_path = f"{lines_dir}/{name}.png"
         bm_path = f"{bm_dir}/{name}.exr"
@@ -138,7 +137,7 @@ def task(pairs):
         for augment_index in range(augment_factor):
             img_down_path = f"{img_down_dir}/{name}_aug{augment_index}.png"
             img_masked_down_path = f"{img_masked_down_dir}/{name}_aug{augment_index}.png"
-            heatmap_path = f"{heatmap_dir}/{name}_aug{augment_index}.npy" 
+            contour_path = f"{contour_dir}/{name}_aug{augment_index}.npy" 
             lines_down_path = f"{lines_down_dir}/{name}_aug{augment_index}.png"
             bm_down_path = f"{bm_down_dir}/{name}_aug{augment_index}.exr"
             uv_down_path = f"{uv_down_dir}/{name}_aug{augment_index}.exr"
@@ -201,7 +200,7 @@ def task(pairs):
             imageio.imsave(bm_down_path, bm_down)
             imageio.imsave(uv_down_path, uv_down)
 
-            save_compressed_npy(heatmap_path, heatmap)
+            save_uncompressed_npy(contour_path, contour)
 
     
 def chunk(list, chunk_size):
@@ -211,11 +210,11 @@ def chunk(list, chunk_size):
 with concurrent.futures.ThreadPoolExecutor(8) as executor:
     pairs = []
     for dir_pair in dir_pairs:
-        img_dir, img_down_dir, img_masked_down_dir, heatmap_dir, lines_dir, lines_down_dir, bm_dir, bm_down_dir, uv_dir, uv_down_dir = dir_pair
+        img_dir, img_down_dir, img_masked_down_dir, contour_dir, lines_dir, lines_down_dir, bm_dir, bm_down_dir, uv_dir, uv_down_dir = dir_pair
 
-        if heatmap_dir == None or bm_dir == None:
+        if contour_dir == None or bm_dir == None:
             feature_map = np.zeros((contour_pts, *downscale_size), np.float32)
-            save_compressed_npy(blank_heatmap_path, feature_map)
+            save_uncompressed_npy(blank_heatmap_path, feature_map)
             continue
 
         make_dirs([*dir_pair])
@@ -228,7 +227,7 @@ with concurrent.futures.ThreadPoolExecutor(8) as executor:
             name = Path(path).stem
             pairs.append((
                 name, 
-                img_dir, img_down_dir, img_masked_down_dir, heatmap_dir,
+                img_dir, img_down_dir, img_masked_down_dir, contour_dir,
                 lines_dir, lines_down_dir,
                 bm_dir, bm_down_dir, uv_dir, uv_down_dir
             ))

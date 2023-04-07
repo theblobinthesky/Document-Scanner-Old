@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from model import device
 from model import DoubleConv, MultiscaleBlock
 from model import binarize_threshold, metric_l1
+import itertools
 
 min_finetuning_weight = torch.tensor(0.0, device=device)
 max_finetuning_weight = torch.tensor(2.0, device=device)
@@ -160,29 +161,81 @@ class ContourModel(nn.Module):
     def set_train(self, booleanlol):
         pass
 
+    def get_brange_and_crange(self, b, c):
+        brange = torch.arange(0, b).view(-1, 1).repeat(1, c)
+        crange = torch.arange(0, c).view(1, -1).repeat(b, 1)
+        return brange, crange
 
     def input_and_label_from_dict(self, dict):
         img = dict["img"]
-
         b, _, h, w = img.shape
+
         a_padding = torch.full((b, 1, h, w), 1.0, device=device)
 
         img = torch.cat([img, a_padding], axis=1)
 
-        heatmap = dict["heatmap"]
+        contour = dict["contour"]
+        b, c, _ = contour.shape
+
+
+        # generate heatmap
+        heatmap = torch.zeros((b, c, w, h), device=device)
+
+        brange, crange = self.get_brange_and_crange(b, c)
+        
+        xs, ys = contour[:, :, 0], contour[:, :, 1]
+        xs, ys = xs * w, ys * w
+        q_xs, q_ys = torch.floor(xs), torch.floor(ys)
+
+        # choose random point based on errors
+        e_x, e_y = xs - q_xs, ys - q_ys
+        r_x, r_y = torch.rand(e_x.shape, device=device), torch.rand(e_y.shape, device=device)
+
+        q_xs, q_ys = q_xs.int(), q_ys.int()
+        i_x, i_y = (e_x >= r_x).int(), (e_y >= r_y).int()
+        xs, ys = q_xs + i_x, q_ys + i_y
+
+        heatmap[brange, crange, xs, ys] = 1.0
 
         return img, heatmap
 
-    def contour_from_heatmap(self, heatmap):
+    def contour_from_heatmap(self, heatmap, is_in_logits):
         b, c, w, h = heatmap.shape
-        heatmap = heatmap.reshape(b, c, -1)
-        heatmap = torch.sigmoid(heatmap)
 
-        indices = torch.argmax(heatmap, dim=2)
-        indices = indices.unsqueeze(2)
-        indices = torch.cat([indices / w, indices % w], axis=2)
+        if is_in_logits:
+            heatmap = torch.sigmoid(heatmap)
 
-        contour = indices.float()
+        # This is implementing Heatmap Regression via Randomized Rounding: 
+        # https://arxiv.org/pdf/2009.00225.pdf
+
+        # convert maximum indices to points
+        indices = torch.argmax(heatmap.reshape(b, c, -1), dim=2)
+        indices = indices.unsqueeze(-1)
+        indices = torch.cat([indices / w, indices % w], axis=-1).int()
+
+        # normalize 3x3 values in region around maximum and convolve with points
+        brange, crange = self.get_brange_and_crange(b, c)
+        xs, ys = indices[:, :, 0], indices[:, :, 1]
+
+        def keep_in_bounds(ten, min, max):
+            return torch.clamp(ten, min=min, max=max)
+
+        kernel_arange = torch.arange(-1, 2)
+        values = torch.cat([
+            heatmap[brange, crange, keep_in_bounds(xs + xx, 0, w - 1), keep_in_bounds(ys + yy, 0, h - 1)].unsqueeze(-1) 
+                for xx, yy in itertools.product(kernel_arange, kernel_arange)
+        ], dim=-1)
+
+        indices = torch.cat([
+            torch.cat([keep_in_bounds(xs + xx, 0, w - 1).unsqueeze(-1).unsqueeze(-1), 
+                       keep_in_bounds(ys + yy, 0, h - 1).unsqueeze(-1).unsqueeze(-1)], dim=-1) 
+                for xx, yy in itertools.product(kernel_arange, kernel_arange)
+        ], dim=-2)
+
+        values /= values.sum(-1).unsqueeze(-1)
+        values = values.unsqueeze(-1)
+
+        contour = (indices * values).sum(2)
         contour[:, :, 0] /= w
         contour[:, :, 1] /= h
 
@@ -204,8 +257,8 @@ class ContourModel(nn.Module):
         return loss.mean()
 
     def eval_metrics(self, pred, label):
-        heatmap_pred = self.contour_from_heatmap(pred)
-        heatmap_label = self.contour_from_heatmap(label)
+        heatmap_pred = self.contour_from_heatmap(pred, is_in_logits=True)
+        heatmap_label = self.contour_from_heatmap(label, is_in_logits=False)
 
         return {
             "L1": metric_l1(heatmap_pred, heatmap_label)

@@ -1,6 +1,5 @@
 from glob import glob
 import numpy as np
-import gzip
 import Imath
 import OpenEXR
 from torchvision.transforms.functional import to_tensor
@@ -39,7 +38,7 @@ def exr_loader(path):
 
 
 def npy_loader(name, path):
-    with gzip.GzipFile(path, "r") as f:
+    with open(path, "rb") as f:
         npy = np.load(f, allow_pickle=True)
 
     # if isinstance(npy.item(), dict):
@@ -161,10 +160,10 @@ def load_seg_dataset(batch_size):
 
 def load_contour_dataset(batch_size):
     return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {"heatmap": "blank_heatmap.npy"}, {"img": color_jitter}, [
-        [("img", "Doc3d_64x64/img/1", "png"), ("heatmap", "Doc3d_64x64/heatmap/1", "npy")],
-        [("img", "Doc3d_64x64/img/2", "png"), ("heatmap", "Doc3d_64x64/heatmap/2", "npy")],
-        [("img", "Doc3d_64x64/img/3", "png"), ("heatmap", "Doc3d_64x64/heatmap/3", "npy")],
-        [("img", "Doc3d_64x64/img/4", "png"), ("heatmap", "Doc3d_64x64/heatmap/4", "npy")],
+        [("img", "Doc3d_64x64/img/1", "png"), ("contour", "Doc3d_64x64/contour/1", "npy")],
+        [("img", "Doc3d_64x64/img/2", "png"), ("contour", "Doc3d_64x64/contour/2", "npy")],
+        [("img", "Doc3d_64x64/img/3", "png"), ("contour", "Doc3d_64x64/contour/3", "npy")],
+        [("img", "Doc3d_64x64/img/4", "png"), ("contour", "Doc3d_64x64/contour/4", "npy")],
         # todo: fix nan error [("img", "MitIndoor_64x64/img", "jpg")]
     ], {"finetuning": "finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1)
 

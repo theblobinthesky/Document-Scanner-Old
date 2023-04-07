@@ -106,8 +106,9 @@ def benchmark_plt_contour(model):
 
         with torch.no_grad():
             heatmap_pred = model(x)
+            heatmap_pred = torch.sigmoid(heatmap_pred)
         
-        contour_label, contour_pred = model.contour_from_heatmap(heatmap_label), model.contour_from_heatmap(heatmap_pred)
+        contour_label, contour_pred = model.contour_from_heatmap(heatmap_label, False), model.contour_from_heatmap(heatmap_pred, False)
 
         x = cpu(x)
         heatmap_label, heatmap_pred = cpu(heatmap_label), cpu(heatmap_pred)
@@ -257,7 +258,7 @@ def benchmark_cam_model(model, model_type):
         
         if model_type == Model.CONTOUR:
             heatmap = model(small_frame)
-            contour = model.contour_from_heatmap(heatmap)
+            contour = model.contour_from_heatmap(heatmap, contour_from_logits=True)
             contour = cpu(contour, True)
 
             frame = apply_contour_to_img(small_frame_npy, contour)
@@ -300,7 +301,7 @@ if __name__ == "__main__":
 
         def forward(self, x):
             heatmap = self.contour_model(x)
-            contour = self.contour_model.contour_from_heatmap(heatmap)
+            contour = self.contour_model.contour_from_heatmap(heatmap, contour_from_logits=True)
 
             contour = cpu(contour, True)
 
@@ -320,7 +321,7 @@ if __name__ == "__main__":
             return y
 
 
-    model_type = Model.BM
+    model_type = Model.CONTOUR
 
     contour_model_path = "models/heatmap_6.pth"
     bm_model_path = "models/bm_model.pth"
@@ -342,7 +343,7 @@ if __name__ == "__main__":
 
     model = model.to(device=device)
     
-    if True:
+    if False:
         benchmark_cam_model(model, model_type)
     else:
         fig = benchmark_plt_model(model, model_type)

@@ -26,7 +26,7 @@ def epochs_from_iters(iters):
     return warmup_epochs + T_0 * sum([T_mul ** i for i in range(iters)]) - 2
 
 seg_epochs = epochs_from_iters(4)
-contour_epochs = epochs_from_iters(5)
+contour_epochs = epochs_from_iters(2)
 bm_epochs = epochs_from_iters(6)
 min_learning_rate_before_early_termination = 1e-7
 lr_plateau_patience = 3
@@ -158,6 +158,10 @@ def train_model(model, model_path, model_type, summary_writer):
         summary_writer.add_scalar("Loss/train", train_loss, epoch)
         summary_writer.add_scalar("Learning rate", learning_rate, epoch)
 
+        pbar.update(1)
+        pbar.set_description(f"Epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. Loss/train: {train_loss:.4f}, Loss/valid: {valid_loss:.4f}, LR: {learning_rate:.6f}")
+
+
         # check for keyboard input
         if select.select([sys.stdin], [], [], 0)[0]:
             input_str = sys.stdin.readline().strip()
@@ -171,9 +175,6 @@ def train_model(model, model_path, model_type, summary_writer):
             elif input_str == "q": break
 
 
-        pbar.update(1)
-        pbar.set_description(f"Epoch {epoch + 1}/{epochs} completed with {hours_passed:.4f}h passed. Loss/train: {train_loss:.4f}, Loss/valid: {valid_loss:.4f}, LR: {learning_rate:.6f}")
-
         if hours_passed > time_in_hours:
             pbar.close()
             print(f"Hour limit of {time_in_hours:.4f}h passed.")
@@ -183,6 +184,12 @@ def train_model(model, model_path, model_type, summary_writer):
     save_model(model, model_path)
 
     pbar.close()
+
+    print("Benchmarking model...")
+
+    plt = benchmark_plt_model(model, model_type)
+    summary_writer.add_figure("benchmark", plt)
+
 
     print("Evaluating test loss and metrics...")
 
@@ -197,11 +204,6 @@ def train_model(model, model_path, model_type, summary_writer):
         metric_dict[name] = value
 
     summary_writer.add_hparams(hparams, metric_dict)
-
-    print("Benchmarking model...")
-
-    plt = benchmark_plt_model(model, model_type)
-    summary_writer.add_figure("benchmark", plt)
 
 
 if __name__ == "__main__":
@@ -222,9 +224,10 @@ if __name__ == "__main__":
     if True:
         print("Training contour model")
 
-        name = "heatmap_11"
+        name = "heatmap_12"
         writer = SummaryWriter(f"runs/{name}")
         model = seg_model.ContourModel()
+        model.load_state_dict(torch.load(f"models/heatmap_11.pth"))
         model = model_to_device(model)
         train_model(model, f"models/{name}.pth", Model.CONTOUR, summary_writer=writer)
         writer.flush()
