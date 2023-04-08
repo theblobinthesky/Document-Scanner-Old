@@ -11,7 +11,7 @@ import select
 import sys
 
 warmup_lr = 1e-5
-lr = 1e-4
+lr = 5e-4
 steps_per_epoch = 40
 seg_batch_size = 32
 contour_batch_size = 32
@@ -34,9 +34,9 @@ valid_batch_count = 16
 valid_eval_every = 4
 lam = 0.85
 
-seg_time_in_hours = 2.0
-contour_time_in_hours = 2.0
-bm_time_in_hours = 4.0
+seg_time_in_hours = 8.0
+contour_time_in_hours = 8.0
+bm_time_in_hours = 8.0
 
 def cycle(iterable):
     while True:
@@ -222,6 +222,19 @@ if __name__ == "__main__":
     # writer.flush()
 
     if True:
+        print("Training segmentation model")
+        
+        name = "main_seg_2"
+        writer = SummaryWriter(f"runs/{name}")
+        model = seg_model.SegModel()
+        model.load_state_dict(torch.load("models/main_seg.pth"))
+        model = model_to_device(model)
+        train_model(model, f"models/{name}.pth", Model.SEG, summary_writer=writer)
+        writer.flush()
+
+        print()
+
+    if False:
         print("Training contour model")
 
         name = "heatmap_12"
@@ -232,8 +245,9 @@ if __name__ == "__main__":
         train_model(model, f"models/{name}.pth", Model.CONTOUR, summary_writer=writer)
         writer.flush()
 
-    if False:
         print()
+
+    if False:
         print("Training bm model")
 
         name = "bm_model_3"

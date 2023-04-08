@@ -289,7 +289,7 @@ def benchmark_cam_model(model, model_type):
 if __name__ == "__main__":
     from data import load_contour_dataset
     from bm_model import BMModel
-    from seg_model import ContourModel
+    from seg_model import SegModel, ContourModel
 
     class BMModelWrapper(nn.Module):
         def __init__(self, contour_model, bm_model):
@@ -321,14 +321,13 @@ if __name__ == "__main__":
             return y
 
 
-    model_type = Model.CONTOUR
+    model_type = Model.SEG
 
     contour_model_path = "models/heatmap_6.pth"
     bm_model_path = "models/bm_model.pth"
 
     if model_type == Model.SEG:
-        print("SEG model not supported for benchmarking yet.")
-        exit()
+        model = SegModel()
     elif model_type == Model.CONTOUR:
         model = ContourModel()
         model.load_state_dict(torch.load(contour_model_path))

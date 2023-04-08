@@ -49,9 +49,9 @@ class SegModel(nn.Module):
     def __init__(self):
         super().__init__()
 
-        inp = 4
+        inp = 3
         out = 1
-        depth = [32, 64, 128, 128]
+        depth = [64, 128, 256, 512]
 
         self.cvt_in = DoubleConv(inp, depth[0])
         self.cvt_out = DoubleConv(depth[0], out)
@@ -92,18 +92,12 @@ class SegModel(nn.Module):
 
     def input_and_label_from_dict(self, dict):
         img = dict["img"]
-
-        b, _, h, w = img.shape
-        a_padding = torch.full((b, 1, h, w), 1.0, device=device)
-
-        img = torch.cat([img, a_padding], axis=1)
         mask = dict["uv"][:, 0].unsqueeze(1)
 
         return img, mask
 
 
-    def loss(self, pred, dict, weight_metrics):
-        mask_pred, _ = pred
+    def loss(self, mask_pred, dict, weight_metrics):
         _, mask_label = self.input_and_label_from_dict(dict)
 
         mask_loss = F.binary_cross_entropy(mask_pred, mask_label, reduction="none")
@@ -115,9 +109,8 @@ class SegModel(nn.Module):
         return mask_loss
         
 
-    def eval_metrics(self):
-        return [] # todo: reimplement metrics return [metric_dice_coefficient, metric_sensitivity, metric_specificity]
-    
+    def eval_metrics(self, pred, label):
+        return {} # todo: reimplement metrics return [metric_dice_coefficient, metric_sensitivity, metric_specificity]
 
 class ContourModel(nn.Module):
     def __init__(self):

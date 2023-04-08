@@ -28,9 +28,9 @@ points_per_side_incl_start_corner = 4
 contour_pts = 4 * points_per_side_incl_start_corner
 
 min_max_scale = (1.0, 1.0) # (1, 1.1)
-min_max_rot = (0.0, 0.0) # (0.0, 360.0)
+min_max_rot = (0.0, 360.0)
 
-augment_factor = 1
+augment_factor = 3
 
 def make_dirs(dirs):
     for dir in dirs:
@@ -40,7 +40,7 @@ def random_between(between):
     return between[0] + random.random() * (between[1] - between[0])
 
 def generate_random_transform():
-    return 1.0, 0.0 # random_between(min_max_scale), random_between(min_max_rot)
+    return random_between(min_max_scale), random_between(min_max_rot)
 
 def get_mat_from_transform(size, scale, rot):
     size = np.array(size, np.int32)
