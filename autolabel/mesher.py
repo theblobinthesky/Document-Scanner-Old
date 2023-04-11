@@ -7,6 +7,9 @@ import numpy as np
 from tqdm import tqdm
 import shutil
 from pathlib import Path
+import open3d as o3d
+import open3d.core as o3c
+import json
 
 # Based on:
 # https://github.com/cdcseacave/openMVS/blob/master/MvgMvsPipeline.py
@@ -106,21 +109,87 @@ def solve_in_3d(input_dir, output_dir):
 
     pbar.close()
 
+def raycast_contour_onto_mesh(scene_dense_path, views, intrinsics, extrinsics, path, contour):
+    mesh = o3d.io.read_triangle_mesh(scene_dense_path)
+    mesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
+    
+    scene = o3d.t.geometry.RaycastingScene()
+    scene.add_triangles(mesh)
 
-import open3d as o3d
-import open3d.core as o3c
-import matplotlib.pyplot as plt
-import json
+    filename = Path(path).name
+    size, pose_id, id_intrinsic = views[filename]
+    size, intrinsic_matrix, distortion_coeff_k3 = intrinsics[id_intrinsic]
+    extrinsic_matrix = extrinsics[pose_id]
+        
+    intrinsic_matrix = o3c.Tensor(intrinsic_matrix)
+    extrinsic_matrix = o3c.Tensor(extrinsic_matrix) 
 
-def test(input_dir, output_dir):
+    rays = scene.create_rays_pinhole(intrinsic_matrix, extrinsic_matrix, size[0], size[1])
+    ans = scene.cast_rays(rays)
+
+
+    ray_pos = rays[:, :, :3]
+    ray_dir = rays[:, :, 3:]
+
+    ray_len = ans["t_hit"].numpy()
+    is_infinite = np.bitwise_not(np.isfinite(ray_len))
+    ray_len = ray_len[:, :, np.newaxis]
+
+    contour = contour.astype("int32")
+    xs, ys = contour[:, 0], contour[:, 1]
+
+    pt_invalid = is_infinite[ys, xs]
+    for i in range(len(pt_invalid)):
+        if pt_invalid[i]:
+            l_idx = i - np.argmin(pt_invalid[:i + 1][::-1])  # Find the first valid element before i
+            r_idx = i + np.argmin(pt_invalid[i:])  # Find the first valid element after i
+
+            # todo: this is a stupid way to tell, use actual uv coordinates later!
+            l_pt, c_pt, r_pt = contour[l_idx], contour[i], contour[r_idx]
+            t = np.abs((c_pt - l_pt) / (r_pt - l_pt)).max()
+            ray_len[c_pt[1], c_pt[0]] = (1.0 - t) * ray_len[l_pt[1], l_pt[0]] + t * ray_len[r_pt[1], r_pt[0]]
+
+    pts = ray_pos[ys, xs] + ray_dir[ys, xs] * ray_len[ys, xs]
+    pts = pts.numpy()
+
+    return pts
+
+
+def track_points_onto_mesh(paths, best_path, best_contour, output_dir):
     sfm_data_path = f"{output_dir}/sfm/sfm_data.json"
     scene_dense_path = f"{output_dir}/mvs/scene_dense_mesh.ply"
 
     with open(sfm_data_path, "r") as f:
         data = json.load(f)
 
-    views = []
-    intrinsics, extrinsics = {}, {}
+    views, intrinsics, extrinsics = {}, {}, {}
+
+    for view in data["views"]:
+        view = view["value"]["ptr_wrapper"]["data"]
+        filename = view["filename"]
+        size = (view["width"], view["height"])
+        id_pose = view["id_pose"]
+        id_intrinsic = view["id_intrinsic"]
+
+        views[filename] = (size, id_pose, id_intrinsic)
+
+
+    for intrinsic in data["intrinsics"]:
+        key = intrinsic["key"]
+
+        view = intrinsic["value"]["ptr_wrapper"]["data"]
+        size = (view["width"], view["height"])
+        focal_length = view["focal_length"]
+        principal_point = view["principal_point"]
+        distortion_coeff_k3 = view["disto_k3"]        
+
+        intrinsic_matrix = np.array([
+            [focal_length, 0, principal_point[0]],
+            [0, focal_length, principal_point[1]],
+            [0, 0, 1]
+        ], np.float32)
+
+        intrinsics[key] = (size, intrinsic_matrix, distortion_coeff_k3)
 
 
     for extrinsic in data["extrinsics"]:
@@ -133,11 +202,32 @@ def test(input_dir, output_dir):
 
         extrinsic_matrix = np.eye(4)
         extrinsic_matrix[:3,:3] = rotation
-        extrinsic_matrix[:3,3] = np.array(view["center"])
+        extrinsic_matrix[:3, 3] = np.array(view["center"])
 
         extrinsic_matrix = np.linalg.inv(extrinsic_matrix)
         extrinsics[key] = extrinsic_matrix
 
+
+    contour_points = raycast_contour_onto_mesh(scene_dense_path, views, intrinsics, extrinsics, best_path, best_contour)
+
+    contours = []
+    for path in paths:
+        name = Path(path).name
+        size, id_pose, id_intrinsic = views[name]
+        size, intrinsic_matrix, distortion_coeff_k3 = intrinsics[id_intrinsic]
+        extrinsic_matrix = extrinsics[id_pose][:3, :4]
+        matrix = intrinsic_matrix @ extrinsic_matrix
+
+        projected_points = []
+        for contour_point in contour_points:
+            contour_point = np.concatenate([contour_point, np.array([1.0])])
+            point = matrix @ contour_point
+            point = np.array([point[0] / point[2], point[1] / point[2]])
+            projected_points.append(point)
+
+        contours.append(projected_points)
+
+    return np.array(contours)
 
     if False:
         # Load the sfm_data.json file
@@ -169,56 +259,3 @@ def test(input_dir, output_dir):
         vis.run()
         vis.destroy_window()
         exit()
-
-    for view in data["views"]:
-        view = view["value"]["ptr_wrapper"]["data"]
-        filename = view["filename"]
-        size = (view["width"], view["height"])
-        id_pose = view["id_pose"]
-        id_intrinsic = view["id_intrinsic"]
-
-        views.append((filename, size, id_pose, id_intrinsic))
-
-
-    for intrinsic in data["intrinsics"]:
-        key = intrinsic["key"]
-
-        view = intrinsic["value"]["ptr_wrapper"]["data"]
-        size = (view["width"], view["height"])
-        focal_length = view["focal_length"]
-        principal_point = view["principal_point"]
-        distortion_coeff_k3 = view["disto_k3"]        
-
-        intrinsic_matrix = np.array([
-            [focal_length, 0, principal_point[0]],
-            [0, focal_length, principal_point[1]],
-            [0, 0, 1]
-        ], np.float32)
-
-        intrinsics[key] = (size, intrinsic_matrix, distortion_coeff_k3)
-
-
-    mesh = o3d.io.read_triangle_mesh(scene_dense_path)
-    mesh = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
-    
-    scene = o3d.t.geometry.RaycastingScene()
-    scene.add_triangles(mesh)
-
-    for i in range(len(views)):
-        filename, size, pose_id, id_intrinsic = views[i]
-        size, intrinsic_matrix, distortion_coeff_k3 = intrinsics[id_intrinsic]
-        extrinsic_matrix = extrinsics[pose_id]
-        
-        intrinsic_matrix = o3c.Tensor(intrinsic_matrix)
-        extrinsic_matrix = o3c.Tensor(extrinsic_matrix) 
-
-        rays = scene.create_rays_pinhole(intrinsic_matrix, extrinsic_matrix, size[0], size[1])
-        ans = scene.cast_rays(rays)
-
-        depth = np.rot90(ans['t_hit'].numpy(), k=3)[:, :, np.newaxis]
-        img = cv2.imread(f"{input_dir}/{filename}")
-        img = img.astype("float32") / 255.0
-
-        plt.imshow(depth)
-        plt.title(filename)        
-        plt.show()
