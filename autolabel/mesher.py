@@ -61,7 +61,7 @@ def make_steps(input_dir, matches_dir, camera_file_params, reconstruction_dir, m
 def make_dirs(dirs):
     for dir in dirs:
         if not os.path.exists(dir):
-            os.mkdir(dir)
+            Path(dir).mkdir(parents=True)
 
 def rm_dirs(dirs):
     for dir in dirs:
