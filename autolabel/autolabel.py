@@ -19,19 +19,26 @@ track_box_size = 51
 hbs = track_box_size // 2
 iters = 4
 
+scans = utils.get_scans()
+scans.sort()
+
 if False:
     import cv2
-    import numpy as np
     from pathlib import Path
     import matplotlib.pyplot as plt
 
-    scans = utils.get_scans()
     for scan_dir in scans:
         data = utils.get_scan_data(scan_dir)
+        
+        if not "best_mask_name" in data:
+            print("Skipping. Please run autolabel on this scan first.")
+            continue
+
         paths = utils.get_unrotated_img_paths(data)
 
         n_cols = 3
         n_rows = int(math.ceil(len(paths) / float(n_cols)))
+        plt.figure(data["scan_name"], figsize=(25, 25))
 
         for i, path in enumerate(paths):
             name = Path(path).name
@@ -39,6 +46,7 @@ if False:
             mask = f"{utils.mask_dir}/{name}"
 
             img, mask = cv2.imread(img), cv2.imread(mask)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = img.astype("float32") / 255.0
             mask = mask.astype("float32") / 255.0
             
@@ -58,9 +66,6 @@ if False:
 
     exit()
 
-
-scans = utils.get_scans()
-scans.sort()
 
 for i, scan_dir in enumerate(scans):
     start_time = time.time()
@@ -86,14 +91,14 @@ for i, scan_dir in enumerate(scans):
         paths = utils.get_unrotated_img_paths(data)
         
         if "manulabel_name" in data:
-            print("Skipping dense segmentation for manual mask...")
+            print("Skipping dense segmentation because of manual mask...")
 
             best_name = data["manulabel_name"]
             best_path = f"{utils.label_dir}/{scan_name}/img/{best_name}"
 
             best_mask = utils.get_manual_mask(data)
             best_contour = get_largest_contour(best_mask)
-            best_contour = get_simple_contour(best_contour, 0.002)
+            best_contour = get_simple_contour(best_contour, 0.0012)
         else:
             best_path, best_contour, is_confident = get_best_segmentation(paths)
             data["best_mask_name"] = utils.get_filename(best_path)

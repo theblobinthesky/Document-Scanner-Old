@@ -16,7 +16,7 @@ model_size, processing_size = 64, 256
 processing_size = (processing_size, processing_size)
 binarize_threshold = 0.5
 mask_size_kernels = (3, 3)
-mask_size_factors = (0.99, 1.01)
+mask_size_factors = (0.95, 1.01)
 accurate_mask_size_factors = (0.98, 1.05)
 min_ratio = 0.95
 

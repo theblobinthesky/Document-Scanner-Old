@@ -65,6 +65,7 @@ for scan_dir in scans:
     best_img_path = f"{utils.label_dir}/{scan_name}/img/{best_mask_name}"
 
     img = cv2.imread(best_img_path)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     size = img.shape[0:2][::-1]
     img = cv2.resize(img, (0, 0), fx=0.5, fy=0.5)
     img = unsharpen_mask(img)

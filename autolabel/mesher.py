@@ -28,7 +28,7 @@ def make_steps(input_dir, matches_dir, camera_file_params, reconstruction_dir, m
          ["-i", input_dir, "-o", matches_dir, "-d", camera_file_params]],
         ["Compute features",
          os.path.join(OPENMVG_BIN, "openMVG_main_ComputeFeatures"),
-         ["-i", f"{matches_dir}/sfm_data.json", "-o", matches_dir, "-m", "SIFT"]],
+         ["-i", f"{matches_dir}/sfm_data.json", "-o", matches_dir, "-m", "SIFT", "-p", "ULTRA"]],
         ["Compute pairs",
          os.path.join(OPENMVG_BIN, "openMVG_main_PairGenerator"),
          ["-i", f"{matches_dir}/sfm_data.json", "-o", f"{matches_dir}/pairs.bin"]],
@@ -53,9 +53,6 @@ def make_steps(input_dir, matches_dir, camera_file_params, reconstruction_dir, m
         ["Reconstruct the mesh",
          os.path.join(OPENMVS_BIN, "MVSReconstructMesh"),
          ["scene_dense.mvs", "-w", f"\"{mvs_dir}\""]]
-        # ["Refine the mesh",
-        #  os.path.join(OPENMVS_BIN, "MVSRefineMesh"),
-        #  ["scene_dense_mesh.mvs", "--scales", "1", "--gradient-step", "25.05", "-w", f"\"{mvs_dir}\""]]
         ]
 
 
