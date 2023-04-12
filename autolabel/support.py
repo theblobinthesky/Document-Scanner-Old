@@ -8,14 +8,15 @@ import torch
 import model as m
 import seg_model as sm
 from tqdm import tqdm
-from utils import make_dirs
+from utils import make_dirs, get_scan_label_dir, get_unrotated_img_paths
+import shutil
 
 model_path = "../model/models/main_seg_2.pth"
 model_size, processing_size = 64, 256
 processing_size = (processing_size, processing_size)
 binarize_threshold = 0.5
 mask_size_kernels = (3, 3)
-mask_size_factors = (0.98, 1.02)
+mask_size_factors = (0.99, 1.01)
 accurate_mask_size_factors = (0.98, 1.05)
 min_ratio = 0.95
 
@@ -36,6 +37,7 @@ def get_segmask_from_model(frame):
 def get_largest_contour(mask):
     contours, _  = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contour = max(contours, key=lambda contour: cv2.contourArea(contour))
+    contour = contour.reshape((-1, 2))
     return contour
             
 def get_mask_from_contour(contour, size):
@@ -45,7 +47,10 @@ def get_mask_from_contour(contour, size):
     return mask
             
 def get_simple_contour(contour, fac=0.12):
-    return cv2.approxPolyDP(contour, fac * cv2.arcLength(contour, True), True)
+    contour = cv2.approxPolyDP(contour, fac * cv2.arcLength(contour, True), True)
+    contour = contour.reshape((-1, 2))
+
+    return contour
 
 def isolate_largest_mask(mask):
     contour = get_largest_contour(mask)
@@ -124,7 +129,7 @@ def get_best_segmentation(paths):
         # pygame.display.update()
  
         contour = simple_contour
-        contour = contour.astype("float32").reshape((-1, 2))
+        contour = contour.astype("float32")
         contour[:, 0] *= original_size[1] / float(processing_size[0])
         contour[:, 1] *= original_size[0] / float(processing_size[1])
         contours.append((ratio, contour))
@@ -147,19 +152,11 @@ def get_guided_segmentations(paths, contours):
         middle_contour = contour - middle
         fg_contour, bg_contour = middle + middle_contour * mask_size_factors[0], middle + middle_contour * mask_size_factors[1]
         pr_fg_mask = get_mask_from_contour(contour, size)
-        
-        # pr_fg_mask = pr_fg_mask[:, :, np.newaxis].astype("float32") / 255.0
-        # img = cv2.imread(path).astype("float32") / 255.0
-        # img = img * (0.3 + 0.7 * pr_fg_mask)
-    # masks.append((path, img))
-    
         fg_mask = get_mask_from_contour(fg_contour, size)
         bg_mask = cv2.bitwise_not(get_mask_from_contour(bg_contour, size))
 
-
         # unshapen mask frame
         img = unsharpen_mask(img, sigma=8.0, alpha=2.0)
-
 
         contour = grab_cut(img, pr_fg_mask, fg_mask, bg_mask, size)
         mask = get_mask_from_contour(contour, size)
@@ -188,15 +185,14 @@ def get_single_accurate_segmentation(img, contour, fix_points, fix_radius):
     mask = get_mask_from_contour(contour, img.shape[:2])
     return mask
 
-def save_images_and_masks(paths, masks, output_dir, image_dir, mask_dir):
+def save_images_and_masks(paths, masks, data, image_dir, mask_dir):
     make_dirs([image_dir, mask_dir])
 
     for i, mask in enumerate(masks):
         path = paths[i]
         name = Path(path).name
 
-        image_path = f"{image_dir}/{name}"
-        os.rename(f"{output_dir}/mvs/images/{name}", image_path)
+        shutil.copyfile(path, f"{image_dir}/{name}")
 
         mask_path = f"{mask_dir}/{name}"
         cv2.imwrite(mask_path, mask)

@@ -10,6 +10,7 @@ from pathlib import Path
 import open3d as o3d
 import open3d.core as o3c
 import json
+import utils
 
 # Based on:
 # https://github.com/cdcseacave/openMVS/blob/master/MvgMvsPipeline.py
@@ -141,8 +142,9 @@ def raycast_contour_onto_mesh(scene_dense_path, views, intrinsics, extrinsics, p
     pt_invalid = is_infinite[ys, xs]
     for i in range(len(pt_invalid)):
         if pt_invalid[i]:
-            l_idx = i - np.argmin(pt_invalid[:i + 1][::-1])  # Find the first valid element before i
-            r_idx = i + np.argmin(pt_invalid[i:])  # Find the first valid element after i
+            l_idx, r_idx = i - 1, i + 1
+            while pt_invalid[l_idx]: l_idx = l_idx - 1 # Find the first valid element before i
+            while pt_invalid[r_idx]: r_idx = r_idx + 1 # Find the first valid element after i
 
             # todo: this is a stupid way to tell, use actual uv coordinates later!
             l_pt, c_pt, r_pt = contour[l_idx], contour[i], contour[r_idx]
@@ -151,13 +153,14 @@ def raycast_contour_onto_mesh(scene_dense_path, views, intrinsics, extrinsics, p
 
     pts = ray_pos[ys, xs] + ray_dir[ys, xs] * ray_len[ys, xs]
     pts = pts.numpy()
-
+    
     return pts
 
 
-def track_points_onto_mesh(paths, best_path, best_contour, output_dir):
-    sfm_data_path = f"{output_dir}/sfm/sfm_data.json"
-    scene_dense_path = f"{output_dir}/mvs/scene_dense_mesh.ply"
+def track_points_onto_mesh(paths, best_path, best_contour, data):
+    scan_label_dir = utils.get_scan_label_dir(data)
+    sfm_data_path = f"{scan_label_dir}/sfm_data.json"
+    scene_dense_path = f"{scan_label_dir}/scene_dense_mesh.ply"
 
     with open(sfm_data_path, "r") as f:
         data = json.load(f)

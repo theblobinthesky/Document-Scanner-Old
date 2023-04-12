@@ -19,3 +19,4 @@ supportlib/deps
 *.ttf
 *.mp4
 /autolabel/output
+datasets/*

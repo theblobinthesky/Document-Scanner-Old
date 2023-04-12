@@ -3,9 +3,8 @@ from glob import glob
 import pygame
 import cv2
 import numpy as np
-from support import get_best_segmentation, get_single_accurate_segmentation, unsharpen_mask
+from support import get_single_accurate_segmentation, unsharpen_mask
 import utils
-from pathlib import Path
 
 min_close_distance = 20
 fix_radius = 5
@@ -32,23 +31,40 @@ def render_image_to_be_annotated(window, img, mask):
         surf = pygame.surfarray.make_surface(img)
         window.blit(surf, (0, 0))
 
+def save_small_mask(data, best_mask_name, mask):
+    utils.make_dirs([utils.label_dir])
+
+    scan_name = data["scan_name"]
+    manulabel_path = f"{utils.label_dir}/{scan_name}/{best_mask_name}"
+    cv2.imwrite(manulabel_path, scale_mask_up(mask, size))
+
+
+    data["manulabel_name"] = best_mask_name
+    data["label_changed"] = True
+    utils.save_scan_data(data)
+
 
 scans = utils.get_scans()
+scans.sort()
+
 for scan_dir in scans:
     print()
     print(f"Working on '{scan_dir}'...")
 
-    paths = glob(f"{scan_dir}/*.jpg")
-
-    if len(paths) == 0:
+    data = utils.get_scan_data(scan_dir)
+    if not "best_mask_name" in data:
         print("Skipping. Please run autolabel on this scan first.")
         continue
 
-    best_path, _, _ = get_best_segmentation(paths)
-    name = Path(best_path).name
+    if "manulabel_name" in data:
+        print("Skipping. Scan has already been manually labelled.")
+        continue
 
+    best_mask_name = data["best_mask_name"]
+    scan_name = data["scan_name"]
+    best_img_path = f"{utils.label_dir}/{scan_name}/img/{best_mask_name}"
 
-    img = cv2.imread(best_path)
+    img = cv2.imread(best_img_path)
     size = img.shape[0:2][::-1]
     img = cv2.resize(img, (0, 0), fx=0.5, fy=0.5)
     img = unsharpen_mask(img)
@@ -62,22 +78,19 @@ for scan_dir in scans:
     window = pygame.display.set_mode((width, height))
     while True:
         mouse_down = False
-        quit_this_one = False
-        
+        quit = False
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 print("Skipping by user demand.")
-                quit_this_one = True
+                quit = True
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_down = True
-            elif event.type == pygame.MOUSEWHEEL and mask_done:
-                mask_dir = f"{scan_dir}/{utils.annotation_subdir}"
-                mask_path = f"{mask_dir}/{name}"
-                utils.make_dirs([mask_dir])
-                cv2.imwrite(mask_path, scale_mask_up(mask, size))
-                quit_this_one = True
+            elif event.type == pygame.KEYDOWN and mask_done:
+                save_small_mask(data, best_mask_name, mask)
+                quit = True
             
-        if quit_this_one: break
+        if quit: break
 
         render_image_to_be_annotated(window, img, mask)
 
