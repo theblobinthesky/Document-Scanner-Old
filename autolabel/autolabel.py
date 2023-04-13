@@ -2,24 +2,14 @@
 from glob import glob
 import time
 from mesher import solve_in_3d, track_points_onto_mesh
-from support import get_best_segmentation, get_guided_segmentations, save_images_and_masks, get_largest_contour, get_simple_contour
-import utils
+import support
+from support import get_best_segmentation, get_guided_segmentations, get_standard_contours_from_contours, save_images_masks_and_contours, get_largest_contour, get_simple_contour
 import math
 import traceback
 
 dir = "/media/shared/Projekte/DocumentScanner/datasets/Custom"
-model_path = "models/main_seg.pth"
-processing_size = 256
-model_size = 64
-mask_size_kernels = (15, 7)
-mask_size_factors = (0.9, 1.1)
-binarize_threshold = 0.8
-min_ratio = 0.03
-track_box_size = 51
-hbs = track_box_size // 2
-iters = 4
 
-scans = utils.get_scans()
+scans = support.get_scans()
 scans.sort()
 
 if False:
@@ -28,13 +18,13 @@ if False:
     import matplotlib.pyplot as plt
 
     for scan_dir in scans:
-        data = utils.get_scan_data(scan_dir)
+        data = support.get_scan_data(scan_dir)
         
         if not "best_mask_name" in data:
             print("Skipping. Please run autolabel on this scan first.")
             continue
 
-        paths = utils.get_unrotated_img_paths(data)
+        paths = support.get_unrotated_img_paths(data)
 
         n_cols = 3
         n_rows = int(math.ceil(len(paths) / float(n_cols)))
@@ -42,8 +32,8 @@ if False:
 
         for i, path in enumerate(paths):
             name = Path(path).name
-            img = f"{utils.image_dir}/{name}"
-            mask = f"{utils.mask_dir}/{name}"
+            img = f"{support.image_dir}/{name}"
+            mask = f"{support.mask_dir}/{name}"
 
             img, mask = cv2.imread(img), cv2.imread(mask)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -74,8 +64,8 @@ for i, scan_dir in enumerate(scans):
     print(f"Working on {i + 1}/{len(scans)} '{scan_dir}'...")
 
     try:
-        data = utils.get_scan_data(scan_dir)
-        if not data["label_changed"]:
+        data = support.get_scan_data(scan_dir)
+        if not data["label_changed"] and False:
             print("Skipping since label didn't change...")
             continue
 
@@ -84,36 +74,41 @@ for i, scan_dir in enumerate(scans):
         if "autolabel_complete" in data:
             print("Skipping 3d solve...")
         else:
-            solve_in_3d(scan_dir, utils.output_dir)
-            utils.move_3d_solve_and_unrotated_images(data)
+            print("lol no")
+            continue
+            solve_in_3d(scan_dir, support.output_dir)
+            support.move_3d_solve_and_unrotated_images(data)
 
 
-        paths = utils.get_unrotated_img_paths(data)
+        paths = support.get_unrotated_img_paths(data)
         
         if "manulabel_name" in data:
             print("Skipping dense segmentation because of manual mask...")
 
             best_name = data["manulabel_name"]
-            best_path = f"{utils.label_dir}/{scan_name}/img/{best_name}"
+            best_path = f"{support.label_dir}/{scan_name}/img/{best_name}"
 
-            best_mask = utils.get_manual_mask(data)
+            best_mask = support.get_manual_mask(data)
             best_contour = get_largest_contour(best_mask)
             best_contour = get_simple_contour(best_contour, 0.0012)
         else:
             best_path, best_contour, is_confident = get_best_segmentation(paths)
-            data["best_mask_name"] = utils.get_filename(best_path)
+            data["best_mask_name"] = support.get_filename(best_path)
             
             if is_confident: 
                 print("Prediction is too unconfident.")
                 continue
 
-        contours = track_points_onto_mesh(paths, best_path, best_contour, data)
-        masks = get_guided_segmentations(paths, contours)
-        save_images_and_masks(paths, masks, utils.output_dir, utils.image_dir, utils.mask_dir)
+        scan_label_dir = support.get_scan_label_dir(data)
+        projected_contours, contour_3d = track_points_onto_mesh(paths, best_path, best_contour, scan_label_dir)
+        projected_contours, masks = get_guided_segmentations(paths, projected_contours)
+        contours = get_standard_contours_from_contours(projected_contours, contour_3d, masks[0].shape[0:2][::-1])
+        save_images_masks_and_contours(paths, masks, contours, data)
 
         data["autolabel_complete"] = True
         data["label_changed"] = False
-        utils.save_scan_data(data)
+        support.save_scan_data(data)
+        
     except Exception as e:
         print("Autolabel threw an error:")
         traceback.print_exception(type(e), e, e.__traceback__)

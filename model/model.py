@@ -7,7 +7,7 @@ from enum import Enum
 l2_weight = 0.3
 grad_weight = 0.3
 binarize_threshold = 0.5
-device = torch.device("cuda")
+device = torch.device("cpu")
 
 class Conv(nn.Module):
     def __init__(self, inp, out, kernel_size=3, padding=1, dilation=1, stride=1, activation="none"):

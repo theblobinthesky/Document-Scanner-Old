@@ -2,7 +2,6 @@
 import os
 import subprocess
 import sys
-import cv2
 import numpy as np
 from tqdm import tqdm
 import shutil
@@ -10,7 +9,6 @@ from pathlib import Path
 import open3d as o3d
 import open3d.core as o3c
 import json
-import utils
 
 # Based on:
 # https://github.com/cdcseacave/openMVS/blob/master/MvgMvsPipeline.py
@@ -154,8 +152,7 @@ def raycast_contour_onto_mesh(scene_dense_path, views, intrinsics, extrinsics, p
     return pts
 
 
-def track_points_onto_mesh(paths, best_path, best_contour, data):
-    scan_label_dir = utils.get_scan_label_dir(data)
+def track_points_onto_mesh(paths, best_path, best_contour, scan_label_dir):
     sfm_data_path = f"{scan_label_dir}/sfm_data.json"
     scene_dense_path = f"{scan_label_dir}/scene_dense_mesh.ply"
 
@@ -227,7 +224,7 @@ def track_points_onto_mesh(paths, best_path, best_contour, data):
 
         contours.append(projected_points)
 
-    return np.array(contours)
+    return np.array(contours), np.array(contour_points)
 
     if False:
         # Load the sfm_data.json file

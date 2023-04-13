@@ -9,7 +9,7 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 
-num_examples = 8
+num_examples = 4
 dpi = 50
 circle_radius = 2
 rect_color = (0.0, 1.0, 0.0)
@@ -286,6 +286,39 @@ def benchmark_cam_model(model, model_type):
                 quit()
 
 
+def make_seg_model(seg_model_path):
+    model = SegModel()
+    model.load_state_dict(torch.load(seg_model_path))
+    return model
+    
+def make_contour_model(contour_model_path):
+    model = ContourModel()
+    model.load_state_dict(torch.load(contour_model_path))
+    return model
+    
+def make_bm_model(contour_model_path, bm_model_path):
+    contour_model = ContourModel()
+    contour_model.load_state_dict(torch.load(contour_model_path))
+    
+    bm_model = BMModel(False, False)
+    bm_model.load_state_dict(torch.load(bm_model_path))
+
+    model = BMModelWrapper(contour_model, bm_model)
+    return model
+
+def make_model(model_type):
+    seg_model_path = "models/main_seg.pth"
+    contour_model_path = "models/heatmap_6.pth"
+    bm_model_path = "models/bm_model.pth"
+    
+    if model_type == Model.SEG:
+        return make_seg_model(seg_model_path)
+    elif model_type == Model.CONTOUR:
+        return make_contour_model(contour_model_path)
+    elif model_type == Model.BM:
+        return make_bm_model(contour_model_path, bm_model_path)
+
+
 if __name__ == "__main__":
     from data import load_contour_dataset
     from bm_model import BMModel
@@ -321,25 +354,9 @@ if __name__ == "__main__":
             return y
 
 
-    model_type = Model.SEG
+    model_type = Model.CONTOUR
 
-    contour_model_path = "models/heatmap_6.pth"
-    bm_model_path = "models/bm_model.pth"
-
-    if model_type == Model.SEG:
-        model = SegModel()
-    elif model_type == Model.CONTOUR:
-        model = ContourModel()
-        model.load_state_dict(torch.load(contour_model_path))
-    elif model_type == Model.BM:
-        contour_model = ContourModel()
-        contour_model.load_state_dict(torch.load(contour_model_path))
-        
-        bm_model = BMModel(False, False)
-        bm_model.load_state_dict(torch.load(bm_model_path))
-
-        model = BMModelWrapper(contour_model, bm_model)
-
+    model = make_model(model_type)
     model = model.to(device=device)
     
     if False:

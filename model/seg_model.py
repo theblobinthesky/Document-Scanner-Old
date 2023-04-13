@@ -92,7 +92,7 @@ class SegModel(nn.Module):
 
     def input_and_label_from_dict(self, dict):
         img = dict["img"]
-        mask = dict["uv"][:, 0].unsqueeze(1)
+        mask = dict["mask"]
 
         return img, mask
 

@@ -20,3 +20,4 @@ supportlib/deps
 *.mp4
 /autolabel/output
 datasets/*
+.fuse_hidden*

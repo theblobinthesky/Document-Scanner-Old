@@ -3,7 +3,7 @@ import numpy as np
 import Imath
 import OpenEXR
 from torchvision.transforms.functional import to_tensor
-from torchvision.datasets.folder import default_loader
+import cv2
 from torchvision.transforms import Resize, ColorJitter, Compose
 from torch.utils.data import Dataset, random_split, DataLoader
 from torch import from_numpy
@@ -53,7 +53,11 @@ def load(name, path):
     elif path.endswith("npy"):
         return npy_loader(name, path)
     else:
-        return { name: to_tensor(default_loader(path)) }
+        img = cv2.imread(path, cv2.IMREAD_ANYCOLOR)
+        if len(img.shape) == 3: 
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        return { name: to_tensor(img) } # todo: investigate performance of this instead of default_laoder
 
 
 class ImageDataSet(Dataset):
@@ -148,28 +152,23 @@ def load_datasets(dir, missing_names, transforms, datasets, weight_metrics, batc
     return train_ds, valid_ds, test_ds
 
 color_jitter = ColorJitter(brightness=0.1, contrast=0.05, saturation=0.3, hue=0.1)
-resize = Resize(32)
+resize_64 = Resize(64)
+color_comp_64 = Compose([resize_64, color_jitter])
+resize_32 = Resize(32)
 
 def load_seg_dataset(batch_size):
-    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {"uv": "blank_uv_64x64.exr"}, {"img": color_jitter}, [
-        [("img", "Doc3d_64x64/img/1", "png"), ("uv", "Doc3d_64x64/lines/1", "png")],
-        [("img", "Doc3d_64x64/img/2", "png"), ("uv", "Doc3d_64x64/lines/2", "png")],
-        [("img", "Doc3d_64x64/img/3", "png"), ("uv", "Doc3d_64x64/lines/3", "png")],
-        [("img", "Doc3d_64x64/img/4", "png"), ("uv", "Doc3d_64x64/lines/4", "png")]
-    ], {"finetuning": "finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1)
+    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {}, {"img": color_comp_64, "mask": resize_64}, [
+        [("img", "Combined/img", "png"), ("mask", "Combined/mask", "png")]
+    ], {"finetuning": "Combined/finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1)
 
 def load_contour_dataset(batch_size):
-    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {"heatmap": "blank_heatmap.npy"}, {"img": color_jitter}, [
-        [("img", "Doc3d_64x64/img/1", "png"), ("contour", "Doc3d_64x64/contour/1", "npy")],
-        [("img", "Doc3d_64x64/img/2", "png"), ("contour", "Doc3d_64x64/contour/2", "npy")],
-        [("img", "Doc3d_64x64/img/3", "png"), ("contour", "Doc3d_64x64/contour/3", "npy")],
-        [("img", "Doc3d_64x64/img/4", "png"), ("contour", "Doc3d_64x64/contour/4", "npy")],
-        # todo: fix nan error [("img", "MitIndoor_64x64/img", "jpg")]
-    ], {"finetuning": "finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1)
+    return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {}, {"img": color_comp_64}, [
+        [("img", "Combined/img", "png"), ("contour", "Combined/contour", "npy")]
+    ], {"finetuning": "Combined/finetuning_metric.npy"}, batch_size=batch_size, valid_perc=0.1, test_perc=0.1)
 
 def load_bm_dataset(batch_size):
     return load_datasets("/media/shared/Projekte/DocumentScanner/datasets", {}, { 
-        "img": resize, "img_masked": Compose([resize, color_jitter]), "bm": resize, "uv": resize }, [
+        "img": resize_32, "img_masked": Compose([resize_32, color_jitter]), "bm": resize_32, "uv": resize_32 }, [
         [("img", "Doc3d_64x64/img/1", "png"), ("img_masked", "Doc3d_64x64/img_masked/1", "png"), ("bm", "Doc3d_64x64/bm/1exr", "exr"), ("uv", "Doc3d_64x64/uv/1", "exr")],
         [("img", "Doc3d_64x64/img/2", "png"), ("img_masked", "Doc3d_64x64/img_masked/2", "png"), ("bm", "Doc3d_64x64/bm/2exr", "exr"), ("uv", "Doc3d_64x64/uv/2", "exr")],
         [("img", "Doc3d_64x64/img/3", "png"), ("img_masked", "Doc3d_64x64/img_masked/3", "png"), ("bm", "Doc3d_64x64/bm/3exr", "exr"), ("uv", "Doc3d_64x64/uv/3", "exr")],

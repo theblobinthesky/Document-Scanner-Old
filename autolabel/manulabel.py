@@ -3,13 +3,12 @@ from glob import glob
 import pygame
 import cv2
 import numpy as np
+import support
 from support import get_single_accurate_segmentation, unsharpen_mask
-import utils
 
 min_close_distance = 20
 fix_radius = 5
 mask_opacity = 0.4
-processing_size = 0.5
 
 def scale_mask_up(mask, size):
     mask = cv2.resize(mask, size)
@@ -32,26 +31,26 @@ def render_image_to_be_annotated(window, img, mask):
         window.blit(surf, (0, 0))
 
 def save_small_mask(data, best_mask_name, mask):
-    utils.make_dirs([utils.label_dir])
+    support.make_dirs([support.label_dir])
 
     scan_name = data["scan_name"]
-    manulabel_path = f"{utils.label_dir}/{scan_name}/{best_mask_name}"
+    manulabel_path = f"{support.label_dir}/{scan_name}/{best_mask_name}"
     cv2.imwrite(manulabel_path, scale_mask_up(mask, size))
 
 
     data["manulabel_name"] = best_mask_name
     data["label_changed"] = True
-    utils.save_scan_data(data)
+    support.save_scan_data(data)
 
 
-scans = utils.get_scans()
+scans = support.get_scans()
 scans.sort()
 
 for scan_dir in scans:
     print()
     print(f"Working on '{scan_dir}'...")
 
-    data = utils.get_scan_data(scan_dir)
+    data = support.get_scan_data(scan_dir)
     if not "best_mask_name" in data:
         print("Skipping. Please run autolabel on this scan first.")
         continue
@@ -62,7 +61,7 @@ for scan_dir in scans:
 
     best_mask_name = data["best_mask_name"]
     scan_name = data["scan_name"]
-    best_img_path = f"{utils.label_dir}/{scan_name}/img/{best_mask_name}"
+    best_img_path = f"{support.label_dir}/{scan_name}/img/{best_mask_name}"
 
     img = cv2.imread(best_img_path)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
