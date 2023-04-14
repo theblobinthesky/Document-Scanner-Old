@@ -22,6 +22,7 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
     var surfaceTextureId = -1
     lateinit var surfaceTexture: SurfaceTexture
     lateinit var surface: Surface
+    var surfaceChanged = false
     var nativeContext: Long = 0
 
     val lock = Any()
@@ -29,7 +30,7 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
 
     private external fun nativeDestroy()
     private external fun nativePreInit(preview_width: Int, preview_height: Int) : LongArray
-    private external fun nativeInit(assetManager: AssetManager, surface: Surface, window: Window, preview_width: Int, preview_height: Int, cam_width: Int, cam_height: Int, cam_ptr: Long, enableDarkMode: Boolean)
+    private external fun nativeInit(assetManager: AssetManager, surface: Surface, internalDataPath: String, preview_width: Int, preview_height: Int, cam_width: Int, cam_height: Int, cam_ptr: Long, enableDarkMode: Boolean)
     private external fun nativeMotionEvent(event: Int, x: Float, y: Float)
 
     private external fun nativeRender()
@@ -74,6 +75,9 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
         Log.i("test", "onSurfaceChanged");
 
+        if(surfaceChanged) return
+        surfaceChanged = true
+
         surface = Surface(surfaceTexture)
         val preInit = nativePreInit(width, height)
         surfaceTexture.setDefaultBufferSize(preInit[0].toInt(), preInit[1].toInt())
@@ -83,7 +87,8 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
             else -> false
         }
 
-        nativeInit(context.assets, surface, activity.window, width, height, preInit[0].toInt(), preInit[1].toInt(), preInit[2], enableDarkMode)
+        val internalDataPath = activity.filesDir.absolutePath
+        nativeInit(context.assets, surface, internalDataPath, width, height, preInit[0].toInt(), preInit[1].toInt(), preInit[2], enableDarkMode)
     }
 
     override fun onDrawFrame(gl: GL10?) {

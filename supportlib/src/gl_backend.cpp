@@ -133,18 +133,30 @@ u32 find_or_insert_shader(std::unordered_map<u64, u32>& map, u32 type, const std
 }
 
 shader_program docscanner::engine_backend::compile_and_link(const std::string& vert_src, const std::string& frag_src) {
-    u32 vert_shader = find_or_insert_shader(shader_map, GL_VERTEX_SHADER, vert_src);
-    u32 frag_shader = find_or_insert_shader(shader_map, GL_FRAGMENT_SHADER, frag_src);
+    u64 program_id = std::hash<std::string>()(vert_src) ^ std::hash<std::string>()(frag_src);
 
-    u64 program_id = ((u64)vert_shader << 32) | (u64)frag_shader;
     auto program_found = program_map.find(program_id);
-    if(true || program_found == program_map.end()) {
-        shader_program program = compile_and_link_program(vert_shader, frag_shader);
+    if(program_found == program_map.end()) {
+        shader_program program;
+
+        if(!load_program_from_binary(file_ctx, program_id, program)) {
+            LOGI("recompiling shader program");
+
+            u32 vert_shader = find_or_insert_shader(shader_map, GL_VERTEX_SHADER, vert_src);
+            u32 frag_shader = find_or_insert_shader(shader_map, GL_FRAGMENT_SHADER, frag_src);
+            program = compile_and_link_program(vert_shader, frag_shader);
+
+            save_program_to_binary(file_ctx, program_id, program);
+        } else {
+            LOGI("cached shader program");
+        }
+
+        LOGI("program.program: %d", program.program);
         program_map.emplace(program_id, program.program);
         return program;
-    } else {
-        return {program_found->second};
     }
+
+    return { program_found->second };
 }
 
 
@@ -559,9 +571,9 @@ shader_program docscanner::compile_and_link_program(u32 vert_shader, u32 frag_sh
     
     link_program(program);
     glDetachShader(program, vert_shader);
-    check_gl_error("glDetachSahder");
+    check_gl_error("glDetachShader");
     glDetachShader(program, frag_shader);
-    check_gl_error("glDetachSahder");
+    check_gl_error("glDetachShader");
     
     return {program};
 }
@@ -579,6 +591,51 @@ shader_program docscanner::compile_and_link_program(u32 comp_shader) {
     check_gl_error("glDetachShader");
     
     return {program};
+}
+
+bool docscanner::load_program_from_binary(file_context* ctx, u64 hash, shader_program& program) {
+    std::string path = "shader_binary_" + std::to_string(hash);
+
+    u8* data = null;
+    u32 size = 0;
+    read_from_internal_file(ctx, path.c_str(), data, size);
+    if(!data) return false;
+
+    GLenum bin_format = *((GLenum*)data);
+    data += sizeof(GLenum);
+    size -= sizeof(GLenum);
+    LOGI("bin_format: %u", bin_format);
+
+    program = { glCreateProgram() }; 
+    check_gl_error("glCreateProgram");
+    glProgramBinary(program.program, bin_format, data, size); // todo: add binary format
+    check_gl_error("glProgramBinary");
+
+    delete[] data;
+    
+    GLint success;
+    glGetProgramiv(program.program, GL_LINK_STATUS, &success);
+    check_gl_error("glGetProgramiv");
+
+    return true;
+}
+
+void docscanner::save_program_to_binary(file_context* ctx, u64 hash, shader_program& program) {
+    GLint bin_size = -1;
+    glGetProgramiv(program.program, GL_PROGRAM_BINARY_LENGTH, &bin_size);
+    bin_size += sizeof(GLenum);
+
+    u8* buffer = new u8[bin_size];
+    GLsizei bytes_written;
+    GLenum bin_format = -1;
+    glGetProgramBinary(program.program, bin_size, &bytes_written, &bin_format, buffer + sizeof(GLenum));
+    *((GLenum*)buffer) = bin_format;
+    LOGI("bin_format: %u", bin_format);
+    
+    std::string path = "shader_binary_" + std::to_string(hash);
+    write_to_internal_file(ctx, path.c_str(), buffer, bin_size);
+
+    delete[] buffer;
 }
 
 void delete_shader(u32 id) {

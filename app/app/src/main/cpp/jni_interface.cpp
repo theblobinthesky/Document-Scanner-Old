@@ -2,6 +2,7 @@
 #include "android_jni.hpp"
 #include <android/native_window_jni.h>
 #include <android/asset_manager_jni.h>
+#include <android/native_activity.h>
 
 #define DECL_FUNC(return_type, class_name, func_name) \
     extern "C" JNIEXPORT return_type JNICALL Java_com_erikstern_documentscanner_##class_name##_##func_name
@@ -19,6 +20,18 @@ jlongArray jlongArray_from_ptr(JNIEnv *env, const s64 *ptr, int len) {
     return longJavaArray;
 }
 
+char* char_ptr_from_jstring(JNIEnv* env, jstring str) {
+    const char* temp_buffer = env->GetStringUTFChars(str, nullptr);
+    if (!temp_buffer) return null;
+
+    size_t len = strlen(temp_buffer);
+    char* buffer = new char[len + 1];
+    memcpy(buffer, temp_buffer, len + 1);
+    env->ReleaseStringUTFChars(str, temp_buffer);
+
+    return buffer;
+}
+
 
 DECL_FUNC(jlongArray, GLSurfaceRenderer, nativePreInit)(JNIEnv* env, jobject obj, jint preview_width, jint preview_height) {
     svec2 cam_size{};
@@ -28,14 +41,15 @@ DECL_FUNC(jlongArray, GLSurfaceRenderer, nativePreInit)(JNIEnv* env, jobject obj
     return jlongArray_from_ptr(env, dimens, 3);
 }
 
-DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject asset_mngr, jobject surface, jobject window_obj,
+DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject asset_mngr, jobject surface, jstring internal_data_path,
         jint preview_width, jint preview_height, jint cam_width, jint cam_height, jlong cam_ptr, jboolean enable_dark_mode) {
     auto* mngr_from_java  = AAssetManager_fromJava(env, asset_mngr);
-    auto file_ctx = docscanner::get_file_ctx_from_asset_mngr(mngr_from_java);
+    auto file_ctx = docscanner::get_file_ctx_from_asset_mngr(mngr_from_java, char_ptr_from_jstring(env, internal_data_path));
     svec2 preview_size = { preview_width, preview_height };
     svec2 cam_size = { cam_width, cam_height };
 
     ANativeWindow *window = ANativeWindow_fromSurface(env, surface);
+
 
     docscanner::pipeline_args args = {
             .texture_window = window, .file_ctx = &file_ctx, .preview_size = preview_size, .cam_size = cam_size,

@@ -310,6 +310,10 @@ shader_program compile_and_link_program(u32 vert_shader, u32 frag_shader);
 
 shader_program compile_and_link_program(u32 comp_shader);
 
+bool load_program_from_binary(file_context* ctx, u64 hash, shader_program& program);
+
+void save_program_to_binary(file_context* ctx, u64 hash, shader_program& program);
+
 void delete_shader(u32 id);
 
 void delete_program(shader_program &program);
