@@ -4,7 +4,12 @@
 #include "input.hpp"
 #include "assets.hpp"
 #include "shader_program.hpp"
+
 #include <vector>
+#include <queue>
+#include <thread>
+#include <condition_variable>
+#include <functional>
 
 // nocheckin
 #ifdef ANDROID
@@ -85,9 +90,29 @@ struct DEBUG_marker {
 };
 #endif
 
+typedef void(*thread_pool_function)(void*);
+
+struct thread_pool_task {
+    thread_pool_function function;
+    void* data;
+};
+
+struct thread_pool {
+    bool keep_running;
+    std::vector<std::thread> threads;
+    std::condition_variable mutex_condition;
+    std::mutex mutex;
+    std::queue<thread_pool_task> work_queue;
+
+    thread_pool();
+    void thread_pool_loop();
+    void push(thread_pool_task task);
+};
+
 struct engine_backend {
     input_manager input;
-    file_context* file_ctx;
+    asset_manager* assets;
+    thread_pool threads;
 
     std::unordered_map<u64, u32> shader_map;
     std::unordered_map<u64, u32> program_map;
@@ -108,7 +133,7 @@ struct engine_backend {
     bool override_has_to_redraw;
     s32 running_animations;
 
-    engine_backend(svec2 preview_size_px, svec2 cam_size_px, file_context* file_ctx);
+    engine_backend(svec2 preview_size_px, svec2 cam_size_px, asset_manager* assets);
 
     shader_program compile_and_link(const std::string& vert_src, const std::string& frag_src);
     shader_program compile_and_link(const std::string& comp_src);

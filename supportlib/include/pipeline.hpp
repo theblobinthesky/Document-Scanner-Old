@@ -30,7 +30,7 @@ struct unwrapped_options_screen {
 
 struct pipeline_args {
     ANativeWindow* texture_window;
-    file_context* file_ctx;
+    asset_manager* assets;
     svec2 preview_size, cam_size;
     camera* cam;
     bool enable_dark_mode;

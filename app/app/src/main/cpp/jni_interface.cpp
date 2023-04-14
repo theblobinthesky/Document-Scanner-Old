@@ -44,7 +44,8 @@ DECL_FUNC(jlongArray, GLSurfaceRenderer, nativePreInit)(JNIEnv* env, jobject obj
 DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject asset_mngr, jobject surface, jstring internal_data_path,
         jint preview_width, jint preview_height, jint cam_width, jint cam_height, jlong cam_ptr, jboolean enable_dark_mode) {
     auto* mngr_from_java  = AAssetManager_fromJava(env, asset_mngr);
-    auto file_ctx = docscanner::get_file_ctx_from_asset_mngr(mngr_from_java, char_ptr_from_jstring(env, internal_data_path));
+    auto assets = docscanner::get_assets_from_asset_mngr(mngr_from_java, char_ptr_from_jstring(env, internal_data_path));
+
     svec2 preview_size = { preview_width, preview_height };
     svec2 cam_size = { cam_width, cam_height };
 
@@ -52,7 +53,7 @@ DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject
 
 
     docscanner::pipeline_args args = {
-            .texture_window = window, .file_ctx = &file_ctx, .preview_size = preview_size, .cam_size = cam_size,
+            .texture_window = window, .assets = assets, .preview_size = preview_size, .cam_size = cam_size,
             .cam = (docscanner::camera*)cam_ptr, .enable_dark_mode = (bool)enable_dark_mode
     };
     docscanner::create_persistent_pipeline(env, obj, args);

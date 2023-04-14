@@ -90,8 +90,46 @@ void docscanner::instanced_quads::draw() {
     glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null, quads_size);
 }
 
-engine_backend::engine_backend(svec2 preview_size_px, svec2 cam_size_px, file_context* file_ctx) 
-    : file_ctx(file_ctx), preview_size_px(preview_size_px), cam_size_px(cam_size_px),
+thread_pool::thread_pool() : keep_running(true) {
+    u32 num_threads = std::thread::hardware_concurrency();
+    threads.resize(num_threads);
+
+    for (u32 i = 0; i < num_threads; i++) {
+        threads[i] = std::thread(&thread_pool::thread_pool_loop, this);
+    }
+}
+
+void thread_pool::thread_pool_loop() {
+    while(keep_running) {
+        thread_pool_task task;
+
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            mutex_condition.wait(lock);
+
+            if(!keep_running) return;
+
+            task = work_queue.front();
+            work_queue.pop();
+        }
+
+        LOGI("issued thread task");
+
+        task.function(task.data);
+    }
+}
+
+void thread_pool::push(thread_pool_task task) {
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        work_queue.push(task);
+    }
+
+    mutex_condition.notify_one();
+}
+
+engine_backend::engine_backend(svec2 preview_size_px, svec2 cam_size_px, asset_manager* assets) 
+    : assets(assets), preview_size_px(preview_size_px), cam_size_px(cam_size_px),
       override_has_to_redraw(false), running_animations(0) {
     preview_height = preview_size_px.y / (f32)preview_size_px.x;
     input.init(preview_size_px, preview_height);
@@ -139,14 +177,14 @@ shader_program docscanner::engine_backend::compile_and_link(const std::string& v
     if(program_found == program_map.end()) {
         shader_program program;
 
-        if(!load_program_from_binary(file_ctx, program_id, program)) {
+        if(!load_program_from_binary(assets->ctx, program_id, program)) {
             LOGI("recompiling shader program");
 
             u32 vert_shader = find_or_insert_shader(shader_map, GL_VERTEX_SHADER, vert_src);
             u32 frag_shader = find_or_insert_shader(shader_map, GL_FRAGMENT_SHADER, frag_src);
             program = compile_and_link_program(vert_shader, frag_shader);
 
-            save_program_to_binary(file_ctx, program_id, program);
+            save_program_to_binary(assets->ctx, program_id, program);
         } else {
             LOGI("cached shader program");
         }

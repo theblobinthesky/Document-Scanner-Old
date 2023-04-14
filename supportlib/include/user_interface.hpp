@@ -6,8 +6,6 @@
 
 NAMESPACE_BEGIN
 
-struct font_family;
-
 struct glyph {
     s32 i;
     rect uv;

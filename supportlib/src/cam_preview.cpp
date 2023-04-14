@@ -101,7 +101,7 @@ void docscanner::cam_preview::init_backend(f32 bottom_edge, const rect& unwrappe
 
     shutter_program = backend->compile_and_link(vert_quad_src(), frag_shutter_src());
     
-    nn = create_neural_network_from_path(backend->file_ctx, "contour_model.tflite", execution_pref::sustained_speed);
+    create_neural_network_from_path(backend->assets, &backend->threads, "contour_model.tflite", execution_pref::sustained_speed);
 
     is_init = true;
 }
@@ -145,7 +145,7 @@ void cam_preview::unwrap() {
 void docscanner::cam_preview::render(f32 time) {
     if(!is_init) return;
 
-    if(is_live_camera_streaming || false) {
+    if(is_live_camera_streaming && cam.is_init) {
         cam.get();
 
         tex_downsampler.downsample();
@@ -155,7 +155,7 @@ void docscanner::cam_preview::render(f32 time) {
         constexpr u32 out_size = 1; // 2;
         u8* out_datas[out_size] = { nn_contour_out }; //, (u8*)&nn_exists_out };
         u32 out_sizes[out_size] = { nn_contour_out_size }; // , sizeof(f32) };
-        invoke_neural_network_on_data(nn, nn_input_buffer, nn_input_buffer_size, out_datas, out_sizes, out_size);
+        invoke_neural_network_on_data(backend->assets, nn_input_buffer, nn_input_buffer_size, out_datas, out_sizes, out_size);
 
         mesher.mesh(backend);
     }
@@ -190,9 +190,11 @@ void docscanner::cam_preview::render(f32 time) {
     unbind_framebuffer();
     draw(c);
 
-    cutout.render(time);
-    particles.render(backend);
-    border.render(time);
+    if(cam.is_init) {
+        cutout.render(time);
+        particles.render(backend);
+        border.render(time);
+    }
     
     backend->use_program(shutter_program);
     get_variable(shutter_program, "opacity").set_f32(lerp(1.0f, 0.0f, blendout_animation.value));

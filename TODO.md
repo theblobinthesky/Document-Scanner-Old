@@ -8,3 +8,5 @@ TODO: Must have performance improvements and general engine changes aswell as vi
 * More composable graphics, especially respecting rounded corners
 * Gradient rendering, SDF animations
 * Asset packing, using mmap avoiding memcpy
+
+Multithreading scheme:

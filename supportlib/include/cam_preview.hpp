@@ -2,7 +2,6 @@
 #include "backend.hpp"
 #include "user_interface.hpp"
 #include "assets.hpp"
-#include "nn.hpp"
 #include "img_proc.hpp"
 #include "camera.hpp"
 #include "shader_program.hpp"
@@ -26,8 +25,6 @@ struct cam_preview {
     u32 nn_input_buffer_size, nn_contour_out_size;
     f32 nn_exists_out;
     u8* nn_input_buffer, *nn_contour_out;
-
-    neural_network nn;
 
     texture_downsampler tex_downsampler;
     texture_sampler tex_sampler;

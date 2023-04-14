@@ -117,7 +117,7 @@ camera docscanner::find_and_open_back_camera(const svec2& min_size, svec2& size)
     }
 
     if (camera_index == -1) {
-        return { null, null, null };
+        return { true, null, null, null };
     }
 
     ACameraDevice* device;
@@ -133,7 +133,7 @@ camera docscanner::find_and_open_back_camera(const svec2& min_size, svec2& size)
 
     ACameraManager_deleteCameraIdList(camera_ids);
 
-    return { device, null, null };
+    return { true, device, null, null };
 }
 
 void docscanner::init_camera_capture(camera& camera, ANativeWindow* texture_window) {

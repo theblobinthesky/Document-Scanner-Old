@@ -9,7 +9,7 @@ font_instance::font_instance(engine_backend* backend, const std::string& path, f
 
     u8* data;
     u32 size;
-    file_to_buffer(backend->file_ctx, path.c_str(), data, size);
+    file_to_buffer(backend->assets->ctx, path.c_str(), data, size);
     stbtt_InitFont(&f, data, stbtt_GetFontOffsetForIndex(data, 0));
 
 
