@@ -89,6 +89,7 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
 
         val internalDataPath = activity.filesDir.absolutePath
         nativeInit(context.assets, surface, internalDataPath, width, height, preInit[0].toInt(), preInit[1].toInt(), preInit[2], enableDarkMode)
+        Log.d("docscanner", nativeContext.toString())
     }
 
     override fun onDrawFrame(gl: GL10?) {
