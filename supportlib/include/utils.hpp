@@ -8,6 +8,14 @@
 
 #define S32_MAX 2147483647
 
+#ifdef ANDROID
+#define USES_OES_TEXTURES true
+#elif defined(LINUX)
+#define USES_OES_TEXTURES false
+#else
+#error "Unsupported platform as USES_OES_TEXTURES is not defined."
+#endif
+
 using s8 = int8_t;
 using s16 = int16_t;
 using s32 = int32_t;

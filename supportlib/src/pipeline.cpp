@@ -36,7 +36,7 @@ void get_time(u64& start_time, f32& time) {
 
 unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect, const texture* unwrapped_texture) 
     : ui(ui), unwrapped_rect(unwrapped_rect), unwrapped_texture(unwrapped_texture),
-    discard_button(ui, "Discard", crad_thin_to_the_left, ui->theme.primary_color), next_button(ui, "Keep", crad_thin_to_the_right, ui->theme.primary_color),
+    discard_button(ui, "Discard", crad_thin_to_the_left, ui->theme.deny_color), next_button(ui, "Keep", crad_thin_to_the_right, ui->theme.accept_color),
     bg_blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0), 
     fg_blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.2f, 1.0f, 0),
     split_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 0.5f, 0),
@@ -102,13 +102,13 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
 }
 
 void unwrapped_options_screen::draw() {
+    LOGI("drawing!");
     if(bg_blendin_animation.state == animation_state::WAITING) {
         bg_blendin_animation.start();
         fg_blendin_animation.start();
     }
 
-    canvas c = { vec3::lerp(ui->theme.black, ui->theme.background_color, bg_blendin_animation.update()) };
-    ::draw(c);
+    ::prepare_empty_canvas(vec3::lerp(ui->theme.black, ui->theme.background_color, bg_blendin_animation.update()));
 
     bind_texture_to_slot(0, *unwrapped_texture);
 
@@ -163,28 +163,64 @@ void unwrapped_options_screen::draw() {
     }
 }
 
-camera* docscanner::pipeline::pre_init(svec2 preview_size, svec2& cam_size) {
+struct gui_camera_loader_struct {
+    pipeline* pipe;
+    camera* cam;
+    svec2 cam_size;
+};
+
+void gui_camera_loader_internal(void* data) {
+    auto gcl = reinterpret_cast<gui_camera_loader_struct*>(data);
+
+    gcl->pipe->init_camera_related(*gcl->cam, gcl->cam_size);
+    gcl->pipe->backend.cam_is_init = true;
+}
+
+void camera_loader_internal(void* data) {
+    auto cld = reinterpret_cast<camera_loader_data*>(data);
+
     camera* cam = new camera();
-    *cam = find_and_open_back_camera(preview_size, cam_size);
-    return cam;
+    svec2 cam_size;
+    *cam = find_and_open_back_camera(cld->pipe->backend.preview_size_px, cam_size);
+    cld->callback(cld->data, cam_size);
+
+#ifdef ANDROID
+    init_camera_capture(*cam, cld->texture_window);
+    #elif defined(LINUX)
+    init_camera_capture(*cam);
+    #endif
+
+    resume_camera_capture(*cam);
+
+    auto gcl = new gui_camera_loader_struct({ cld->pipe, cam, cam_size });
+    cld->pipe->threads.push_gui({ gui_camera_loader_internal, gcl });
+}
+
+camera_loader::camera_loader(pipeline* pipe, void* data, cam_init_callback callback, ANativeWindow* texture_window) {
+    camera_loader_data* cld = new camera_loader_data({
+        .pipe = pipe, .data = data,
+        .callback = callback, .texture_window = texture_window
+    });
+
+    pipe->threads.push({ camera_loader_internal, cld });
 }
 
 pipeline::pipeline(const pipeline_args& args)
-    : backend(args.preview_size, args.cam_size, args.assets), ui(&backend, args.enable_dark_mode), 
-    cam_preview_screen(&backend, &ui, args.cam), options_screen(&ui, unwrapped_mesh_rect, &cam_preview_screen.tex_sampler.output_tex),
+    : threads(), cam_loader(this, args.cd, args.cam_callback, args.texture_window), 
+    backend(&threads, args.preview_size, args.assets), ui(&backend, args.enable_dark_mode), 
+    cam_preview_screen(&backend, &ui, cam_preview_bottom_edge, unwrapped_mesh_rect), options_screen(&ui, unwrapped_mesh_rect, &cam_preview_screen.tex_sampler.output_tex),
     start_time(0), last_time(0) {
     projection_matrix = mat4::orthographic(0.0f, 1.0f, backend.preview_height, 0.0f, -1.0f, 1.0f);
+}
 
-#ifdef ANDROID
-    cam_preview_screen.init_backend(cam_preview_bottom_edge, unwrapped_mesh_rect);
-    cam_preview_screen.init_cam(args.texture_window);
-#elif defined(LINUX)
-    cam_preview_screen.init_backend(cam_preview_bottom_edge, unwrapped_mesh_rect);
-    cam_preview_screen.init_cam();
-#endif
+void pipeline::init_camera_related(camera cam, svec2 cam_size_px) {
+    backend.init_camera_related(cam, cam_size_px);
+    cam_preview_screen.init_camera_related();
 }
 
 void docscanner::pipeline::render() {
+    threads.work_on_gui_queue();
+
     SCOPED_CAMERA_MATRIX(&backend, projection_matrix);
 
     get_time(start_time, backend.time);

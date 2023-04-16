@@ -15,7 +15,6 @@ NAMESPACE_BEGIN
 
 #ifdef ANDROID
 struct camera {
-    bool is_init;
     ACameraDevice* device;
     ACaptureRequest* request;
     ACameraCaptureSession* session;

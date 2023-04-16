@@ -4,6 +4,7 @@
 #include "input.hpp"
 #include "assets.hpp"
 #include "shader_program.hpp"
+#include "camera.hpp"
 
 #include <vector>
 #include <queue>
@@ -52,10 +53,6 @@ struct vertex {
     vec2 uv;
 };
 
-struct canvas {
-    vec3 bg_color;
-};
-
 struct variable {
     int location;
 
@@ -66,6 +63,7 @@ struct variable {
     void set_vec4(const rect& r);
     void set_vec4(const vec2& a, const vec2& b);
     void set_vec4(const vec4& v);
+    void set_bool(bool v);
 };
 
 struct instanced_quad {
@@ -100,27 +98,49 @@ struct thread_pool_task {
 struct thread_pool {
     bool keep_running;
     std::vector<std::thread> threads;
+    
     std::condition_variable mutex_condition;
     std::mutex mutex;
+
     std::queue<thread_pool_task> work_queue;
+    std::queue<thread_pool_task> gui_work_queue;
 
     thread_pool();
     void thread_pool_loop();
-    void push(thread_pool_task task);
+    void work_on_gui_queue();
+    void push(thread_pool_task task); 
+    void push_gui(thread_pool_task task);
+};
+
+enum class rot_mode {
+    ROT_0_DEG,
+    ROT_90_DEG,
+    ROT_180_DEG,
+    ROT_270_DEG
 };
 
 struct engine_backend {
     input_manager input;
     asset_manager* assets;
-    thread_pool threads;
+    thread_pool* threads;
+
+    camera cam;
+    bool cam_is_init;
+    svec2 cam_size_px;
 
     std::unordered_map<u64, u32> shader_map;
     std::unordered_map<u64, u32> program_map;
     mat4 projection_mat;
     
     shader_buffer quad_buffer;
+    shader_program rounded_quad_with_color;
+    shader_program rounded_quad_with_texture;
 
-    svec2 preview_size_px, cam_size_px;
+#ifdef USES_OES_TEXTURES
+    shader_program rounded_quad_with_oes_texture;
+#endif
+
+    svec2 preview_size_px;
     f32 preview_height;
 
 #ifdef DEBUG
@@ -133,7 +153,8 @@ struct engine_backend {
     bool override_has_to_redraw;
     s32 running_animations;
 
-    engine_backend(svec2 preview_size_px, svec2 cam_size_px, asset_manager* assets);
+    engine_backend(thread_pool* threads, svec2 preview_size_px, asset_manager* assets);
+    void init_camera_related(camera cam, svec2 cam_size_px);
 
     shader_program compile_and_link(const std::string& vert_src, const std::string& frag_src);
     shader_program compile_and_link(const std::string& comp_src);
@@ -141,6 +162,13 @@ struct engine_backend {
 
     void draw_quad(const shader_program& program, const rect& bounds);
     void draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds);
+    void draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds, rot_mode uv_rot);
+    void draw_rounded_colored_quad(const rect& bounds, const rect& crad, const vec4& color);
+    void draw_rounded_textured_quad(const rect& bounds, const rect& crad, const texture& tex, const rect& uv_bounds);
+
+#ifdef USES_OES_TEXTURES
+    void draw_rounded_oes_textured_quad(const rect& bounds, const rect& crad, const rect& uv_bounds, rot_mode uv_rot);
+#endif
 
     bool has_to_redraw();
 
@@ -375,6 +403,6 @@ void set_texture_data(const texture &tex, u8* data, const svec2& size);
 
 variable get_variable(const shader_program& program, const char* name);
 
-void draw(const canvas &canvas);
+void prepare_empty_canvas(const vec3& color);
 
 NAMESPACE_END

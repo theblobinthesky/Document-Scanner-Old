@@ -30,15 +30,19 @@ std::string docscanner::vert_quad_src() {
     return version_and_precision_head R"(uniform mat4 projection;
         in vec2 position;
         in vec2 uvs;
+        out vec2 out_rel_pos;
         out vec2 out_uvs;
 
         uniform vec4 bounds;
         uniform vec4 uv_bounds;
+        uniform bool rot_uv_90_deg;
 
         void main() {
             vec2 real_position = mix(bounds.xy, bounds.zw, position);
-            vec2 real_uvs = mix(uv_bounds.xy, uv_bounds.zw, uvs);
+            vec2 real_uvs = mix(uv_bounds.xy, uv_bounds.zw, rot_uv_90_deg ? vec2(uvs.y, uvs.x) : uvs);
+            
             gl_Position = projection * vec4(real_position, 0, 1);
+            out_rel_pos = uvs;
             out_uvs = real_uvs;
         }
     )";
@@ -321,8 +325,26 @@ return version_and_precision_head R"(
     )";
 }
 
-std::string docscanner::frag_rounded_quad_src() {
+std::string rounded_box_sdf_src() {
+    return R"(
+        float rounded_box_sdf(vec2 center_position, vec2 size, vec4 rad)
+        {
+            rad.xy = (center_position.x > 0.0) ? rad.xy : rad.zw;
+            rad.x  = (center_position.y > 0.0) ? rad.x  : rad.y;
+
+            vec2 q = abs(center_position)-size+rad.x;
+            return min(max(q.x,q.y),0.0) + length(max(q,0.0)) - rad.x;
+        }
+
+        float rounded_box_alpha(float distance) {
+            return 1.0 - smoothstep(0.0, edge_softness, distance);
+        }
+    )";
+}
+
+std::string docscanner::frag_rounded_colored_quad_src() {
     return version_and_precision_head define_edge_softness R"(
+        in vec2 out_rel_pos;
         in vec2 out_uvs;
         out vec4 out_col;
 
@@ -334,27 +356,43 @@ std::string docscanner::frag_rounded_quad_src() {
         const float color_mix_dist = 0.05f;
         const float color_mix_width = 0.2f;
 
-        float roundedBoxSDF(vec2 center_position, vec2 size, vec4 rad)
-        {
-            rad.xy = (center_position.x > 0.0) ? rad.xy : rad.zw;
-            rad.x  = (center_position.y > 0.0) ? rad.x  : rad.y;
-
-            vec2 q = abs(center_position)-size+rad.x;
-            return min(max(q.x,q.y),0.0) + length(max(q,0.0)) - rad.x;
-        }
+        )" + rounded_box_sdf_src() + R"(
 
         void main() {
             vec2 half_size = quad_size * vec2(0.5);
-            vec2 pos = quad_size * out_uvs - half_size;
+            vec2 pos = quad_size * out_rel_pos - half_size;
 
-            float distance = roundedBoxSDF(pos, half_size, corner_rad); 
-            float smoothed_alpha = 1.0 - smoothstep(0.0, edge_softness, distance);
+            float distance = rounded_box_sdf(pos, half_size, corner_rad); 
+            float smoothed_alpha = rounded_box_alpha(distance);
 
             float norm_distance = abs(distance) / length(half_size);
             float color_mix = smoothstep(color_mix_dist, color_mix_dist + color_mix_width, norm_distance);
 
             vec4 color = mix(dark_color, light_color, color_mix);
+            out_col = vec4(color.rgb, smoothed_alpha * color.a);
+        }
+    )";
+}
 
+std::string docscanner::frag_rounded_textured_quad_src(bool use_oes) {
+    return version_head + get_sampler_src(use_oes, 0) + precision_head + define_edge_softness + R"(
+        in vec2 out_rel_pos;
+        in vec2 out_uvs;
+        out vec4 out_col;
+
+        uniform vec2 quad_size;
+        uniform vec4 corner_rad;
+
+        )" + rounded_box_sdf_src() + R"(
+
+        void main() {
+            vec2 half_size = quad_size * vec2(0.5);
+            vec2 pos = quad_size * out_rel_pos - half_size;
+
+            float distance = rounded_box_sdf(pos, half_size, corner_rad); 
+            float smoothed_alpha = rounded_box_alpha(distance);
+
+            vec4 color = texture(sampler, out_uvs);
             out_col = vec4(color.rgb, smoothed_alpha * color.a);
         }
     )";

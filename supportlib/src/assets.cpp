@@ -18,6 +18,7 @@ std::string get_internal_path(file_context* ctx, const char* path) {
     return std::string(ctx->internal_data_path) + "/" + std::string(path);
 }
 
+#ifdef ANDROID
 asset_manager* docscanner::get_assets_from_asset_mngr(AAssetManager* mngr, char* internal_data_path) {
     asset_manager* assets = new asset_manager();
     
@@ -28,6 +29,7 @@ asset_manager* docscanner::get_assets_from_asset_mngr(AAssetManager* mngr, char*
 
     return assets;
 }
+#endif
 
 void docscanner::file_to_buffer(file_context* ctx, const char* path, u8* &data, u32 &size) {
     AAsset* asset = AAssetManager_open(ctx->mngr, path, AASSET_MODE_BUFFER);
@@ -179,7 +181,7 @@ void docscanner::destory_neural_network(const neural_network* nn) {
 
 void docscanner::invoke_neural_network_on_data(asset_manager* assets, u8* inp_data, u32 inp_size, u8** out_datas, u32* out_sizes, u32 out_size) {
     auto nn = assets->nn;
-    if(!nn->was_initialized) return;
+    if(!nn || !nn->was_initialized) return; // todo: this is bad code! fix it later.
 
     ASSERT(inp_size == nn->inp_ten->bytes, "Neural network input tensor size is wrong. Expected %u but got %u.", inp_size, (u32)nn->inp_ten->bytes);
 

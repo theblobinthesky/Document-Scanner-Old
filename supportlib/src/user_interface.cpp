@@ -119,6 +119,8 @@ ui_theme::ui_theme(bool enable_dark_mode) {
     primary_color       = enable_dark_mode ? color_from_int(0xBB86FC) : color_from_int(0x6200EE);
     primary_dark_color  = color_from_int(0x3700B3);
     foreground_color    = enable_dark_mode ? color_from_int(0xFFFFFF) : color_from_int(0xFFFFFF);
+    accept_color = color_from_int(0x45d96a);
+    deny_color   = color_from_int(0xd95445);
 }
 
 ui_manager::ui_manager(engine_backend* backend, bool enable_dark_mode) : backend(backend), theme(enable_dark_mode) {
@@ -214,9 +216,7 @@ void text::render() {
 
 button::button(ui_manager* ui, const std::string& str, const rect& crad, vec3 color) 
     : ui(ui), crad(crad), color(color), 
-      content(ui->backend, ui->middle_font, bounds, text_alignment::CENTER, str, ui->theme.foreground_color) {
-    shader = ui->backend->compile_and_link(vert_quad_src(), frag_rounded_quad_src());
-}
+      content(ui->backend, ui->middle_font, bounds, text_alignment::CENTER, str, ui->theme.foreground_color) {}
 
 void button::layout(const rect& bounds) {
     this->bounds = bounds;
@@ -224,12 +224,7 @@ void button::layout(const rect& bounds) {
 }
 
 bool button::draw() {
-    ui->backend->use_program(shader);
-    get_variable(shader, "quad_size").set_vec2(bounds.size());
-    get_variable(shader, "corner_rad").set_vec4(crad);
-    get_variable(shader, "light_color").set_vec4(color);
-    get_variable(shader, "dark_color").set_vec4(color * 0.8f);
-    ui->backend->draw_quad(shader, bounds);
+    ui->backend->draw_rounded_colored_quad(bounds, crad, color);
 
     content.color.w = color.w;
     content.render();

@@ -30,9 +30,8 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
 
     private external fun nativeDestroy()
     private external fun nativePreInit(preview_width: Int, preview_height: Int) : LongArray
-    private external fun nativeInit(assetManager: AssetManager, surface: Surface, internalDataPath: String, preview_width: Int, preview_height: Int, cam_width: Int, cam_height: Int, cam_ptr: Long, enableDarkMode: Boolean)
+    private external fun nativeInit(assetManager: AssetManager, surface: Surface, internalDataPath: String, preview_width: Int, preview_height: Int, enableDarkMode: Boolean)
     private external fun nativeMotionEvent(event: Int, x: Float, y: Float)
-
     private external fun nativeRender()
 
     @SuppressLint("ClickableViewAccessibility")
@@ -70,6 +69,12 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
                 frameAvailable = true
             }
         }
+
+        surface = Surface(surfaceTexture)
+    }
+
+    fun preInitCallback(width: Int, height: Int) {
+        surfaceTexture.setDefaultBufferSize(width, height)
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -78,17 +83,13 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
         if(surfaceChanged) return
         surfaceChanged = true
 
-        surface = Surface(surfaceTexture)
-        val preInit = nativePreInit(width, height)
-        surfaceTexture.setDefaultBufferSize(preInit[0].toInt(), preInit[1].toInt())
-
         val enableDarkMode = when (context.resources?.configuration?.uiMode?.and(Configuration.UI_MODE_NIGHT_MASK)) {
             Configuration.UI_MODE_NIGHT_YES -> true
             else -> false
         }
 
         val internalDataPath = activity.filesDir.absolutePath
-        nativeInit(context.assets, surface, internalDataPath, width, height, preInit[0].toInt(), preInit[1].toInt(), preInit[2], enableDarkMode)
+        nativeInit(context.assets, surface, internalDataPath, width, height, enableDarkMode)
         Log.d("docscanner", nativeContext.toString())
     }
 

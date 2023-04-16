@@ -17,10 +17,8 @@ struct cam_preview {
     engine_backend* backend;
     ui_manager* ui;
 
-    shader_program preview_program;
-    camera cam;
-
-    shader_buffer cam_quad_buffer;
+    rect cam_pos_bounds;
+    rect cam_uv_bounds;
 
     u32 nn_input_buffer_size, nn_contour_out_size;
     f32 nn_exists_out;
@@ -43,14 +41,10 @@ struct cam_preview {
     bool is_live_camera_streaming;
     bool is_init;
 
-    cam_preview(engine_backend* backend, ui_manager* ui, camera* cam);
-    void init_backend(f32 bottom_edge, const rect& unwrapped_rect);
-
-#ifdef ANDROID
-    void init_cam(ANativeWindow* texture_window);
-#elif defined(LINUX)
-    void init_cam();
-#endif
+    f32 bottom_edge; // hack
+    rect unwrapped_rect;
+    cam_preview(engine_backend* backend, ui_manager* ui, f32 bottom_edge, const rect& unwrapped_rect);
+    void init_camera_related();
 
     void unwrap();
     void render(f32 time);

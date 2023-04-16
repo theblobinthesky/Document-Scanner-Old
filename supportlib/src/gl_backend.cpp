@@ -56,6 +56,10 @@ void docscanner::variable::set_vec4(const vec4& v) {
     glUniform4f(location, v.x, v.y, v.z, v.w);
 }
 
+void docscanner::variable::set_bool(bool v) {
+    glUniform1i(location, v);
+}
+
 void docscanner::instanced_quads::init(s32 size) {
     quads = new instanced_quad[size];
     quads_size = size;
@@ -91,7 +95,7 @@ void docscanner::instanced_quads::draw() {
 }
 
 thread_pool::thread_pool() : keep_running(true) {
-    u32 num_threads = std::thread::hardware_concurrency();
+    u32 num_threads = 1; // std::thread::hardware_concurrency();
     threads.resize(num_threads);
 
     for (u32 i = 0; i < num_threads; i++) {
@@ -105,7 +109,9 @@ void thread_pool::thread_pool_loop() {
 
         {
             std::unique_lock<std::mutex> lock(mutex);
-            mutex_condition.wait(lock);
+            if(work_queue.empty()) {
+                mutex_condition.wait(lock);
+            }
 
             if(!keep_running) return;
 
@@ -119,7 +125,18 @@ void thread_pool::thread_pool_loop() {
     }
 }
 
+void thread_pool::work_on_gui_queue() {
+    while(!gui_work_queue.empty()) {
+        const thread_pool_task& task = gui_work_queue.front();
+        gui_work_queue.pop();
+
+        task.function(task.data);
+    }
+}
+
 void thread_pool::push(thread_pool_task task) {
+    LOGI("issued thread push");
+
     {
         std::unique_lock<std::mutex> lock(mutex);
         work_queue.push(task);
@@ -128,8 +145,12 @@ void thread_pool::push(thread_pool_task task) {
     mutex_condition.notify_one();
 }
 
-engine_backend::engine_backend(svec2 preview_size_px, svec2 cam_size_px, asset_manager* assets) 
-    : assets(assets), preview_size_px(preview_size_px), cam_size_px(cam_size_px),
+void thread_pool::push_gui(thread_pool_task task) {
+    gui_work_queue.push(task);
+}
+
+engine_backend::engine_backend(thread_pool* threads, svec2 preview_size_px, asset_manager* assets) 
+    : assets(assets), threads(threads), cam_is_init(false), preview_size_px(preview_size_px),
       override_has_to_redraw(false), running_animations(0) {
     preview_height = preview_size_px.y / (f32)preview_size_px.x;
     input.init(preview_size_px, preview_height);
@@ -152,9 +173,22 @@ engine_backend::engine_backend(svec2 preview_size_px, svec2 cam_size_px, asset_m
     quad_buffer = make_shader_buffer();
     fill_shader_buffer(quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
 
+    rounded_quad_with_color = compile_and_link(vert_quad_src(), frag_rounded_colored_quad_src());
+    rounded_quad_with_texture = compile_and_link(vert_quad_src(), frag_rounded_textured_quad_src(false));
+
+#if USES_OES_TEXTURES
+    rounded_quad_with_oes_texture = compile_and_link(vert_quad_src(), frag_rounded_textured_quad_src(true));
+#endif
+ 
+
 #ifdef DEBUG
     DEBUG_marker_program = compile_and_link(vert_quad_src(), frag_DEBUG_marker_src());
 #endif
+}
+
+void engine_backend::init_camera_related(camera cam, svec2 cam_size_px) {
+    this->cam = cam;
+    this->cam_size_px = cam_size_px;
 }
 
 u32 find_or_insert_shader(std::unordered_map<u64, u32>& map, u32 type, const std::string& src) {   
@@ -220,19 +254,66 @@ void docscanner::engine_backend::use_program(const shader_program &program) {
 }
 
 void docscanner::engine_backend::draw_quad(const shader_program& program, const rect& bounds) {
-    draw_quad(program, bounds, rect({ {}, { 1, 1 } }));
+    draw_quad(program, bounds, rect({ {}, { 1, 1 } }), rot_mode::ROT_0_DEG);
 }
 
 void docscanner::engine_backend::draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds) {
+    draw_quad(program, bounds, uv_bounds, rot_mode::ROT_0_DEG);
+}
+
+void docscanner::engine_backend::draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds, rot_mode uv_rot) {
     bind_shader_buffer(quad_buffer);
 
     use_program(program);
     get_variable(program, "bounds").set_vec4(bounds);
-    get_variable(program, "uv_bounds").set_vec4(uv_bounds);
+
+    bool rot_uv_90_deg = false;
+    rect real_uv_bounds = uv_bounds;
+
+    if(uv_rot == rot_mode::ROT_90_DEG || uv_rot == rot_mode::ROT_270_DEG) {
+        rot_uv_90_deg = true;
+        real_uv_bounds = { { uv_bounds.tl.y, uv_bounds.tl.x }, { uv_bounds.br.y, uv_bounds.br.x } };
+    }
+
+    if(uv_rot == rot_mode::ROT_180_DEG || uv_rot == rot_mode::ROT_270_DEG) {
+        f32 temp_tl_y = real_uv_bounds.tl.y;
+        real_uv_bounds.tl.y = real_uv_bounds.br.y;
+        real_uv_bounds.br.y = temp_tl_y;
+    }
+
+    get_variable(program, "uv_bounds").set_vec4(real_uv_bounds);
+    get_variable(program, "rot_uv_90_deg").set_bool(rot_uv_90_deg);
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
     check_gl_error("glDrawElements");
 }
+
+void engine_backend::draw_rounded_colored_quad(const rect& bounds, const rect& crad, const vec4& color) {
+    use_program(rounded_quad_with_color);
+    get_variable(rounded_quad_with_color, "quad_size").set_vec2(bounds.size());
+    get_variable(rounded_quad_with_color, "corner_rad").set_vec4(crad);
+    get_variable(rounded_quad_with_color, "light_color").set_vec4(color);
+    get_variable(rounded_quad_with_color, "dark_color").set_vec4(color * 0.95f);
+    draw_quad(rounded_quad_with_color, bounds);
+}
+
+void engine_backend::draw_rounded_textured_quad(const rect& bounds, const rect& crad, const texture& tex, const rect& uv_bounds) {
+    bind_texture_to_slot(0, tex);
+
+    use_program(rounded_quad_with_texture);
+    get_variable(rounded_quad_with_texture, "quad_size").set_vec2(bounds.size());
+    get_variable(rounded_quad_with_texture, "corner_rad").set_vec4(crad);
+    draw_quad(rounded_quad_with_texture, bounds, uv_bounds);
+}
+
+#ifdef USES_OES_TEXTURES
+void engine_backend::draw_rounded_oes_textured_quad(const rect& bounds, const rect& crad, const rect& uv_bounds, rot_mode uv_rot) {
+    use_program(rounded_quad_with_oes_texture);
+    get_variable(rounded_quad_with_oes_texture, "quad_size").set_vec2(bounds.size());
+    get_variable(rounded_quad_with_oes_texture, "corner_rad").set_vec4(crad);
+    draw_quad(rounded_quad_with_oes_texture, bounds, uv_bounds, uv_rot);
+}
+#endif
 
 bool engine_backend::has_to_redraw() {
     return override_has_to_redraw || (input.event.type != motion_type::NO_MOTION) || (running_animations > 0);
@@ -632,6 +713,7 @@ shader_program docscanner::compile_and_link_program(u32 comp_shader) {
 }
 
 bool docscanner::load_program_from_binary(file_context* ctx, u64 hash, shader_program& program) {
+    return false;
     std::string path = "shader_binary_" + std::to_string(hash);
 
     u8* data = null;
@@ -642,7 +724,6 @@ bool docscanner::load_program_from_binary(file_context* ctx, u64 hash, shader_pr
     GLenum bin_format = *((GLenum*)data);
     data += sizeof(GLenum);
     size -= sizeof(GLenum);
-    LOGI("bin_format: %u", bin_format);
 
     program = { glCreateProgram() }; 
     check_gl_error("glCreateProgram");
@@ -659,6 +740,8 @@ bool docscanner::load_program_from_binary(file_context* ctx, u64 hash, shader_pr
 }
 
 void docscanner::save_program_to_binary(file_context* ctx, u64 hash, shader_program& program) {
+    return;
+
     GLint bin_size = -1;
     glGetProgramiv(program.program, GL_PROGRAM_BINARY_LENGTH, &bin_size);
     bin_size += sizeof(GLenum);
@@ -668,7 +751,6 @@ void docscanner::save_program_to_binary(file_context* ctx, u64 hash, shader_prog
     GLenum bin_format = -1;
     glGetProgramBinary(program.program, bin_size, &bytes_written, &bin_format, buffer + sizeof(GLenum));
     *((GLenum*)buffer) = bin_format;
-    LOGI("bin_format: %u", bin_format);
     
     std::string path = "shader_binary_" + std::to_string(hash);
     write_to_internal_file(ctx, path.c_str(), buffer, bin_size);
@@ -898,10 +980,9 @@ variable docscanner::get_variable(const shader_program& program, const char* nam
     return { location };
 }
 
-void docscanner::draw(const canvas &canvas) {
+void docscanner::prepare_empty_canvas(const vec3& color) {
     glClear(GL_COLOR_BUFFER_BIT);
-    glClearColor(canvas.bg_color.x, canvas.bg_color.y, canvas.bg_color.z, 1);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null);
+    glClearColor(color.x, color.y, color.z, 1);
 }
 
 #endif

@@ -37,6 +37,8 @@ struct ui_theme {
     vec3 primary_color;
     vec3 primary_dark_color;
     vec3 foreground_color;
+    vec3 deny_color;
+    vec3 accept_color;
     
     ui_theme(bool enable_dark_mode);
 };
@@ -85,7 +87,6 @@ struct button {
     rect bounds;
     vec4 color;
 
-    shader_program shader;
     font_instance* font;
     text content;
 

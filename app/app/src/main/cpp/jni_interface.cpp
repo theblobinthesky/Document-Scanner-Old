@@ -32,29 +32,39 @@ char* char_ptr_from_jstring(JNIEnv* env, jstring str) {
     return buffer;
 }
 
+struct callback_data {
+    JavaVM* java_vm;
+    JNIEnv* env;
+    jobject obj;
+};
 
-DECL_FUNC(jlongArray, GLSurfaceRenderer, nativePreInit)(JNIEnv* env, jobject obj, jint preview_width, jint preview_height) {
-    svec2 cam_size{};
-    docscanner::camera* cam = docscanner::pipeline::pre_init({preview_width, preview_height }, cam_size);
+void cam_init_callback(void* data, svec2 cam_size) {
+    auto* cd = reinterpret_cast<callback_data*>(data);
 
-    s64 dimens[3] = { cam_size.x, cam_size.y, (s64)cam };
-    return jlongArray_from_ptr(env, dimens, 3);
+    cd->java_vm->AttachCurrentThread(&cd->env, null);
+
+    _jclass* clazz = cd->env->GetObjectClass(cd->obj);
+    _jmethodID* method = cd->env->GetMethodID(clazz, "preInitCallback", "(II)V");
+    cd->env->CallVoidMethod(cd->obj, method, cam_size.x, cam_size.y);
+
+    cd->env->DeleteGlobalRef(cd->obj);
+    cd->java_vm->DetachCurrentThread();
 }
 
 DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject asset_mngr, jobject surface, jstring internal_data_path,
-        jint preview_width, jint preview_height, jint cam_width, jint cam_height, jlong cam_ptr, jboolean enable_dark_mode) {
+        jint preview_width, jint preview_height, jboolean enable_dark_mode) {
     auto* mngr_from_java  = AAssetManager_fromJava(env, asset_mngr);
     auto assets = docscanner::get_assets_from_asset_mngr(mngr_from_java, char_ptr_from_jstring(env, internal_data_path));
 
     svec2 preview_size = { preview_width, preview_height };
-    svec2 cam_size = { cam_width, cam_height };
-
     ANativeWindow *window = ANativeWindow_fromSurface(env, surface);
 
-
+    JavaVM* java_vm;
+    env->GetJavaVM(&java_vm);
+    auto cd = new callback_data({ java_vm, env, env->NewGlobalRef(obj) });
     docscanner::pipeline_args args = {
-            .texture_window = window, .assets = assets, .preview_size = preview_size, .cam_size = cam_size,
-            .cam = (docscanner::camera*)cam_ptr, .enable_dark_mode = (bool)enable_dark_mode
+            .texture_window = window, .assets = assets, .preview_size = preview_size, .enable_dark_mode = (bool)enable_dark_mode,
+            .cd = cd, .cam_callback = cam_init_callback
     };
     docscanner::create_persistent_pipeline(env, obj, args);
 

@@ -28,15 +28,33 @@ struct unwrapped_options_screen {
     void draw();
 };
 
+typedef void(*cam_init_callback)(void*, svec2);
+
 struct pipeline_args {
     ANativeWindow* texture_window;
     asset_manager* assets;
-    svec2 preview_size, cam_size;
-    camera* cam;
+    svec2 preview_size;
     bool enable_dark_mode;
+    void* cd;
+    cam_init_callback cam_callback;
+};
+
+struct pipeline;
+
+struct camera_loader_data {
+    pipeline* pipe;
+    void* data;
+    cam_init_callback callback;
+    ANativeWindow* texture_window;
+};
+
+struct camera_loader {
+    camera_loader(pipeline* pipe, void* data, cam_init_callback callback, ANativeWindow* texture_window);
 };
 
 struct pipeline {
+    thread_pool threads;
+    camera_loader cam_loader;
     engine_backend backend;
     ui_manager ui;
 
@@ -46,10 +64,10 @@ struct pipeline {
     unwrapped_options_screen options_screen;
 
     u64 start_time, last_time;
-    
-    static camera* pre_init(svec2 preview_size, svec2& cam_size);
 
     pipeline(const pipeline_args& args);
+    void init_camera_related(camera cam, svec2 cam_size_px);
+
     void render();
 };
 

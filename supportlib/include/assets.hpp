@@ -52,7 +52,9 @@ struct neural_network_params {
 
 struct thread_pool;
 
+#ifdef ANDROID
 asset_manager* get_assets_from_asset_mngr(AAssetManager* mngr, char* internal_data_path);
+#endif
 
 void file_to_buffer(file_context* ctx, const char* path, u8* &data, u32 &size);
 
