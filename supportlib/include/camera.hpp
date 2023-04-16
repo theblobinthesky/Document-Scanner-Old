@@ -6,8 +6,6 @@ struct ACameraDevice;
 struct ACaptureRequest;
 struct ACameraCaptureSession;
 struct ANativeWindow;
-#elif defined(LINUX)
-#include "backend.hpp"
 #endif
 
 
@@ -33,12 +31,14 @@ struct camera {
     f32* f32_buffer;
 
     svec2 cam_size;
-    texture cam_tex;
+    u32 cam_tex;
     
     void get();
 };
 
 void init_camera_capture(const camera& cam);
+void resume_camera_capture(camera& cam);
+void pause_camera_capture(camera& cam);
 #endif
 
 camera find_and_open_back_camera(const svec2& min_size, svec2& size);

@@ -294,15 +294,13 @@ return version_and_precision_head R"(
 
         const vec2 min_max_opacity = vec2(0.2, 1.0);
 
-        uniform float opacity;
-
         void main() {
             float len = length(2.0 * out_uvs - vec2(1));
             float alpha = min_max_opacity.y * smoothstep(outer_out + border_fadeout, outer_out, len); 
             alpha -= (min_max_opacity.y - min_max_opacity.x) * smoothstep(outer_in, outer_in - border_fadeout, len);
             alpha += (min_max_opacity.y - min_max_opacity.x) * smoothstep(inner_out + border_fadeout, inner_out, len);
 
-            out_col = vec4(1, 1, 1, alpha * opacity);
+            out_col = vec4(1, 1, 1, alpha);
         }
     )";
 }
@@ -362,6 +360,7 @@ std::string docscanner::frag_rounded_textured_quad_src(bool use_oes) {
         in vec2 out_uvs;
         out vec4 out_col;
 
+        uniform float opacity;
         uniform vec2 quad_size;
         uniform vec4 corner_rad;
 
@@ -375,7 +374,7 @@ std::string docscanner::frag_rounded_textured_quad_src(bool use_oes) {
             float smoothed_alpha = rounded_box_alpha(distance);
 
             vec4 color = texture(sampler, out_uvs);
-            out_col = vec4(color.rgb, smoothed_alpha * color.a);
+            out_col = vec4(color.rgb, opacity * color.a * smoothed_alpha);
         }
     )";
 }

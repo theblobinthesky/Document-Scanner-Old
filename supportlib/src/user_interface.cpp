@@ -26,7 +26,7 @@ font_instance::font_instance(engine_backend* backend, const std::string& path, f
     line_height = scale * inv_pixel_size * (ascent - descent + line_gap);
 
 
-    std::string chars_to_render = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890 .?!";
+    std::string chars_to_render = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890 .?!:";
 
     atlas_size = { 1024, 1024 };
     atlas = new u8[atlas_size.area()];
@@ -232,4 +232,17 @@ bool button::draw() {
 
     motion_event event = ui->backend->input.get_motion_event(bounds);
     return (event.type == motion_type::TOUCH_DOWN);
+}
+
+rect docscanner::get_texture_uvs_aligned_top(const rect& r, const svec2& tex_size) {
+    vec2 size = r.size();
+    
+    f32 r_aspect_ratio = size.y / size.x;
+    f32 tex_aspect_ratio = (f32)tex_size.y / (f32)tex_size.x;
+    
+    LOGI("tex_size: %d, %d", tex_size.x, tex_size.y);
+    LOGI("r_aspect_ratio: %f, tex_aspect_ratio: %f", r_aspect_ratio, tex_aspect_ratio);
+
+    f32 uv_bottom = r_aspect_ratio / tex_aspect_ratio;
+    return { {}, {1.0, uv_bottom} };
 }

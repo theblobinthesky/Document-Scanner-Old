@@ -20,11 +20,16 @@ struct unwrapped_options_screen {
 
     rect desc_rect;
     text desc_text;
+
+    text select_text;
     
-    animation<f32> bg_blendin_animation, fg_blendin_animation;
+    animation<f32> blendin_animation;
     animation<f32> select_animation;
 
     unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect, const texture* unwrapped_texture);
+    void draw_ui();
+    void draw_select_ui();
+    void draw_preview_ui();
     void draw();
 };
 

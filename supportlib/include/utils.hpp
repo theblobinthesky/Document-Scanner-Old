@@ -122,6 +122,8 @@ rect cut_margins(const rect& r, f32 margin);
 
 rect cut_margins(const rect& r, const rect& margin);
 
+rect get_at_top(const rect& r, f32 h);
+
 rect get_at_bottom(const rect& r, f32 h);
 
 rect grid_split(const rect& r, s32 i, s32 splits, split_direction dir);

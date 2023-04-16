@@ -33,6 +33,7 @@ struct shader_program {
 struct texture {
     u32 id;
     u32 format;
+    svec2 size;
 };
 
 struct shader_buffer {
@@ -119,6 +120,22 @@ enum class rot_mode {
     ROT_270_DEG
 };
 
+struct composite_group {
+    vec3 bg_color;
+    bool bg_transparent;
+    f32 opacity;
+};
+
+struct scoped_composite_group {
+    engine_backend* backend;
+
+    scoped_composite_group(engine_backend* backend, vec3 bg_color, bool bg_transparent, f32 opacity);
+    ~scoped_composite_group();
+};
+
+#define SCOPED_COMPOSITE_GROUP(backend, bg_color, bg_transparent, opacity) \
+    scoped_composite_group SCOPED_COMPOSITE_GROUP_INSTANCE(backend, bg_color, bg_transparent, opacity);
+
 struct engine_backend {
     input_manager input;
     asset_manager* assets;
@@ -143,6 +160,10 @@ struct engine_backend {
     svec2 preview_size_px;
     f32 preview_height;
 
+    composite_group comp;
+    texture comp_texture;
+    frame_buffer comp_fb;
+
 #ifdef DEBUG
     shader_program DEBUG_marker_program;
     std::vector<DEBUG_marker> DEBUG_marker_queue;
@@ -160,11 +181,15 @@ struct engine_backend {
     shader_program compile_and_link(const std::string& comp_src);
     void use_program(const shader_program& program);
 
+    void begin_composite_group(const composite_group& comp);
+    void end_composite_group();
+
     void draw_quad(const shader_program& program, const rect& bounds);
     void draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds);
     void draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds, rot_mode uv_rot);
     void draw_rounded_colored_quad(const rect& bounds, const rect& crad, const vec4& color);
     void draw_rounded_textured_quad(const rect& bounds, const rect& crad, const texture& tex, const rect& uv_bounds);
+    void draw_rounded_textured_quad(const rect& bounds, const rect& crad, const texture& tex, f32 opacity, const rect& uv_bounds, rot_mode uv_rot);
 
 #ifdef USES_OES_TEXTURES
     void draw_rounded_oes_textured_quad(const rect& bounds, const rect& crad, const rect& uv_bounds, rot_mode uv_rot);
@@ -402,7 +427,5 @@ void get_framebuffer_data(const frame_buffer &fb, const svec2 &size, u8* &data, 
 void set_texture_data(const texture &tex, u8* data, const svec2& size);
 
 variable get_variable(const shader_program& program, const char* name);
-
-void prepare_empty_canvas(const vec3& color);
 
 NAMESPACE_END

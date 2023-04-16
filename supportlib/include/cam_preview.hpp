@@ -47,7 +47,9 @@ struct cam_preview {
     void init_camera_related();
 
     void unwrap();
-    void render(f32 time);
+    void draw_ui();
+    void draw_unwrapped_ui();
+    void render();
 };
 
 NAMESPACE_END

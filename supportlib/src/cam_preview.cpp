@@ -77,19 +77,15 @@ void cam_preview::init_camera_related() {
     
 #if CAM_USES_OES_TEXTURE
     tex_downsampler.init(backend, backend->cam_size_px, downsampled_size, true, null, 2, 1.0f);
-    tex_sampler.init(backend, unwrap_size, true, null, 
-        mesher.blend_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
 #else
-    tex_downsampler.init(backend, backend->cam_size_px, downsampled_size, false, &backend->cam.cam_tex, 2, 1.0f);
-    tex_sampler.init(backend, unwrap_size, false, &backend->cam.cam_tex, 
-        mesher.blend_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
+    tex_downsampler.init(backend, backend->cam_size_px, downsampled_size, false, (texture*)&backend->cam.cam_tex, 2, 1.0f); // todo: this is janky since texture also contains the format....
 #endif
 
 
 #if CAM_USES_OES_TEXTURE
-    tex_sampler.init(backend, backend->cam_size_px, true, null, unwrapped_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
+    tex_sampler.init(backend, unwrap_size, true, null, unwrapped_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
 #else
-    tex_sampler.init(backend, backend->cam_size_px, false, &backend->cam.cam_tex, unwrapped_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
+    tex_sampler.init(backend, unwrap_size, false, (texture*)&backend->cam.cam_tex, unwrapped_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
 #endif
 }
 
@@ -119,7 +115,54 @@ void cam_preview::unwrap() {
     blendout_animation.start();
 }
 
-void docscanner::cam_preview::render(f32 time) {
+void cam_preview::draw_ui() {
+    SCOPED_COMPOSITE_GROUP(backend, vec3({}), true, 1.0f - blendout_animation.value);
+
+    if(backend->cam_is_init) {
+#if CAM_USES_OES_TEXTURE
+        backend->draw_rounded_oes_textured_quad(cam_pos_bounds, cam_preview_crad, cam_uv_bounds, rot_mode::ROT_270_DEG);
+#else
+    //backend->cam.cam_tex
+#endif
+    }
+
+    vec2 pos = { 0.5f, backend->preview_height - 0.25f };
+    vec2 size = { 0.25f, 0.25f };
+    rect shutter_rect = rect::from_middle_and_size(pos, size);
+
+    motion_event event = backend->input.get_motion_event(shutter_rect);
+    if(event.type == motion_type::TOUCH_DOWN) {
+        shutter_animation.start();
+        unwrap();
+    }
+
+    backend->use_program(shutter_program);
+    get_variable(shutter_program, "inner_out").set_f32(shutter_animation.update());
+    backend->draw_quad(shutter_program, shutter_rect);
+
+    backend->DEBUG_draw();
+}
+
+void cam_preview::draw_unwrapped_ui() {
+    {
+        SCOPED_COMPOSITE_GROUP(backend, vec3({}), true, 1.0f);
+
+        if(backend->cam_is_init) {
+            cutout.render(backend->time);
+        }
+    }
+
+    {
+        SCOPED_COMPOSITE_GROUP(backend, vec3({}), true, 1.0f - blendout_animation.value);
+
+        if(backend->cam_is_init) {
+            particles.render(backend);
+            border.render(backend->time);
+        }
+    }
+}
+
+void cam_preview::render() {
     if(!is_init) return;
 
     if(is_live_camera_streaming && backend->cam_is_init) {
@@ -142,38 +185,11 @@ void docscanner::cam_preview::render(f32 time) {
         blendout_animation.update();
     }
 
-    if(backend->cam_is_init) {
-        unbind_framebuffer();
-        prepare_empty_canvas(ui->theme.black);
-
-#if CAM_USES_OES_TEXTURE
-        backend->draw_rounded_oes_textured_quad(cam_pos_bounds, cam_preview_crad, cam_uv_bounds, rot_mode::ROT_270_DEG);
-#else
-    //backend->cam.cam_tex
-#endif
+    {
+        vec3 bg_color = vec3::lerp(ui->theme.black, ui->theme.background_color, blendout_animation.value);
+        SCOPED_COMPOSITE_GROUP(backend, bg_color, false, 1.0f);
     }
 
-    vec2 pos = { 0.5f, backend->preview_height - 0.25f };
-    vec2 size = { 0.25f, 0.25f };
-    rect shutter_rect = rect::from_middle_and_size(pos, size);
-
-    motion_event event = backend->input.get_motion_event(shutter_rect);
-    if(event.type == motion_type::TOUCH_DOWN) {
-        shutter_animation.start();
-        unwrap();
-    }
-
-    if(backend->cam_is_init) {
-        cutout.render(time);
-        particles.render(backend);
-        border.render(time);
-    }
-    
-    backend->use_program(shutter_program);
-    get_variable(shutter_program, "opacity").set_f32(lerp(1.0f, 0.0f, blendout_animation.value));
-
-    get_variable(shutter_program, "inner_out").set_f32(shutter_animation.update());
-    backend->draw_quad(shutter_program, shutter_rect);
-
-    backend->DEBUG_draw();
+    draw_ui();
+    draw_unwrapped_ui();
 }

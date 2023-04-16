@@ -203,6 +203,10 @@ rect cut_margins(const rect& r, const rect& margin) {
     return { r.tl + margin.tl, r.br - margin.br };
 }
 
+rect get_at_top(const rect& r, f32 h) {
+    return { { r.tl.x, r.tl.y - h }, { r.br.x, r.tl.y } };
+}
+
 rect get_at_bottom(const rect& r, f32 h) {
     return { { r.tl.x, r.br.y }, { r.br.x, r.br.y + h } };
 }

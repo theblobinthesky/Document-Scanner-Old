@@ -96,4 +96,6 @@ struct button {
     bool draw();
 };
 
+rect get_texture_uvs_aligned_top(const rect& r, const svec2& tex_size);
+
 NAMESPACE_END

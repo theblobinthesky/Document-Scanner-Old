@@ -34,14 +34,9 @@ int main() {
         return -1;
     }
 
-    svec2 cam_size = {};
-    camera* cam = pipeline::pre_init(size, cam_size);
-
     pipeline_args args = {
         .preview_size = size,
-        .cam_size = cam_size,
-        .cam = cam,
-        .enable_dark_mode = false
+        .enable_dark_mode = false,
     };
 
     pipeline pipe(args);

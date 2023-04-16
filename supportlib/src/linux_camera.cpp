@@ -2,6 +2,7 @@
 
 #include "camera.hpp"
 #include "log.hpp"
+#include "backend.hpp"
 
 #include <iostream>
 #include <stdio.h>
@@ -107,7 +108,7 @@ camera docscanner::find_and_open_back_camera(const svec2& min_size, svec2& size)
 
     cam.rot_f32_buffer = new f32[size.x * size.y * 4];
     cam.f32_buffer = new f32[size.x * size.y * 4];
-    cam.cam_tex = make_texture(size, 0x8814);
+    cam.cam_tex = make_texture(size, 0x8814).id;
 
     return cam;
 }
@@ -170,11 +171,19 @@ void docscanner::camera::get() {
         write_out_pixel(3);
     }
 
-    set_texture_data(cam_tex, reinterpret_cast<u8*>(rot_f32_buffer), cam_size);
+    set_texture_data({cam_tex, 0}, reinterpret_cast<u8*>(rot_f32_buffer), cam_size); // todo: texture is janky
 }
 
 void docscanner::init_camera_capture(const camera& cam) {
     
+}
+
+void docscanner::resume_camera_capture(camera& cam) {
+
+}
+
+void docscanner::pause_camera_capture(camera& cam) {
+
 }
 
 #endif

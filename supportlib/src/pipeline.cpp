@@ -40,8 +40,8 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     : ui(ui), unwrapped_rect(unwrapped_rect), unwrapped_texture(unwrapped_texture),
     discard_button(ui, "Discard", crad_thin_to_the_left, ui->theme.deny_color), next_button(ui, "Keep", crad_thin_to_the_right, ui->theme.accept_color),
     desc_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Unenhanced", ui->theme.foreground_color),
-    bg_blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0), 
-    fg_blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.2f, 1.0f, 0),
+    select_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Pick an option:", ui->theme.foreground_color),
+    blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0), 
     select_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 0.5f, 0) {
 
     rect screen_rect = {
@@ -99,52 +99,24 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     desc_rect = get_at_bottom(unwrapped_rect, 0.2f );
     desc_text.layout(desc_rect);
 
+    
+    rect select_rect = cut_margins(screen_rect, { { margin, 0.25f }, { margin, 0.1f } });
+    top_select_rect = cut_margins(grid_split(select_rect, 0, 2, split_direction::VERTICAL), { {0, 0}, {0, 0.015f} });
+    bottom_select_rect = cut_margins(grid_split(select_rect, 1, 2, split_direction::VERTICAL), { {0, 0.015f}, {0, 0} });
 
-    rect select_rect = cut_margins(screen_rect, { { margin, 0.2f }, { margin, 0.2f } });
-    top_select_rect = grid_split(select_rect, 0, 2, split_direction::VERTICAL);
-    bottom_select_rect = grid_split(select_rect, 1, 2, split_direction::VERTICAL);
+    rect select_text_rect = get_at_top(select_rect, 0.15f);
+    select_text.layout(select_text_rect);
 }
 
-void unwrapped_options_screen::draw() {
-    LOGI("drawing!");
-    if(bg_blendin_animation.state == animation_state::WAITING) {
-        bg_blendin_animation.start();
-        fg_blendin_animation.start();
-    }
+void unwrapped_options_screen::draw_ui() {
+    f32 opacity = blendin_animation.value * (1.0f - select_animation.value);
+    SCOPED_COMPOSITE_GROUP(ui->backend, {}, true, opacity);
 
-    ::prepare_empty_canvas(vec3::lerp(ui->theme.black, ui->theme.background_color, bg_blendin_animation.update()));
-
-    select_animation.update();
-
-
-    rect unwrapped_uv = { {}, { 1, 1 } };
-    rect split_unwrapped_uv = { {}, { 1, 0.5f } };
-
-    ui->backend->draw_rounded_colored_quad(desc_rect, desc_crad, ui->theme.background_accent_color);
-    desc_text.render();
-
-    ui->backend->draw_rounded_textured_quad(rect::lerp(unwrapped_rect, top_select_rect, select_animation.value), {}, *unwrapped_texture, 
-            rect::lerp(unwrapped_uv, split_unwrapped_uv, select_animation.value));
-
-    if(select_animation.state != animation_state::WAITING) {
-        ui->backend->draw_rounded_textured_quad(rect::lerp(unwrapped_rect, bottom_select_rect, select_animation.value), {}, *unwrapped_texture, 
-                rect::lerp(unwrapped_uv, split_unwrapped_uv, select_animation.value));
-
-        split_lines.color.w = select_animation.value;
-        split_lines.draw();
-    }
-
-
-    border_lines.color.w = fg_blendin_animation.update();
     border_lines.draw();
 
     for(s32 i = 0; i < 4; i++) {
-        corner_lines[i].color.w = fg_blendin_animation.value;
         corner_lines[i].draw();
     }
-
-    discard_button.color.w = fg_blendin_animation.value;
-    next_button.color.w = fg_blendin_animation.value;
 
     if(discard_button.draw()) {
         LOGI("discard!");
@@ -153,6 +125,53 @@ void unwrapped_options_screen::draw() {
     if(next_button.draw()) {
         select_animation.start();
     }
+
+    ui->backend->draw_rounded_colored_quad(desc_rect, desc_crad, ui->theme.background_accent_color);
+    desc_text.render();
+}
+
+void unwrapped_options_screen::draw_select_ui() {
+    f32 opacity = blendin_animation.value * select_animation.value;
+    SCOPED_COMPOSITE_GROUP(ui->backend, {}, true, opacity);
+
+    select_text.render();
+
+    rect unwrapped_uv = { {}, { 1, 1 } };
+    rect split_unwrapped_uv = get_texture_uvs_aligned_top(top_select_rect, unwrapped_texture->size);
+
+    if(select_animation.state != animation_state::WAITING) {
+        ui->backend->draw_rounded_textured_quad(rect::lerp(unwrapped_rect, bottom_select_rect, select_animation.value), {}, *unwrapped_texture, 
+                rect::lerp(unwrapped_uv, split_unwrapped_uv, select_animation.value));
+
+        split_lines.draw();
+    }
+}
+
+void unwrapped_options_screen::draw_preview_ui() {
+    SCOPED_COMPOSITE_GROUP(ui->backend, {}, true, 1.0f);
+
+    rect unwrapped_uv = { {}, { 1, 1 } };
+    rect split_unwrapped_uv = get_texture_uvs_aligned_top(top_select_rect, unwrapped_texture->size);
+
+    ui->backend->draw_rounded_textured_quad(rect::lerp(unwrapped_rect, top_select_rect, select_animation.value), {}, *unwrapped_texture, 
+            rect::lerp(unwrapped_uv, split_unwrapped_uv, select_animation.value));
+}
+
+void unwrapped_options_screen::draw() {
+    if(blendin_animation.state == animation_state::WAITING) {
+        blendin_animation.start();
+    }
+
+    blendin_animation.update();
+    select_animation.update();
+
+    {
+        SCOPED_COMPOSITE_GROUP(ui->backend, ui->theme.background_color, false, 1.0f);
+    }
+
+    draw_ui();
+    draw_select_ui();
+    draw_preview_ui();
 }
 
 struct gui_camera_loader_struct {
@@ -218,18 +237,21 @@ void docscanner::pipeline::render() {
     get_time(start_time, backend.time);
 
     bool redraw = false;
+
+    if(options_screen.blendin_animation.state != FINISHED) {
+        backend.override_has_to_redraw = true;
+        redraw = true;
+        cam_preview_screen.render();
+    }
+
     if(cam_preview_screen.unwrap_animation.state == FINISHED) {
         if(backend.has_to_redraw()) {
             backend.override_has_to_redraw = false;
             redraw = true;
             options_screen.draw();
         }
-    } else {
-        backend.override_has_to_redraw = true;
-        redraw = true;
-        cam_preview_screen.render(backend.time);
     }
-
+    
     backend.input.end_frame();
 
 

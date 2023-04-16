@@ -149,6 +149,20 @@ void thread_pool::push_gui(thread_pool_task task) {
     gui_work_queue.push(task);
 }
 
+scoped_composite_group::scoped_composite_group(engine_backend* backend, vec3 bg_color, bool bg_transparent, f32 opacity) : backend(backend) {
+    composite_group comp = {
+        .bg_color = bg_color, 
+        .bg_transparent = bg_transparent,
+        .opacity = opacity
+    };
+
+    backend->begin_composite_group(comp);
+}
+
+scoped_composite_group::~scoped_composite_group() {
+    backend->end_composite_group();
+}
+
 engine_backend::engine_backend(thread_pool* threads, svec2 preview_size_px, asset_manager* assets) 
     : assets(assets), threads(threads), cam_is_init(false), preview_size_px(preview_size_px),
       override_has_to_redraw(false), running_animations(0) {
@@ -184,6 +198,9 @@ engine_backend::engine_backend(thread_pool* threads, svec2 preview_size_px, asse
 #ifdef DEBUG
     DEBUG_marker_program = compile_and_link(vert_quad_src(), frag_DEBUG_marker_src());
 #endif
+
+    comp_texture = make_texture(preview_size_px, GL_RGBA32F);
+    comp_fb = framebuffer_from_texture(comp_texture);
 }
 
 void engine_backend::init_camera_related(camera cam, svec2 cam_size_px) {
@@ -204,7 +221,7 @@ u32 find_or_insert_shader(std::unordered_map<u64, u32>& map, u32 type, const std
     }
 }
 
-shader_program docscanner::engine_backend::compile_and_link(const std::string& vert_src, const std::string& frag_src) {
+shader_program engine_backend::compile_and_link(const std::string& vert_src, const std::string& frag_src) {
     u64 program_id = std::hash<std::string>()(vert_src) ^ std::hash<std::string>()(frag_src);
 
     auto program_found = program_map.find(program_id);
@@ -232,7 +249,7 @@ shader_program docscanner::engine_backend::compile_and_link(const std::string& v
 }
 
 
-shader_program docscanner::engine_backend::compile_and_link(const std::string& comp_src) {
+shader_program engine_backend::compile_and_link(const std::string& comp_src) {
     u32 comp_shader = find_or_insert_shader(shader_map, GL_COMPUTE_SHADER, comp_src);
 
     u64 program_id = (u64)comp_shader;
@@ -246,22 +263,39 @@ shader_program docscanner::engine_backend::compile_and_link(const std::string& c
     }
 }
 
-void docscanner::engine_backend::use_program(const shader_program &program) {
+void engine_backend::use_program(const shader_program &program) {
     glUseProgram(program.program);
     check_gl_error("glUseProgram");
     
     get_variable(program, "projection").set_mat4(projection_mat);
 }
 
-void docscanner::engine_backend::draw_quad(const shader_program& program, const rect& bounds) {
+void engine_backend::begin_composite_group(const composite_group& comp) {
+    this->comp = comp;
+
+    bind_framebuffer(comp_fb);
+    
+    if(comp.bg_transparent) glClearColor(0, 0, 0, 0);
+    else glClearColor(comp.bg_color.x, comp.bg_color.y, comp.bg_color.z, 1);
+
+    glClear(GL_COLOR_BUFFER_BIT);
+}
+
+void engine_backend::end_composite_group() {
+    unbind_framebuffer();
+
+    draw_rounded_textured_quad({ {}, {1.0f, preview_height} }, {}, comp_texture, comp.opacity, { {}, {1, 1} }, rot_mode::ROT_180_DEG);
+}
+
+void engine_backend::draw_quad(const shader_program& program, const rect& bounds) {
     draw_quad(program, bounds, rect({ {}, { 1, 1 } }), rot_mode::ROT_0_DEG);
 }
 
-void docscanner::engine_backend::draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds) {
+void engine_backend::draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds) {
     draw_quad(program, bounds, uv_bounds, rot_mode::ROT_0_DEG);
 }
 
-void docscanner::engine_backend::draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds, rot_mode uv_rot) {
+void engine_backend::draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds, rot_mode uv_rot) {
     bind_shader_buffer(quad_buffer);
 
     use_program(program);
@@ -298,17 +332,23 @@ void engine_backend::draw_rounded_colored_quad(const rect& bounds, const rect& c
 }
 
 void engine_backend::draw_rounded_textured_quad(const rect& bounds, const rect& crad, const texture& tex, const rect& uv_bounds) {
+    draw_rounded_textured_quad(bounds, crad, tex, 1.0f, uv_bounds, rot_mode::ROT_0_DEG);
+}
+
+void engine_backend::draw_rounded_textured_quad(const rect& bounds, const rect& crad, const texture& tex, f32 opacity, const rect& uv_bounds, rot_mode uv_rot) {
     bind_texture_to_slot(0, tex);
 
     use_program(rounded_quad_with_texture);
+    get_variable(rounded_quad_with_texture, "opacity").set_f32(opacity);
     get_variable(rounded_quad_with_texture, "quad_size").set_vec2(bounds.size());
     get_variable(rounded_quad_with_texture, "corner_rad").set_vec4(crad);
-    draw_quad(rounded_quad_with_texture, bounds, uv_bounds);
+    draw_quad(rounded_quad_with_texture, bounds, uv_bounds, uv_rot);
 }
 
 #ifdef USES_OES_TEXTURES
 void engine_backend::draw_rounded_oes_textured_quad(const rect& bounds, const rect& crad, const rect& uv_bounds, rot_mode uv_rot) {
     use_program(rounded_quad_with_oes_texture);
+    get_variable(rounded_quad_with_texture, "opacity").set_f32(1.0f);
     get_variable(rounded_quad_with_oes_texture, "quad_size").set_vec2(bounds.size());
     get_variable(rounded_quad_with_oes_texture, "corner_rad").set_vec4(crad);
     draw_quad(rounded_quad_with_oes_texture, bounds, uv_bounds, uv_rot);
@@ -320,11 +360,11 @@ bool engine_backend::has_to_redraw() {
 }
 
 #ifdef DEBUG
-void docscanner::engine_backend::DEBUG_draw_marker(const vec2& pt, const vec3& col) {
+void engine_backend::DEBUG_draw_marker(const vec2& pt, const vec3& col) {
     DEBUG_marker_queue.push_back({pt, col});
 }
 
-void docscanner::engine_backend::DEBUG_draw() {
+void engine_backend::DEBUG_draw() {
     use_program(DEBUG_marker_program);
 
     for(const DEBUG_marker& marker: DEBUG_marker_queue) {
@@ -366,6 +406,7 @@ void texture_sampler::init(engine_backend* backend, svec2 output_size, bool inpu
 
     projection_matrix = mat4::orthographic(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
 
+    LOGI("sampler output_size: %d, %d", output_size.x, output_size.y);
     output_tex = make_texture(output_size, GL_RGBA32F);    
     output_fb = framebuffer_from_texture(output_tex);
 
@@ -910,7 +951,7 @@ texture docscanner::make_texture(svec2 size, u32 format) {
     glBindTexture(GL_TEXTURE_2D, id);
     glTexStorage2D(GL_TEXTURE_2D, 1, format, (int) size.x, (int) size.y);
     check_gl_error("glTexStorage2D");
-    return {id, format};
+    return {id, format, size};
 }
 
 void docscanner::bind_image_to_slot(u32 slot, const texture &tex) {
@@ -978,11 +1019,6 @@ variable docscanner::get_variable(const shader_program& program, const char* nam
     check_gl_error("glGetUniformLocation");
 
     return { location };
-}
-
-void docscanner::prepare_empty_canvas(const vec3& color) {
-    glClear(GL_COLOR_BUFFER_BIT);
-    glClearColor(color.x, color.y, color.z, 1);
 }
 
 #endif
