@@ -115,10 +115,11 @@ void font_instance::use(s32 slot) const {
 }
 
 ui_theme::ui_theme(bool enable_dark_mode) {
-    background_color    = enable_dark_mode ? vec3({ 0.1f, 0.1f, 0.1f }) : vec3({ 1, 1, 1 });
+    background_color        = enable_dark_mode ? vec3({ 0.1f, 0.1f, 0.1f }) : vec3({ 1, 1, 1 });
+    background_accent_color = enable_dark_mode ? color_from_int(0xcccccc) : color_from_int(0xfefefe);
     primary_color       = enable_dark_mode ? color_from_int(0xBB86FC) : color_from_int(0x6200EE);
     primary_dark_color  = color_from_int(0x3700B3);
-    foreground_color    = enable_dark_mode ? color_from_int(0xFFFFFF) : color_from_int(0xFFFFFF);
+    foreground_color    = enable_dark_mode ? color_from_int(0xFFFFFF) : color_from_int(0x000000);
     accept_color = color_from_int(0x45d96a);
     deny_color   = color_from_int(0xd95445);
 }

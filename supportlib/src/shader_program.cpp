@@ -126,24 +126,6 @@ std::string get_sampler_src(bool use_oes, u32 binding_slot) {
     )";
 }
 
-std::string docscanner::frag_simple_tex_sampler_src(bool oes_input, u32 binding_slot) {
-    return version_head + get_sampler_src(oes_input, binding_slot) + precision_head + R"(
-        in vec2 out_uvs;
-        out vec4 out_col;
-
-        uniform float saturation;
-        uniform float opacity;
-
-        void main() {
-            vec3 rgb = texture(sampler, out_uvs).rgb;
-            float gray = (rgb.r + rgb.g + rgb.g) / 3.0;
-
-            vec3 color = mix(vec3(gray), rgb, saturation);
-            out_col = vec4(color * opacity, opacity);
-        }
-    )";
-}
-
 std::string docscanner::frag_glyph_src(u32 binding_slot) {
     return version_head + get_sampler_src(false, binding_slot) + precision_head + R"(
             in vec2 out_uvs;

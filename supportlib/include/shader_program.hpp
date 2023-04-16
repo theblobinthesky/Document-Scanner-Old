@@ -16,8 +16,6 @@ std::string vert_instanced_point_src();
 
 std::string vert_instanced_line_src();
 
-std::string frag_simple_tex_sampler_src(bool oes_input, u32 binding_slot);
-
 std::string frag_glyph_src(u32 binding_slot);
 
 std::string frag_gauss_blur_src(bool use_oes, u32 N, const vec2& pixel_shift);

@@ -34,6 +34,7 @@ struct font_instance {
 struct ui_theme {
     vec3 black = { 0, 0, 0 };
     vec3 background_color;
+    vec3 background_accent_color;
     vec3 primary_color;
     vec3 primary_dark_color;
     vec3 foreground_color;

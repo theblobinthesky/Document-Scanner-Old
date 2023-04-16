@@ -9,20 +9,20 @@ struct unwrapped_options_screen {
     ui_manager* ui;
     
     rect unwrapped_rect;
-    rect top_unwrapped_rect, bottom_unwrapped_rect;
+    rect top_select_rect, bottom_select_rect;
     
     const texture* unwrapped_texture;
-    shader_program sampler_program;
 
     button discard_button, next_button;
     lines border_lines;
     lines corner_lines[4];
     lines split_lines;
+
+    rect desc_rect;
+    text desc_text;
     
     animation<f32> bg_blendin_animation, fg_blendin_animation;
-    animation<f32> split_animation;
-
-    text plain_text, enhanced_text;
+    animation<f32> select_animation;
 
     unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect, const texture* unwrapped_texture);
     void draw();

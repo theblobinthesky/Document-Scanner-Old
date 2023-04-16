@@ -316,7 +316,7 @@ void engine_backend::draw_rounded_oes_textured_quad(const rect& bounds, const re
 #endif
 
 bool engine_backend::has_to_redraw() {
-    return override_has_to_redraw || (input.event.type != motion_type::NO_MOTION) || (running_animations > 0);
+    return true; // todo: fix this override_has_to_redraw || (input.event.type != motion_type::NO_MOTION) || (running_animations > 0);
 }
 
 #ifdef DEBUG

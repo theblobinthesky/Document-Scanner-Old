@@ -203,6 +203,10 @@ rect cut_margins(const rect& r, const rect& margin) {
     return { r.tl + margin.tl, r.br - margin.br };
 }
 
+rect get_at_bottom(const rect& r, f32 h) {
+    return { { r.tl.x, r.br.y }, { r.br.x, r.br.y + h } };
+}
+
 rect grid_split(const rect& r, s32 i, s32 splits, split_direction dir) {
     if(dir == split_direction::HORIZONTAL) {
         f32 w = r.size().x;

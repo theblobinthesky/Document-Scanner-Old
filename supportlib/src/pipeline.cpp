@@ -10,13 +10,15 @@ constexpr f32 paper_aspect_ratio = 1.41421356237;
 
 constexpr f32 cam_preview_bottom_edge = 0.1f;
 
-constexpr f32 unwrap_top_border = 0.3f;
+constexpr f32 unwrap_top_border = 0.2f;
 constexpr f32 margin = 0.05f;
 constexpr f32 uw = 1.0f - 2.0f * margin;
 constexpr rect unwrapped_mesh_rect = {
     { margin, uw * unwrap_top_border }, 
     { 1.0f - margin, uw * (unwrap_top_border + paper_aspect_ratio) }
 };
+
+constexpr rect desc_crad = { { 0.05f, 0 }, { 0.05f, 0 } };
 
 constexpr vec2 min_max_button_crad = { 0.05f, 0.1f };
 constexpr rect crad_thin_to_the_left = { {min_max_button_crad.x, min_max_button_crad.x}, {min_max_button_crad.y, min_max_button_crad.y} };
@@ -37,18 +39,17 @@ void get_time(u64& start_time, f32& time) {
 unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect, const texture* unwrapped_texture) 
     : ui(ui), unwrapped_rect(unwrapped_rect), unwrapped_texture(unwrapped_texture),
     discard_button(ui, "Discard", crad_thin_to_the_left, ui->theme.deny_color), next_button(ui, "Keep", crad_thin_to_the_right, ui->theme.accept_color),
+    desc_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Unenhanced", ui->theme.foreground_color),
     bg_blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0), 
     fg_blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.2f, 1.0f, 0),
-    split_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 0.5f, 0),
-    plain_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Plain", ui->theme.foreground_color),
-    enhanced_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Enhanced", ui->theme.foreground_color) {
-    top_unwrapped_rect = grid_split(unwrapped_rect, 0, 2, split_direction::VERTICAL);
-    bottom_unwrapped_rect = grid_split(unwrapped_rect, 1, 2, split_direction::VERTICAL);
+    select_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 0.5f, 0) {
 
-    rect screen = {
+    rect screen_rect = {
         .tl = {},
         .br = { 1, ui->backend->preview_height }
     };
+
+    rect screen = rect(screen_rect);
 
     screen = get_between(screen, 0.8f, 0.9f);
 
@@ -56,7 +57,6 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     discard_button.layout(cut_margins(grid_split(screen, 0, 2, split_direction::HORIZONTAL), left_right_margin));
     next_button.layout(cut_margins(grid_split(screen, 1, 2, split_direction::HORIZONTAL), left_right_margin));
 
-    sampler_program = ui->backend->compile_and_link(vert_quad_src(), frag_simple_tex_sampler_src(false, 0));
 
     vec2 unwrapped_size = unwrapped_rect.size();
     vec2* border_points = new vec2[4] {
@@ -96,9 +96,13 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     vec2* split_points = new vec2[2] { vec2::lerp(border_points[0], border_points[3], 0.5f), vec2::lerp(border_points[1], border_points[2], 0.5f) };
     split_lines.init(ui->backend, split_points, 2, 0.01f, ui->theme.primary_color, false);
 
+    desc_rect = get_at_bottom(unwrapped_rect, 0.2f );
+    desc_text.layout(desc_rect);
 
-    plain_text.layout(get_between(unwrapped_rect, 0.0f, 0.15f));
-    enhanced_text.layout(get_between(unwrapped_rect, 0.85f, 1.0f));
+
+    rect select_rect = cut_margins(screen_rect, { { margin, 0.2f }, { margin, 0.2f } });
+    top_select_rect = grid_split(select_rect, 0, 2, split_direction::VERTICAL);
+    bottom_select_rect = grid_split(select_rect, 1, 2, split_direction::VERTICAL);
 }
 
 void unwrapped_options_screen::draw() {
@@ -110,36 +114,24 @@ void unwrapped_options_screen::draw() {
 
     ::prepare_empty_canvas(vec3::lerp(ui->theme.black, ui->theme.background_color, bg_blendin_animation.update()));
 
-    bind_texture_to_slot(0, *unwrapped_texture);
+    select_animation.update();
 
-
-
-    split_animation.update();
-
-    ui->backend->use_program(sampler_program);
-    get_variable(sampler_program, "saturation").set_f32(1.0f);
-    get_variable(sampler_program, "opacity").set_f32(1.0f);
 
     rect unwrapped_uv = { {}, { 1, 1 } };
     rect split_unwrapped_uv = { {}, { 1, 0.5f } };
 
-    ui->backend->draw_quad(sampler_program, 
-            rect::lerp(unwrapped_rect, top_unwrapped_rect, split_animation.value),
-            rect::lerp(unwrapped_uv, split_unwrapped_uv, split_animation.value));
+    ui->backend->draw_rounded_colored_quad(desc_rect, desc_crad, ui->theme.background_accent_color);
+    desc_text.render();
 
-    if(split_animation.state != animation_state::WAITING) {
-        ui->backend->draw_quad(sampler_program,
-            rect::lerp(unwrapped_rect, bottom_unwrapped_rect, split_animation.value),
-            rect::lerp(unwrapped_uv, split_unwrapped_uv, split_animation.value));
-    
-        split_lines.color.w = split_animation.value;
+    ui->backend->draw_rounded_textured_quad(rect::lerp(unwrapped_rect, top_select_rect, select_animation.value), {}, *unwrapped_texture, 
+            rect::lerp(unwrapped_uv, split_unwrapped_uv, select_animation.value));
+
+    if(select_animation.state != animation_state::WAITING) {
+        ui->backend->draw_rounded_textured_quad(rect::lerp(unwrapped_rect, bottom_select_rect, select_animation.value), {}, *unwrapped_texture, 
+                rect::lerp(unwrapped_uv, split_unwrapped_uv, select_animation.value));
+
+        split_lines.color.w = select_animation.value;
         split_lines.draw();
-
-        plain_text.color.w = split_animation.value;
-        enhanced_text.color.w = split_animation.value;
-
-        plain_text.render();
-        enhanced_text.render();
     }
 
 
@@ -159,7 +151,7 @@ void unwrapped_options_screen::draw() {
     }
 
     if(next_button.draw()) {
-        split_animation.start();
+        select_animation.start();
     }
 }
 
