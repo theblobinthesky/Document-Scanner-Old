@@ -5,7 +5,7 @@ NAMESPACE_BEGIN
 
 enum class motion_type : s32 {
     NO_MOTION,
-    TOUCH_DOWN
+    TOUCH_DOWN, TOUCH_UP
 };
 
 struct motion_event {

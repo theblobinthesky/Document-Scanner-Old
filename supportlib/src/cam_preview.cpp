@@ -55,7 +55,7 @@ void cam_preview::init_camera_related() {
     };
 
 
-    mesher.init(&nn_exists_out, (f32*)nn_contour_out, downsampled_size, cam_uv_bounds, cam_pos_bounds, 0.4f);
+    mesher.init(&nn_exists_out, (f32*)nn_contour_out, downsampled_size, cam_uv_bounds, cam_pos_bounds, 0); // todo: fix smoothness init period 0.4f);
 
     particles.init(backend, &mesher, svec2({ 4, 4 }), 0.05f, 0.015f, 2.0f);
     border.init(backend, &mesher, svec2({ 16, 16 }), 0.01f);

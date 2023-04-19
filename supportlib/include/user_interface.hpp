@@ -33,6 +33,7 @@ struct font_instance {
 
 struct ui_theme {
     vec3 black = { 0, 0, 0 };
+    vec3 white = { 1, 1, 1 };
     vec3 background_color;
     vec3 background_accent_color;
     vec3 primary_color;
@@ -40,6 +41,8 @@ struct ui_theme {
     vec3 foreground_color;
     vec3 deny_color;
     vec3 accept_color;
+
+    rect middle_crad = { { 0.05f, 0.05f }, { 0.05f, 0.05f } };
     
     ui_theme(bool enable_dark_mode);
 };
@@ -53,10 +56,11 @@ struct ui_manager {
 
     ui_manager(engine_backend* backend, bool enable_dark_mode);
     font_instance* get_font(const std::string& path, f32 size);
+    rect get_screen_rect() const;
 };
 
 enum class text_alignment {
-    TOP_LEFT, CENTER
+    TOP_LEFT, CENTER_LEFT, CENTER
 };
 
 struct text {
@@ -86,10 +90,12 @@ struct button {
 
     rect crad;
     rect bounds;
-    vec4 color;
+    vec3 color, click_color;
 
     font_instance* font;
     text content;
+
+    animation<f32> click_animation;
 
     button(ui_manager* ui, const std::string& str, const rect& crad, vec3 color);
     void layout(const rect& bounds);
@@ -97,5 +103,11 @@ struct button {
 };
 
 rect get_texture_uvs_aligned_top(const rect& r, const svec2& tex_size);
+
+enum class alignment {
+    LEFT
+};
+
+rect get_texture_aligned_rect(const rect& r, const svec2& size, alignment align);
 
 NAMESPACE_END

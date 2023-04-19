@@ -145,6 +145,10 @@ font_instance* ui_manager::get_font(const std::string& path, f32 size) {
     return &found->second;
 }
 
+rect ui_manager::get_screen_rect() const {
+    return { {}, {1, backend->preview_height} };
+}
+
 text::text(engine_backend* backend, const font_instance* font, text_alignment align, const std::string str, const vec3& color) :
     backend(backend), align(align), font(font), str(str), color(color) {
     shader = backend->compile_and_link(vert_instanced_quad_src(), frag_glyph_src(0));
@@ -182,9 +186,11 @@ void text::render() {
     case text_alignment::TOP_LEFT: {
         tl = bounds.tl;
     } break;
+    case text_alignment::CENTER_LEFT: {
+        tl = { bounds.tl.x, bounds.middle().y - text_size.y * 0.5f };
+    } break;
     case text_alignment::CENTER: {
-        vec2 middle = (bounds.tl + bounds.br) * 0.5f;
-        tl = { middle - text_size * 0.5f };
+        tl = { bounds.middle() - text_size * 0.5f };
     } break;
     default: {
         LOGE_AND_BREAK("Text alignment is not supported.");
@@ -216,8 +222,9 @@ void text::render() {
 }
 
 button::button(ui_manager* ui, const std::string& str, const rect& crad, vec3 color) 
-    : ui(ui), crad(crad), color(color), 
-      content(ui->backend, ui->middle_font, bounds, text_alignment::CENTER, str, ui->theme.foreground_color) {}
+    : ui(ui), crad(crad), color(color), click_color(color * 1.2f),
+      content(ui->backend, ui->middle_font, bounds, text_alignment::CENTER, str, ui->theme.foreground_color),
+      click_animation(ui->backend, animation_curve::EASE_IN_OUT, 0, 1, 0, 0.15, 0) {}
 
 void button::layout(const rect& bounds) {
     this->bounds = bounds;
@@ -225,13 +232,28 @@ void button::layout(const rect& bounds) {
 }
 
 bool button::draw() {
-    ui->backend->draw_rounded_colored_quad(bounds, crad, color);
+    vec3 bg_color = vec3::lerp(color, click_color, click_animation.update());
+    ui->backend->draw_rounded_colored_quad(bounds, crad, bg_color);
 
-    content.color.w = color.w;
     content.render();
 
     motion_event event = ui->backend->input.get_motion_event(bounds);
-    return (event.type == motion_type::TOUCH_DOWN);
+    bool clicked = (event.type == motion_type::TOUCH_DOWN);
+    bool released = (event.type == motion_type::TOUCH_UP);
+    
+    if(clicked) {
+        click_animation.start_value = 0.0f;
+        click_animation.end_value = 1.0f;
+        click_animation.start();
+    }
+
+    if(released) {
+        click_animation.start_value = click_animation.value;
+        click_animation.end_value = 0.0f;
+        click_animation.start();
+    }
+
+    return released;
 }
 
 rect docscanner::get_texture_uvs_aligned_top(const rect& r, const svec2& tex_size) {
@@ -245,4 +267,10 @@ rect docscanner::get_texture_uvs_aligned_top(const rect& r, const svec2& tex_siz
 
     f32 uv_bottom = r_aspect_ratio / tex_aspect_ratio;
     return { {}, {1.0, uv_bottom} };
+}
+
+rect docscanner::get_texture_aligned_rect(const rect& r, const svec2& size, alignment align) {
+    vec2 r_size = r.size();
+    f32 scaled_width = r_size.y * (size.x / (f32)size.y);
+    return { r.tl, { r.tl.x + scaled_width, r.br.y } };
 }

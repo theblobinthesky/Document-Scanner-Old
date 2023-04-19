@@ -23,6 +23,7 @@ constexpr rect desc_crad = { { 0.05f, 0 }, { 0.05f, 0 } };
 constexpr vec2 min_max_button_crad = { 0.05f, 0.1f };
 constexpr rect crad_thin_to_the_left = { {min_max_button_crad.x, min_max_button_crad.x}, {min_max_button_crad.y, min_max_button_crad.y} };
 constexpr rect crad_thin_to_the_right = { {min_max_button_crad.y, min_max_button_crad.y}, {min_max_button_crad.x, min_max_button_crad.x} };
+constexpr rect crad_even = { {min_max_button_crad.x, min_max_button_crad.x}, {min_max_button_crad.x, min_max_button_crad.x} };
 
 void get_time(u64& start_time, f32& time) {
     auto now = std::chrono::high_resolution_clock::now();
@@ -34,6 +35,27 @@ void get_time(u64& start_time, f32& time) {
     } else {
         time = (time_long - start_time) / 1000000000.000;
     }
+}
+
+void get_split_control_button_rects(const ui_manager* ui, rect* left, rect* right) {
+    rect left_right_margin = { { 0.02f, 0 }, { 0.02f, 0 } };
+    f32 top = 0.8f, bottom = 0.9f;
+
+    rect rect = ui->get_screen_rect();
+    rect = get_between(rect, top, bottom);
+
+    if(left) *left = cut_margins(grid_split(rect, 0, 2, split_direction::HORIZONTAL), left_right_margin);
+    if(right) *right = cut_margins(grid_split(rect, 1, 2, split_direction::HORIZONTAL), left_right_margin);
+}
+
+void get_large_control_button_rect(const ui_manager* ui, rect& r) {
+    rect left_right_margin = { { 0.02f, 0 }, { 0.02f, 0 } };
+    f32 top = 0.8f, bottom = 0.9f;
+
+    rect rect = ui->get_screen_rect();
+    rect = get_between(rect, top, bottom);
+
+    r = cut_margins(rect, left_right_margin);
 }
 
 unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect, const texture* unwrapped_texture) 
@@ -53,9 +75,10 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
 
     screen = get_between(screen, 0.8f, 0.9f);
 
-    rect left_right_margin = { { 0.02f, 0 }, { 0.02f, 0 } };
-    discard_button.layout(cut_margins(grid_split(screen, 0, 2, split_direction::HORIZONTAL), left_right_margin));
-    next_button.layout(cut_margins(grid_split(screen, 1, 2, split_direction::HORIZONTAL), left_right_margin));
+    rect discard_button_rect, next_button_rect;
+    get_split_control_button_rects(ui, &discard_button_rect, &next_button_rect);
+    discard_button.layout(discard_button_rect);
+    next_button.layout(next_button_rect);
 
 
     vec2 unwrapped_size = unwrapped_rect.size();
@@ -174,6 +197,88 @@ void unwrapped_options_screen::draw() {
     draw_preview_ui();
 }
 
+export_item_card::export_item_card(ui_manager* ui, texture icon, vec3 bg_color, vec3 fg_color, const char* title) : ui(ui), icon(icon), 
+    bg_color(bg_color), fg_color(fg_color), 
+    title(ui->backend, ui->middle_font, text_alignment::CENTER, title, fg_color) {}
+
+void export_item_card::layout(rect bounds) {
+    this->bounds = bounds; 
+
+    icon_bounds = get_texture_aligned_rect(bounds, icon.size, alignment::LEFT);
+    
+    rect title_bounds = cut_margins(bounds, { {icon_bounds.size().x, 0}, {} });
+    this->title.layout(title_bounds);
+}
+
+bool export_item_card::draw() {
+    ui->backend->draw_rounded_colored_quad(bounds, ui->theme.middle_crad, bg_color);
+    ui->backend->draw_rounded_textured_quad(icon_bounds, ui->theme.middle_crad, icon, { {}, {1, 1} });
+
+    title.render();
+
+    motion_event event = ui->backend->input.get_motion_event(bounds);
+    bool released = (event.type == motion_type::TOUCH_UP);
+    return released;
+}
+
+export_options_screen::export_options_screen(ui_manager* ui) : ui(ui),
+    onenote_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "one_note_icon.png"), 0, {356, 356} },
+        color_from_int(0x81387a), ui->theme.white, "OneNote"),
+    gallery_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "one_note_icon.png"), 0, {356, 356} },
+        color_from_int(0x813838), ui->theme.white, "Gallery"),
+    pdf_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "one_note_icon.png"), 0, {356, 356} },
+        color_from_int(0x814d38), ui->theme.white, "Pdf"),
+    docx_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "word_icon.png"), 0, {356, 356} },
+        color_from_int(0x385b81), ui->theme.white, "Word"),
+    finish_button(ui, "Finish", crad_even, ui->theme.accept_color),
+    dialogue_animation(ui->backend, animation_curve::EASE_IN_OUT, 0, 1, 0, 1.0f, 0) {
+    
+    rect screen = ui->get_screen_rect();
+
+    f32 card_height = 0.12f;
+
+    onenote_item_card.layout(cut_margins(get_between(screen, 0.05f, 0.05f + card_height), { {0.02f, 0}, {0.02f, 0} }));
+    gallery_item_card.layout(cut_margins(get_between(screen, 0.20f, 0.20f + card_height), { {0.02f, 0}, {0.02f, 0} }));
+    pdf_item_card.layout(    cut_margins(get_between(screen, 0.35f, 0.35f + card_height), { {0.02f, 0}, {0.02f, 0} }));
+    docx_item_card.layout(   cut_margins(get_between(screen, 0.50f, 0.50f + card_height), { {0.02f, 0}, {0.02f, 0} }));
+
+    rect finish_button_rect;
+    get_large_control_button_rect(ui, finish_button_rect);
+    finish_button.layout(finish_button_rect);
+
+    dialogue_rect_small = cut_margins(screen, 0.15f);
+    dialogue_rect_large = cut_margins(screen, 0.05f);
+}
+
+void export_options_screen::draw_ui() {
+    SCOPED_COMPOSITE_GROUP(ui->backend, {}, true, 1.0f - dialogue_animation.value);
+
+    onenote_item_card.draw();
+    gallery_item_card.draw();
+    pdf_item_card.draw();
+    docx_item_card.draw();
+
+    finish_button.draw();
+}
+
+void export_options_screen::draw_dialogue_ui() {
+    SCOPED_COMPOSITE_GROUP(ui->backend, {}, true, dialogue_animation.value);
+
+    rect dialogue_rect = rect::lerp(dialogue_rect_small, dialogue_rect_large, dialogue_animation.value);
+    ui->backend->draw_rounded_colored_quad(dialogue_rect, { {0.05f, 0.05f}, {0.05f, 0.05f} }, ui->theme.background_accent_color);
+}
+
+void export_options_screen::draw() {
+    {
+        SCOPED_COMPOSITE_GROUP(ui->backend, ui->theme.background_color, false, 1.0f);
+    }
+
+    dialogue_animation.update();
+
+    draw_ui();
+    draw_dialogue_ui();
+}
+
 struct gui_camera_loader_struct {
     pipeline* pipe;
     camera* cam;
@@ -219,7 +324,9 @@ camera_loader::camera_loader(pipeline* pipe, void* data, cam_init_callback callb
 pipeline::pipeline(const pipeline_args& args)
     : threads(), cam_loader(this, args.cd, args.cam_callback, args.texture_window), 
     backend(&threads, args.preview_size, args.assets), ui(&backend, args.enable_dark_mode), 
-    cam_preview_screen(&backend, &ui, cam_preview_bottom_edge, unwrapped_mesh_rect), options_screen(&ui, unwrapped_mesh_rect, &cam_preview_screen.tex_sampler.output_tex),
+    cam_preview_screen(&backend, &ui, cam_preview_bottom_edge, unwrapped_mesh_rect), 
+    options_screen(&ui, unwrapped_mesh_rect, &cam_preview_screen.tex_sampler.output_tex),
+    export_screen(&ui),
     start_time(0), last_time(0) {
     projection_matrix = mat4::orthographic(0.0f, 1.0f, backend.preview_height, 0.0f, -1.0f, 1.0f);
 }
@@ -238,19 +345,28 @@ void docscanner::pipeline::render() {
 
     bool redraw = false;
 
-    if(options_screen.blendin_animation.state != FINISHED) {
-        backend.override_has_to_redraw = true;
+    if(displayed_screen == screen_name::CAM_PREVIEW) {
         redraw = true;
-        cam_preview_screen.render();
+
+        if(cam_preview_screen.unwrap_animation.state == FINISHED) {
+            displayed_screen = screen_name::UNWRAPPED_OPTIONS;
+        } else {
+            backend.override_has_to_redraw = true;
+            cam_preview_screen.render();
+        }
+    } else if(displayed_screen == screen_name::UNWRAPPED_OPTIONS) {
+        if(cam_preview_screen.unwrap_animation.state == FINISHED) {
+            if(backend.has_to_redraw()) {
+                backend.override_has_to_redraw = false;
+                redraw = true;
+                options_screen.draw();
+            }
+        }
+    } else if(displayed_screen == screen_name::EXPORT_OPTIONS) {
+        export_screen.draw();
+        redraw = true;
     }
 
-    if(cam_preview_screen.unwrap_animation.state == FINISHED) {
-        if(backend.has_to_redraw()) {
-            backend.override_has_to_redraw = false;
-            redraw = true;
-            options_screen.draw();
-        }
-    }
     
     backend.input.end_frame();
 

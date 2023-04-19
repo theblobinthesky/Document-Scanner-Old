@@ -6,6 +6,7 @@
 #include "tensorflow/lite/delegates/nnapi/nnapi_delegate_c_api.h"
 #include "tensorflow/lite/delegates/gpu/delegate.h"
 #include "tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h"
+#include "stb_image.h"
 
 using namespace docscanner;
 
@@ -197,4 +198,53 @@ void docscanner::invoke_neural_network_on_data(asset_manager* assets, u8* inp_da
 
         TfLiteTensorCopyToBuffer(out_ten, out_datas[i], out_sizes[i]);
     }
+}
+
+#include <string.h>
+
+u32 docscanner::read_texture_from_path(asset_manager* assets, thread_pool* threads, const char* path) {    
+    u8* data;
+    u32 data_size;
+    file_to_buffer(assets->ctx, path, data, data_size);
+
+    svec2 size;
+    s32 channels;
+    unsigned char *stbi_data = stbi_load_from_memory(data, data_size, &size.x, &size.y, &channels, 3);
+
+    f32* cvt_f32 = new f32[size.area() * 4];
+    memset(cvt_f32, 0, sizeof(f32) * size.area() * 4);
+
+    if(channels == 3) {
+    
+        for(s32 i = 0; i < size.area(); i++) {
+            s32 idx = i * 4;
+            
+            for(s32 c = 0; c < 3; c++) {
+                cvt_f32[idx + c] = stbi_data[i * 3 + c] / 255.0f;
+            }
+
+            cvt_f32[idx + 3] = 1.0f;
+        }
+    
+    } else if(channels == 4) {
+        
+        for(s32 i = 0; i < size.area(); i++) {
+            s32 idx = i * 4;
+            
+            for(s32 c = 0; c < 4; c++) {
+                cvt_f32[idx + c] = stbi_data[i * 3 + c] / 255.0f;
+            }
+        }
+
+    } else {
+        LOGE_AND_BREAK("Something other than 3/4 channels is not supported right now.");
+    }
+
+    texture tex = make_texture(size, GL_RGBA32F);
+    set_texture_data(tex, (u8*)cvt_f32, size);    
+
+    stbi_image_free(stbi_data);
+    delete[] data;
+    delete[] cvt_f32;
+    return tex.id;   
 }

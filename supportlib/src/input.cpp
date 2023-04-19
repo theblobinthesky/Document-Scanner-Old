@@ -9,6 +9,8 @@ void input_manager::init(svec2 preview_size, f32 aspect_ratio) {
 }
 
 void docscanner::input_manager::handle_motion_event(const motion_event& event) {
+    LOGI("MOTION_EVENT: %u, %f, %f", event.type, event.pos.x, event.pos.y);
+    
     this->event = {
         .type = event.type,
         .pos = { event.pos.x / (f32)(preview_size.x - 1), aspect_ratio * event.pos.y / (f32)(preview_size.y - 1) }

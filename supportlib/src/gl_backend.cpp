@@ -994,8 +994,6 @@ void docscanner::get_framebuffer_data(const frame_buffer &fb, const svec2 &size,
 }
 
 void docscanner::set_texture_data(const texture &tex, u8* data, const svec2& size) {
-    glBindTexture(GL_TEXTURE_2D, tex.id);
-
     GLenum format = 0, type = 0;
     switch(tex.format) {
     case GL_R32F: {
@@ -1009,7 +1007,9 @@ void docscanner::set_texture_data(const texture &tex, u8* data, const svec2& siz
     default: LOGE_AND_BREAK("Unsupported texture format in set_texture_data.");
     }
 
-    check_gl_error("glTexSubImage2D1");
+    glBindTexture(GL_TEXTURE_2D, tex.id);
+    check_gl_error("glBindTexture");
+
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, size.x, size.y, format, type, data);
     check_gl_error("glTexSubImage2D");
 }

@@ -33,6 +33,42 @@ struct unwrapped_options_screen {
     void draw();
 };
 
+struct export_item_card {
+    ui_manager* ui;
+
+    rect icon_bounds;
+    texture icon;
+
+    vec3 bg_color, fg_color;
+    text title;
+
+    rect bounds;
+
+    export_item_card(ui_manager* ui, texture icon, vec3 bg_color, vec3 fg_color, const char* title);
+    void layout(rect bounds);
+    bool draw();
+};
+
+struct export_options_screen {
+    ui_manager* ui;
+
+    export_item_card onenote_item_card;
+    export_item_card gallery_item_card;
+    export_item_card pdf_item_card;
+    export_item_card docx_item_card;
+
+    button finish_button;
+
+    rect dialogue_rect_small, dialogue_rect_large;
+
+    animation<f32> dialogue_animation;
+
+    export_options_screen(ui_manager* ui);
+    void draw_ui();
+    void draw_dialogue_ui();
+    void draw();
+};
+
 typedef void(*cam_init_callback)(void*, svec2);
 
 struct pipeline_args {
@@ -57,6 +93,10 @@ struct camera_loader {
     camera_loader(pipeline* pipe, void* data, cam_init_callback callback, ANativeWindow* texture_window);
 };
 
+enum class screen_name {
+    CAM_PREVIEW, UNWRAPPED_OPTIONS, EXPORT_OPTIONS
+};
+
 struct pipeline {
     thread_pool threads;
     camera_loader cam_loader;
@@ -67,6 +107,9 @@ struct pipeline {
 
     cam_preview cam_preview_screen;
     unwrapped_options_screen options_screen;
+    export_options_screen export_screen;
+
+    screen_name displayed_screen;
 
     u64 start_time, last_time;
 

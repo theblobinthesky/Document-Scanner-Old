@@ -62,6 +62,8 @@ struct vec4 {
     vec4();
     vec4(f32 x, f32 y, f32 z, f32 w);
     vec4(const vec3& v);
+
+    static vec4 lerp(const vec4& a, const vec4& b, f32 t);
 };
 
 struct svec2 {
@@ -125,6 +127,8 @@ rect cut_margins(const rect& r, const rect& margin);
 rect get_at_top(const rect& r, f32 h);
 
 rect get_at_bottom(const rect& r, f32 h);
+
+rect get_at_left(const rect& r, f32 w);
 
 rect grid_split(const rect& r, s32 i, s32 splits, split_direction dir);
 

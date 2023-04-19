@@ -8,16 +8,10 @@
     extern "C" JNIEXPORT return_type JNICALL Java_com_erikstern_documentscanner_##class_name##_##func_name
 
 constexpr s32 MOTION_EVENT_ACTION_DOWN = 0;
+constexpr s32 MOTION_EVENT_ACTION_UP = 1;
 
 DECL_FUNC(void, GLSurfaceRenderer, nativeDestroy)(JNIEnv *env, jobject obj) {
     docscanner::destroy_persistent_pipeline(env, obj);
-}
-
-jlongArray jlongArray_from_ptr(JNIEnv *env, const s64 *ptr, int len) {
-    jlongArray longJavaArray = env->NewLongArray(len);
-    env->SetLongArrayRegion(longJavaArray, 0, len, ptr);
-
-    return longJavaArray;
 }
 
 char* char_ptr_from_jstring(JNIEnv* env, jstring str) {
@@ -108,6 +102,10 @@ DECL_FUNC(void, GLSurfaceRenderer, nativeMotionEvent)(JNIEnv* env, jobject obj, 
     switch(event) {
         case MOTION_EVENT_ACTION_DOWN: {
             motion_event.type = docscanner::motion_type::TOUCH_DOWN;
+            motion_event.pos = { x, y };
+        } break;
+        case MOTION_EVENT_ACTION_UP: {
+            motion_event.type = docscanner::motion_type::TOUCH_UP;
             motion_event.pos = { x, y };
         } break;
     }

@@ -66,6 +66,15 @@ vec4::vec4(f32 x, f32 y, f32 z, f32 w) : x(x), y(y), z(z), w(w) {}
 
 vec4::vec4(const vec3& v) : x(v.x), y(v.y), z(v.z), w(1.0f) {}
 
+vec4 vec4::lerp(const vec4& a, const vec4& b, f32 t) {
+    return {
+        ::lerp(a.x, b.x, t),
+        ::lerp(a.y, b.y, t),
+        ::lerp(a.z, b.z, t),
+        ::lerp(a.w, b.w, t)
+    };
+}
+
 svec2 svec2::operator+(svec2 other) const {
     return { x + other.x, y + other.y }; 
 }
@@ -209,6 +218,10 @@ rect get_at_top(const rect& r, f32 h) {
 
 rect get_at_bottom(const rect& r, f32 h) {
     return { { r.tl.x, r.br.y }, { r.br.x, r.br.y + h } };
+}
+
+rect get_at_left(const rect& r, f32 w) {
+    return { r.tl, { r.tl.x + w, r.br.y } };
 }
 
 rect grid_split(const rect& r, s32 i, s32 splits, split_direction dir) {

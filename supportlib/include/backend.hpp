@@ -246,8 +246,8 @@ struct animation {
           start_delay(start_delay), duration(duration), state(WAITING), flags(flags) {}
 
     void start() {
+        if(state != STARTED) backend->running_animations++;
         state = STARTED;
-        backend->running_animations++;
 
         value = start_value;
 

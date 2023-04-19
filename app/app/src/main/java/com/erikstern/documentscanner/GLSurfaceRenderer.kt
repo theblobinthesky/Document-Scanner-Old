@@ -45,7 +45,10 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
 
         surfaceView.setOnTouchListener { _, motionEvent ->
             when(motionEvent.action) {
-                MotionEvent.ACTION_DOWN -> nativeMotionEvent(motionEvent.action, motionEvent.x, motionEvent.y)
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP -> {
+                    Log.i("motion_event", motionEvent.action.toString())
+                    nativeMotionEvent(motionEvent.action, motionEvent.x, motionEvent.y)
+                }
             }
             true
         }

@@ -66,4 +66,6 @@ struct engine_backend;
 void create_neural_network_from_path(asset_manager* assets, thread_pool* threads, const char* path, execution_pref pref);
 // void destory_neural_network(const neural_network* nn);
 void invoke_neural_network_on_data(asset_manager* assets, u8* inp_data, u32 inp_size, u8** out_datas, u32* out_sizes, u32 out_size);
+
+u32 read_texture_from_path(asset_manager* assets, thread_pool* threads, const char* path);
 NAMESPACE_END
