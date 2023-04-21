@@ -75,10 +75,6 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
         surface = Surface(surfaceTexture)
     }
 
-    fun preInitCallback(width: Int, height: Int) {
-        surfaceTexture.setDefaultBufferSize(width, height)
-    }
-
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
         Log.i("test", "onSurfaceChanged");
 

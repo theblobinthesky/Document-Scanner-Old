@@ -4,6 +4,8 @@
 #include <math.h>
 #include <random>
 
+using namespace docscanner;
+
 vec2 vec2::operator+(vec2 other) const {
     return { x + other.x, y + other.y };
 }
@@ -161,13 +163,13 @@ mat4 mat4::orthographic(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 
     return mat;
 }
 
-f32 clamp(f32 val, f32 min, f32 max) {
+f32 docscanner::clamp(f32 val, f32 min, f32 max) {
     if(val < min) return min;
     if(val > max) return max;
     return val;
 }
 
-f32 random_f32(f32 min, f32 max) {
+f32 docscanner::random_f32(f32 min, f32 max) {
     s32 v = rand();
     f64 fv = (f64)v / (f64)(RAND_MAX - 1);
     f32 f32v = (f32)fv;
@@ -175,82 +177,16 @@ f32 random_f32(f32 min, f32 max) {
     return min + f32v * (max - min);
 }
 
-f32 ease_in_sine(f32 t) {
-    return 1 - cos((t * M_PI) / 2.0f);
-}
-
-f32 ease_in_out_quad(f32 t) {
-    if(t < 0.5f) {
-        return 2.0f * t * t;
-    } else {
-        f32 x = -2.0f * t + 2.0f;
-        return 1.0f - x * x / 2.0f;
-    }
-}
-
-f32 lerp(f32 a, f32 b, f32 t) {
+f32 docscanner::lerp(f32 a, f32 b, f32 t) {
     return b * t + a * (1.0f - t);
 }
 
-vec2 map_to_rect(const vec2& pt, const rect* rect) {
-    return { lerp(rect->tl.x, rect->br.x, pt.x), lerp(rect->tl.y, rect->br.y, pt.y) };
-}
-
-vec3 color_from_int(s32 c) {
+vec3 docscanner::color_from_int(s32 c) {
     u8 r = (c >> 16) & 0xff;
     u8 g = (c >> 8) & 0xff;
     u8 b = (c >> 0) & 0xff;
 
     return { (f32)r / 255.0f, (f32)g / 255.0f, (f32)b / 255.0f };
-}
-
-rect cut_margins(const rect& r, f32 margin) {
-    return { r.tl + vec2({ margin, margin }), r.br - vec2({ margin, margin }) };
-}
-
-rect cut_margins(const rect& r, const rect& margin) {
-    return { r.tl + margin.tl, r.br - margin.br };
-}
-
-rect get_at_top(const rect& r, f32 h) {
-    return { { r.tl.x, r.tl.y - h }, { r.br.x, r.tl.y } };
-}
-
-rect get_at_bottom(const rect& r, f32 h) {
-    return { { r.tl.x, r.br.y }, { r.br.x, r.br.y + h } };
-}
-
-rect get_at_left(const rect& r, f32 w) {
-    return { r.tl, { r.tl.x + w, r.br.y } };
-}
-
-rect grid_split(const rect& r, s32 i, s32 splits, split_direction dir) {
-    if(dir == split_direction::HORIZONTAL) {
-        f32 w = r.size().x;
-        f32 sw = w / splits;
-
-        return {
-            { r.tl.x + i * sw, r.tl.y },
-            { r.tl.x + (i + 1) * sw, r.br.y }
-        };
-    } else {
-        f32 h = r.size().y;
-        f32 sh = h / splits;
-
-        return {
-            { r.tl.x, r.tl.y + i * sh },
-            { r.br.x, r.tl.y + (i + 1) * sh }
-        };
-    }
-}
-
-rect get_between(const rect& r, f32 t, f32 b) {
-    f32 h = r.size().y;
-
-    return {
-        { r.tl.x, r.tl.y + t * h },
-        { r.br.x, r.tl.y + b * h }
-    };
 }
 
 #ifdef DEBUG

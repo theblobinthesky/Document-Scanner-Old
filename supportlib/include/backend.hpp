@@ -1,16 +1,12 @@
 #pragma once
-#include "log.hpp"
 #include "utils.hpp"
-#include "input.hpp"
+#include "platform.hpp"
 #include "assets.hpp"
 #include "shader_program.hpp"
 #include "camera.hpp"
 
 #include <vector>
 #include <queue>
-#include <thread>
-#include <condition_variable>
-#include <functional>
 
 // nocheckin
 #ifdef ANDROID
@@ -89,30 +85,6 @@ struct DEBUG_marker {
 };
 #endif
 
-typedef void(*thread_pool_function)(void*);
-
-struct thread_pool_task {
-    thread_pool_function function;
-    void* data;
-};
-
-struct thread_pool {
-    bool keep_running;
-    std::vector<std::thread> threads;
-    
-    std::condition_variable mutex_condition;
-    std::mutex mutex;
-
-    std::queue<thread_pool_task> work_queue;
-    std::queue<thread_pool_task> gui_work_queue;
-
-    thread_pool();
-    void thread_pool_loop();
-    void work_on_gui_queue();
-    void push(thread_pool_task task); 
-    void push_gui(thread_pool_task task);
-};
-
 enum class rot_mode {
     ROT_0_DEG,
     ROT_90_DEG,
@@ -141,7 +113,7 @@ struct engine_backend {
     asset_manager* assets;
     thread_pool* threads;
 
-    camera cam;
+    camera* cam;
     bool cam_is_init;
     svec2 cam_size_px;
 
@@ -171,11 +143,8 @@ struct engine_backend {
 
     f32 time;
 
-    bool override_has_to_redraw;
-    s32 running_animations;
-
     engine_backend(thread_pool* threads, svec2 preview_size_px, asset_manager* assets);
-    void init_camera_related(camera cam, svec2 cam_size_px);
+    void init_camera_related(camera* cam, svec2 cam_size_px);
 
     shader_program compile_and_link(const std::string& vert_src, const std::string& frag_src);
     shader_program compile_and_link(const std::string& comp_src);
@@ -196,8 +165,6 @@ struct engine_backend {
     void draw_rounded_oes_textured_quad(const rect& bounds, const rect& crad, const rect& uv_bounds, rot_mode uv_rot);
 #endif
 
-    bool has_to_redraw();
-
 #ifdef DEBUG
     void DEBUG_draw_marker(const vec2& pt, const vec3& col);
     void DEBUG_draw();
@@ -213,85 +180,6 @@ struct scoped_camera_matrix {
 };
 
 #define SCOPED_CAMERA_MATRIX(backend, matrix) scoped_camera_matrix SCOPED_CAMERA_MATRIX_VAR((backend), (matrix))
-
-enum class animation_curve {
-    LINEAR = 0, EASE_IN, EASE_IN_OUT
-};
-
-enum animation_flags {
-    RESET_AFTER_COMPLETION = 1,
-    CONTINUE_PLAYING_REVERSED = 2
-};
-
-enum animation_state {
-    WAITING, STARTED, FINISHED
-};
-
-template<typename T>
-struct animation {
-    engine_backend* backend;
-
-    animation_curve curve;
-    T start_value;
-    T end_value;
-    T value;
-
-    f32 start_time;
-    f32 start_delay;
-    f32 duration;
-    u32 state;
-    u32 flags;
-
-    animation(engine_backend* backend, animation_curve curve, T start_value, T end_value, f32 start_delay, f32 duration, u32 flags) 
-        : backend(backend), curve(curve), start_value(start_value), end_value(end_value), value(start_value), 
-          start_delay(start_delay), duration(duration), state(WAITING), flags(flags) {}
-
-    void start() {
-        if(state != STARTED) backend->running_animations++;
-        state = STARTED;
-
-        value = start_value;
-
-        start_time = backend->time;
-    }
-
-    T update() {
-        if(state != STARTED) return value;
-
-        f32 time_elapsed = backend->time - start_time;
-        f32 t = (time_elapsed - start_delay) / duration;
-
-        if(t < 0.0f) return start_value;
-        
-        if(t > 1.0f) {
-            state = FINISHED;
-            backend->running_animations--;
-
-            if(flags & animation_flags::RESET_AFTER_COMPLETION) value = start_value;
-            else value = end_value;
-
-            return value;
-        }
-
-        if(flags & animation_flags::CONTINUE_PLAYING_REVERSED) {
-            t = 1.0f - 2.0f * abs(t - 0.5f);
-        }
-        
-        switch(curve) {
-        case animation_curve::LINEAR: break;
-        case animation_curve::EASE_IN: {
-            t = ease_in_sine(t);
-        } break;
-        case animation_curve::EASE_IN_OUT: {
-            t = ease_in_out_quad(t);
-        } break;
-        default: LOGE_AND_BREAK("Animation curve is not supported.");
-        }
-
-        value = end_value * t + start_value * (1.0f - t); 
-        return value;
-    }
-};
 
 struct texture_sampler {
     engine_backend* backend;
@@ -397,7 +285,7 @@ void delete_shader(u32 id);
 
 void delete_program(shader_program &program);
 
-void dispatch_compute_program(const uvec2 size, u32 depth);
+void dispatch_compute_program(const svec2 size, u32 depth);
 
 shader_buffer make_shader_buffer();
 

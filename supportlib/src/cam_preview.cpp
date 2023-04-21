@@ -1,7 +1,6 @@
 #include "cam_preview.hpp"
-#include "log.hpp"
 #include "backend.hpp"
-#include "input.hpp"
+#include "platform.hpp"
 #include "camera.hpp"
 #include <chrono>
 
@@ -166,7 +165,7 @@ void cam_preview::render() {
     if(!is_init) return;
 
     if(is_live_camera_streaming && backend->cam_is_init) {
-        backend->cam.get();
+        get_camera_frame(backend->cam);
 
         tex_downsampler.downsample();
 

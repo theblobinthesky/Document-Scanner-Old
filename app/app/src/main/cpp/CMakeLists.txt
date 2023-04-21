@@ -1,5 +1,18 @@
 cmake_minimum_required(VERSION 3.18.1)
 
+function(print_directory_variables dir)
+    # Dump variables:
+    get_property(_variableNames DIRECTORY ${dir} PROPERTY VARIABLES)
+    list (SORT _variableNames)
+    foreach (_variableName ${_variableNames})
+        get_directory_property(_variableValue DIRECTORY ${dir} DEFINITION ${_variableName})
+        message(STATUS "DIR ${dir}: ${_variableName}=${_variableValue}")
+    endforeach()
+endfunction(print_directory_variables)
+
+# for example
+print_directory_variables(.)
+
 set(LIBRARY_ROOT_DIRECTORY "/media/shared/Projekte/DocumentScanner/supportlib")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -v")
 

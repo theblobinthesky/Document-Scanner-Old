@@ -1,12 +1,20 @@
 #pragma once
 #include <cstdint>
+#include <csignal>
 #include <string>
 
 #define DEBUG
 
+#define NAMESPACE_BEGIN namespace docscanner {
+#define NAMESPACE_END }
+
 #define null nullptr
 
 #define S32_MAX 2147483647
+
+#if !(defined(ANDROID) || defined(LINUX))
+#error "Platform is not supported."
+#endif
 
 #ifdef ANDROID
 #define USES_OES_TEXTURES true
@@ -15,6 +23,28 @@
 #else
 #error "Unsupported platform as USES_OES_TEXTURES is not defined."
 #endif
+
+#ifdef ANDROID
+#include <android/log.h>
+
+#define LOG_TAG "docscanner"
+#define LOGE(...)  __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#define LOGI(...)  __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+
+#elif defined(LINUX)
+#include <stdio.h>
+
+#define LOGE(...) { fprintf(stderr, "ERROR: "); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); }
+#define LOGI(...) { printf("INFO: "); printf(__VA_ARGS__); printf("\n"); }
+
+#endif
+
+#define BREAK() raise(SIGTRAP)
+#define LOGE_AND_BREAK(...) LOGE(__VA_ARGS__); BREAK()
+#define ASSERT(working_condition, ...) if (!(working_condition)) { LOGE_AND_BREAK(__VA_ARGS__); }
+
+
+NAMESPACE_BEGIN
 
 using s8 = int8_t;
 using s16 = int16_t;
@@ -91,11 +121,6 @@ struct rect {
     static rect lerp(const rect& a, const rect& b, f32 t);
 };
 
-struct uvec2 {
-    u32 x;
-    u32 y;
-};
-
 struct mat4 {
     f32 data[16];
 
@@ -110,29 +135,9 @@ f32 clamp(f32 val, f32 min, f32 max);
 
 f32 random_f32(f32 min, f32 max);
 
-f32 ease_in_sine(f32 t);
-
-f32 ease_in_out_quad(f32 t);
-
 f32 lerp(f32 a, f32 b, f32 t);
 
-vec2 map_to_rect(const vec2& pt, const rect* rect);
-
 vec3 color_from_int(s32 c);
-
-rect cut_margins(const rect& r, f32 margin);
-
-rect cut_margins(const rect& r, const rect& margin);
-
-rect get_at_top(const rect& r, f32 h);
-
-rect get_at_bottom(const rect& r, f32 h);
-
-rect get_at_left(const rect& r, f32 w);
-
-rect grid_split(const rect& r, s32 i, s32 splits, split_direction dir);
-
-rect get_between(const rect& r, f32 t, f32 b);
 
 #ifdef DEBUG
 struct scoped_timer {
@@ -145,5 +150,4 @@ struct scoped_timer {
 #define SCOPED_TIMER(name) scoped_timer SCOPED_TIMER_INSTANCE(name);
 #endif
 
-#define NAMESPACE_BEGIN namespace docscanner {
-#define NAMESPACE_END }
+NAMESPACE_END

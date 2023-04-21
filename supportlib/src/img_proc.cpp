@@ -1,5 +1,4 @@
 #include "img_proc.hpp"
-#include "log.hpp"
 #include <algorithm>
 #include <math.h>
 #include <random>

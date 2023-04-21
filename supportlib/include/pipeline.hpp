@@ -1,6 +1,6 @@
 #pragma once
 #include "cam_preview.hpp"
-#include "input.hpp"
+#include "platform.hpp"
 #include "user_interface.hpp"
 
 NAMESPACE_BEGIN
@@ -84,30 +84,17 @@ struct pipeline_args {
     asset_manager* assets;
     svec2 preview_size;
     bool enable_dark_mode;
-    void* cd;
     cam_init_callback cam_callback;
+    thread_pool* threads;
 };
 
 struct pipeline;
-
-struct camera_loader_data {
-    pipeline* pipe;
-    void* data;
-    cam_init_callback callback;
-    ANativeWindow* texture_window;
-};
-
-struct camera_loader {
-    camera_loader(pipeline* pipe, void* data, cam_init_callback callback, ANativeWindow* texture_window);
-};
 
 enum class screen_name {
     CAM_PREVIEW, UNWRAPPED_OPTIONS, EXPORT_OPTIONS
 };
 
 struct pipeline {
-    thread_pool threads;
-    camera_loader cam_loader;
     engine_backend backend;
     ui_manager ui;
 
@@ -121,8 +108,8 @@ struct pipeline {
 
     u64 start_time, last_time;
 
-    pipeline(const pipeline_args& args);
-    void init_camera_related(camera cam, svec2 cam_size_px);
+    pipeline(pipeline_args& args);
+    void init_camera_related(camera* cam, svec2 cam_size_px);
 
     void render();
 };

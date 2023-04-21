@@ -1,5 +1,4 @@
 #if 1
-#include "log.hpp"
 #include "backend.hpp"
 #include <string.h>
 #include <math.h>
@@ -94,61 +93,6 @@ void docscanner::instanced_quads::draw() {
     glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, null, quads_size);
 }
 
-thread_pool::thread_pool() : keep_running(true) {
-    u32 num_threads = 1; // std::thread::hardware_concurrency();
-    threads.resize(num_threads);
-
-    for (u32 i = 0; i < num_threads; i++) {
-        threads[i] = std::thread(&thread_pool::thread_pool_loop, this);
-    }
-}
-
-void thread_pool::thread_pool_loop() {
-    while(keep_running) {
-        thread_pool_task task;
-
-        {
-            std::unique_lock<std::mutex> lock(mutex);
-            if(work_queue.empty()) {
-                mutex_condition.wait(lock);
-            }
-
-            if(!keep_running) return;
-
-            task = work_queue.front();
-            work_queue.pop();
-        }
-
-        LOGI("issued thread task");
-
-        task.function(task.data);
-    }
-}
-
-void thread_pool::work_on_gui_queue() {
-    while(!gui_work_queue.empty()) {
-        const thread_pool_task& task = gui_work_queue.front();
-        gui_work_queue.pop();
-
-        task.function(task.data);
-    }
-}
-
-void thread_pool::push(thread_pool_task task) {
-    LOGI("issued thread push");
-
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-        work_queue.push(task);
-    }
-
-    mutex_condition.notify_one();
-}
-
-void thread_pool::push_gui(thread_pool_task task) {
-    gui_work_queue.push(task);
-}
-
 scoped_composite_group::scoped_composite_group(engine_backend* backend, vec3 bg_color, bool bg_transparent, f32 opacity) : backend(backend) {
     composite_group comp = {
         .bg_color = bg_color, 
@@ -164,8 +108,7 @@ scoped_composite_group::~scoped_composite_group() {
 }
 
 engine_backend::engine_backend(thread_pool* threads, svec2 preview_size_px, asset_manager* assets) 
-    : assets(assets), threads(threads), cam_is_init(false), preview_size_px(preview_size_px),
-      override_has_to_redraw(false), running_animations(0) {
+    : assets(assets), threads(threads), cam_is_init(false), preview_size_px(preview_size_px) {
     preview_height = preview_size_px.y / (f32)preview_size_px.x;
     input.init(preview_size_px, preview_height);
 
@@ -203,7 +146,7 @@ engine_backend::engine_backend(thread_pool* threads, svec2 preview_size_px, asse
     comp_fb = framebuffer_from_texture(comp_texture);
 }
 
-void engine_backend::init_camera_related(camera cam, svec2 cam_size_px) {
+void engine_backend::init_camera_related(camera* cam, svec2 cam_size_px) {
     this->cam = cam;
     this->cam_size_px = cam_size_px;
 }
@@ -360,10 +303,6 @@ void engine_backend::draw_rounded_oes_textured_quad(const rect& bounds, const re
 }
 #endif
 
-bool engine_backend::has_to_redraw() {
-    return true; // todo: fix this override_has_to_redraw || (input.event.type != motion_type::NO_MOTION) || (running_animations > 0);
-}
-
 #ifdef DEBUG
 void engine_backend::DEBUG_draw_marker(const vec2& pt, const vec3& col) {
     DEBUG_marker_queue.push_back({pt, col});
@@ -392,8 +331,8 @@ scoped_camera_matrix::~scoped_camera_matrix() {
     backend->projection_mat = previous_matrix;
 }
 
-u32 even_to_uneven(u32 N) {
-    u32 M;
+s32 even_to_uneven(s32 N) {
+    s32 M;
     while((M = N / 2 + 1) % 2 == 0 || N % 2 == 0 || M < 1) N++;
     return N;
 }
@@ -453,9 +392,9 @@ void texture_downsampler_stage::init(engine_backend* backend, svec2 input_size, 
     this->input_is_oes_texture = input_is_oes_texture;
     this->input_tex = input_tex;
 
-    uvec2 req_kernel_size = {
-        (u32)((f32)input_size.x / (relaxation_factor * (f32)output_size.x)),
-        (u32)((f32)input_size.y / (relaxation_factor * (f32)output_size.y))
+    svec2 req_kernel_size = {
+        (s32)((f32)input_size.x / (relaxation_factor * (f32)output_size.x)),
+        (s32)((f32)input_size.y / (relaxation_factor * (f32)output_size.y))
     };
 
     req_kernel_size.x = even_to_uneven(req_kernel_size.x);
@@ -818,8 +757,8 @@ void docscanner::delete_program(shader_program &program) {
     }
 }
 
-void docscanner::dispatch_compute_program(const uvec2 size, u32 depth) {
-    glDispatchCompute(size.x, size.y, depth);
+void docscanner::dispatch_compute_program(const svec2 size, u32 depth) {
+    glDispatchCompute((u32)size.x, (u32)size.y, depth);
     check_gl_error("glDispatchCompute");
 
     glMemoryBarrier(GL_ALL_BARRIER_BITS);

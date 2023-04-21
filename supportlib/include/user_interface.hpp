@@ -31,6 +31,89 @@ struct font_instance {
     void use(s32 slot) const;
 };
 
+f32 ease_in_sine(f32 t);
+
+f32 ease_in_out_quad(f32 t);
+
+enum class animation_curve {
+    LINEAR = 0, EASE_IN, EASE_IN_OUT
+};
+
+enum animation_flags {
+    RESET_AFTER_COMPLETION = 1,
+    CONTINUE_PLAYING_REVERSED = 2
+};
+
+enum animation_state {
+    WAITING, STARTED, FINISHED
+};
+
+template<typename T>
+struct animation {
+    engine_backend* backend;
+
+    animation_curve curve;
+    T start_value;
+    T end_value;
+    T value;
+
+    f32 start_time;
+    f32 start_delay;
+    f32 duration;
+    u32 state;
+    u32 flags;
+
+    animation(engine_backend* backend, animation_curve curve, T start_value, T end_value, f32 start_delay, f32 duration, u32 flags) 
+        : backend(backend), curve(curve), start_value(start_value), end_value(end_value), value(start_value), 
+          start_delay(start_delay), duration(duration), state(WAITING), flags(flags) {}
+
+    void start() {
+        // todo: fix this if(state != STARTED) backend->running_animations++;
+        state = STARTED;
+
+        value = start_value;
+
+        start_time = backend->time;
+    }
+
+    T update() {
+        if(state != STARTED) return value;
+
+        f32 time_elapsed = backend->time - start_time;
+        f32 t = (time_elapsed - start_delay) / duration;
+
+        if(t < 0.0f) return start_value;
+        
+        if(t > 1.0f) {
+            state = FINISHED;
+            // todo: fix thisbackend->running_animations--;
+
+            if(flags & animation_flags::RESET_AFTER_COMPLETION) value = start_value;
+            else value = end_value;
+
+            return value;
+        }
+
+        if(flags & animation_flags::CONTINUE_PLAYING_REVERSED) {
+            t = 1.0f - 2.0f * abs(t - 0.5f);
+        }
+        
+        switch(curve) {
+        case animation_curve::LINEAR: break;
+        case animation_curve::EASE_IN: {
+            t = ease_in_sine(t);
+        } break;
+        case animation_curve::EASE_IN_OUT: {
+            t = ease_in_out_quad(t);
+        } break;
+        default: LOGE_AND_BREAK("Animation curve is not supported.");
+        }
+
+        value = end_value * t + start_value * (1.0f - t); 
+        return value;
+    }
+};
+
 struct ui_theme {
     vec3 black = { 0, 0, 0 };
     vec3 white = { 1, 1, 1 };
@@ -128,6 +211,22 @@ struct round_checkbox {
 
     void draw();
 };
+
+vec2 map_to_rect(const vec2& pt, const rect* rect);
+
+rect cut_margins(const rect& r, f32 margin);
+
+rect cut_margins(const rect& r, const rect& margin);
+
+rect get_at_top(const rect& r, f32 h);
+
+rect get_at_bottom(const rect& r, f32 h);
+
+rect get_at_left(const rect& r, f32 w);
+
+rect grid_split(const rect& r, s32 i, s32 splits, split_direction dir);
+
+rect get_between(const rect& r, f32 t, f32 b);
 
 rect get_texture_uvs_aligned_top(const rect& r, const svec2& tex_size);
 

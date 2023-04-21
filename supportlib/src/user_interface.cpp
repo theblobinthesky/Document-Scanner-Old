@@ -114,6 +114,19 @@ void font_instance::use(s32 slot) const {
     bind_texture_to_slot(slot, atlas_texture);
 }
 
+f32 docscanner::ease_in_sine(f32 t) {
+    return 1 - cos((t * M_PI) / 2.0f);
+}
+
+f32 docscanner::ease_in_out_quad(f32 t) {
+    if(t < 0.5f) {
+        return 2.0f * t * t;
+    } else {
+        f32 x = -2.0f * t + 2.0f;
+        return 1.0f - x * x / 2.0f;
+    }
+}
+
 ui_theme::ui_theme(bool enable_dark_mode) {
     background_color        = enable_dark_mode ? vec3({ 0.1f, 0.1f, 0.1f }) : vec3({ 1, 1, 1 });
     background_accent_color = enable_dark_mode ? color_from_int(0xcccccc) : color_from_int(0xfefefe);
@@ -308,4 +321,57 @@ rect docscanner::get_texture_aligned_rect(const rect& r, const svec2& size, alig
         LOGE_AND_BREAK("Fix this.");
         return {};
     }
+}
+
+vec2 docscanner::map_to_rect(const vec2& pt, const rect* rect) {
+    return { lerp(rect->tl.x, rect->br.x, pt.x), lerp(rect->tl.y, rect->br.y, pt.y) };
+}
+
+rect docscanner::cut_margins(const rect& r, f32 margin) {
+    return { r.tl + vec2({ margin, margin }), r.br - vec2({ margin, margin }) };
+}
+
+rect docscanner::cut_margins(const rect& r, const rect& margin) {
+    return { r.tl + margin.tl, r.br - margin.br };
+}
+
+rect docscanner::get_at_top(const rect& r, f32 h) {
+    return { { r.tl.x, r.tl.y - h }, { r.br.x, r.tl.y } };
+}
+
+rect docscanner::get_at_bottom(const rect& r, f32 h) {
+    return { { r.tl.x, r.br.y }, { r.br.x, r.br.y + h } };
+}
+
+rect docscanner::get_at_left(const rect& r, f32 w) {
+    return { r.tl, { r.tl.x + w, r.br.y } };
+}
+
+rect docscanner::grid_split(const rect& r, s32 i, s32 splits, split_direction dir) {
+    if(dir == split_direction::HORIZONTAL) {
+        f32 w = r.size().x;
+        f32 sw = w / splits;
+
+        return {
+            { r.tl.x + i * sw, r.tl.y },
+            { r.tl.x + (i + 1) * sw, r.br.y }
+        };
+    } else {
+        f32 h = r.size().y;
+        f32 sh = h / splits;
+
+        return {
+            { r.tl.x, r.tl.y + i * sh },
+            { r.br.x, r.tl.y + (i + 1) * sh }
+        };
+    }
+}
+
+rect docscanner::get_between(const rect& r, f32 t, f32 b) {
+    f32 h = r.size().y;
+
+    return {
+        { r.tl.x, r.tl.y + t * h },
+        { r.br.x, r.tl.y + b * h }
+    };
 }

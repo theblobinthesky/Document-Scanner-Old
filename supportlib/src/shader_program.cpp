@@ -1,5 +1,4 @@
 #include "shader_program.hpp"
-#include "log.hpp"
 #include "backend.hpp"
 #include <functional>
 #include <math.h>
