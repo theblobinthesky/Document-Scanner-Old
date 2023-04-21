@@ -20,6 +20,7 @@ struct cam_preview {
     rect cam_pos_bounds;
     rect cam_uv_bounds;
 
+    nn_asset_id nn_id;
     u32 nn_input_buffer_size, nn_contour_out_size;
     f32 nn_exists_out;
     u8* nn_input_buffer, *nn_contour_out;

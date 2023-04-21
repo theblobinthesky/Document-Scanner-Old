@@ -7,7 +7,6 @@
 #include <condition_variable>
 #include <functional>
 
-struct ANativeWindow;
 NAMESPACE_BEGIN
 
 enum class motion_type : s32 {
@@ -60,10 +59,15 @@ struct camera;
 
 camera* find_and_open_back_camera(const svec2& min_size, svec2& size);
 
-void init_camera_capture(camera* cam, ANativeWindow* texture_window);
 void resume_camera_capture(camera* cam);
 void pause_camera_capture(const camera* cam);
 void get_camera_frame(const camera* cam);
+
+struct file_context;
+
+void read_from_package(file_context* ctx, const char* path, u8* &data, u32 &size);
+void read_from_internal_file(file_context* ctx, const char* path, u8* &data, u32 &size);
+void write_to_internal_file(file_context* ctx, const char* path, u8* data, u32 size);
 
 NAMESPACE_END
 

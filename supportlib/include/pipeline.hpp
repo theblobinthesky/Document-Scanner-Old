@@ -37,14 +37,14 @@ struct export_item_card {
     ui_manager* ui;
 
     rect icon_bounds;
-    texture icon;
+    texture_asset_id icon;
 
     text title;
     round_checkbox checkbox;
 
     rect bounds;
 
-    export_item_card(ui_manager* ui, texture icon, const char* title);
+    export_item_card(ui_manager* ui, texture_asset_id icon, const char* title);
     void layout(rect bounds);
     bool draw();
 };

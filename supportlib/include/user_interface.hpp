@@ -1,10 +1,13 @@
 #pragma once
 #include "utils.hpp"
 #include "backend.hpp"
+#include "assets.hpp"
 #include <string>
 #include <unordered_map>
 
 NAMESPACE_BEGIN
+
+struct ui_manager;
 
 struct glyph {
     s32 i;
@@ -15,6 +18,7 @@ struct glyph {
 };
 
 struct font_instance {
+    ui_manager* ui;
     std::unordered_map<s32, glyph> glyph_map;
 
     svec2 atlas_size;
@@ -24,7 +28,7 @@ struct font_instance {
 
     f32 font_height, line_height;
 
-    font_instance(engine_backend* backend, const std::string& path, f32 height);
+    font_instance(ui_manager* ui, const std::string& path, f32 height);
 
     const glyph* get_glyph(s32 g) const;
     f32 get_kerning(s32 first, s32 next) const;
@@ -135,13 +139,14 @@ struct ui_theme {
 
 struct ui_manager {
     engine_backend* backend;
+    asset_manager* assets;
     ui_theme theme;
     font_instance* small_font;
     font_instance* middle_font;
 
     std::unordered_map<u64, font_instance> font_map;
 
-    ui_manager(engine_backend* backend, bool enable_dark_mode);
+    ui_manager(engine_backend* backend, asset_manager* assets, bool enable_dark_mode);
     font_instance* get_font(const std::string& path, f32 size);
     rect get_screen_rect() const;
 };
@@ -203,7 +208,7 @@ struct round_checkbox {
     rect bounds;
     bool checked;
 
-    texture checked_icon;
+    texture_asset_id checked_icon;
 
     round_checkbox(ui_manager* ui, bool checked);
     void layout(rect bounds);

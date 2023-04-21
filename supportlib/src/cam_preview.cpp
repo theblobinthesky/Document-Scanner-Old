@@ -30,7 +30,7 @@ cam_preview::cam_preview(engine_backend* backend, ui_manager* ui, f32 bottom_edg
 
     shutter_program = backend->compile_and_link(vert_quad_src(), frag_shutter_src());
     
-    create_neural_network_from_path(backend->assets, backend->threads, "contour_model.tflite", execution_pref::sustained_speed);
+    nn_id = ui->assets->load_nn_asset("contour_model.tflite");
 
     is_init = true;
 }
@@ -174,7 +174,7 @@ void cam_preview::render() {
         constexpr u32 out_size = 1; // 2;
         u8* out_datas[out_size] = { nn_contour_out }; //, (u8*)&nn_exists_out };
         u32 out_sizes[out_size] = { nn_contour_out_size }; // , sizeof(f32) };
-        invoke_neural_network_on_data(backend->assets, nn_input_buffer, nn_input_buffer_size, out_datas, out_sizes, out_size);
+        invoke_neural_network_on_data(ui->assets, nn_id, nn_input_buffer, nn_input_buffer_size, out_datas, out_sizes, out_size);
 
         mesher.mesh(backend);
     }

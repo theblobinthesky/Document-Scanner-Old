@@ -1,20 +1,21 @@
 #include "user_interface.hpp"
 #include "stb_image.h"
 #include "stb_truetype.h"
+#include <math.h>
 
 using namespace docscanner;
 
-font_instance::font_instance(engine_backend* backend, const std::string& path, f32 height) {
+font_instance::font_instance(ui_manager* ui, const std::string& path, f32 height) : ui(ui) {
     stbtt_fontinfo f = {};
 
     u8* data;
     u32 size;
-    file_to_buffer(backend->assets->ctx, path.c_str(), data, size);
+    read_from_package(ui->assets->ctx, path.c_str(), data, size);
     stbtt_InitFont(&f, data, stbtt_GetFontOffsetForIndex(data, 0));
 
 
     s32 x = 1, y = 1, bottom_y = 1;
-    f32 pixel_height = (height / backend->preview_height) * backend->preview_size_px.y;
+    f32 pixel_height = (height / ui->backend->preview_height) * ui->backend->preview_size_px.y;
     f32 scale = stbtt_ScaleForPixelHeight(&f, pixel_height);
 
     f32 inv_pixel_size = height / pixel_height;
@@ -137,7 +138,8 @@ ui_theme::ui_theme(bool enable_dark_mode) {
     deny_color   = color_from_int(0xd95445);
 }
 
-ui_manager::ui_manager(engine_backend* backend, bool enable_dark_mode) : backend(backend), theme(enable_dark_mode) {
+ui_manager::ui_manager(engine_backend* backend, asset_manager* assets, bool enable_dark_mode) 
+    : backend(backend), assets(assets), theme(enable_dark_mode) {
     std::string font = "font.ttf";
     small_font = get_font(font, 0.08f);
     middle_font = get_font(font, 0.12f);
@@ -150,7 +152,7 @@ font_instance* ui_manager::get_font(const std::string& path, f32 size) {
     auto found = font_map.find(key);
 
     if(found == font_map.end()) {
-        font_instance inst(backend, path, size);
+        font_instance inst(this, path, size);
         font_map.emplace(key, inst);
 
         found = font_map.find(key);
@@ -277,8 +279,7 @@ void line_seperator::draw() {
         {}, ui->theme.line_seperator_color);
 }
 
-round_checkbox::round_checkbox(ui_manager* ui, bool checked) : ui(ui), checked(checked),
-    checked_icon({ read_texture_from_path(ui->backend->assets, ui->backend->threads, "checked.png"), 0, {356, 356} }) {}
+round_checkbox::round_checkbox(ui_manager* ui, bool checked) : ui(ui), checked(checked), checked_icon(ui->assets->load_texture_asset("checked.png")) {}
 
 void round_checkbox::layout(rect bounds) {
     this->bounds = bounds;
@@ -292,7 +293,8 @@ void round_checkbox::draw() {
     ui->backend->draw_rounded_colored_quad(bounds, {}, ui->theme.background_accent_color);
     
     if(checked) {
-        ui->backend->draw_rounded_textured_quad(bounds, {}, checked_icon, { {}, {1, 1} });
+        const texture_asset* asset = ui->assets->get_texture_asset(checked_icon);
+        ui->backend->draw_rounded_textured_quad(bounds, {}, asset->tex, { {}, {1, 1} });
     }
 }
 

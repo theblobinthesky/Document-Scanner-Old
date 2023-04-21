@@ -1,9 +1,6 @@
 #pragma once
-#include "utils.hpp"
-
-#ifdef ANDROID
-struct AAssetManager;
-#endif
+#include "backend.hpp"
+#include <vector>
 
 struct TfLiteInterpreter;
 struct TfLiteInterpreterOptions;
@@ -13,59 +10,83 @@ struct TfLiteTensor;
 
 NAMESPACE_BEGIN
 
-#ifdef ANDROID
-struct file_context {
-    AAssetManager* mngr;
-    char* internal_data_path;
-};
-
-#elif defined(LINUX)
-struct file_context {};
-#endif
+struct thread_pool;
+struct engine_backend;
 
 enum class execution_pref {
     sustained_speed,
     fast_single_answer
 };
 
-struct neural_network {
-    bool was_initialized;
+using texture_asset_id = u32;
+using sdf_animation_asset_id = u32;
+using font_asset_id = u32;
+using nn_asset_id = u32;
+
+enum class asset_state : u32 {
+    queued, loaded
+};
+
+struct texture_asset {
+    asset_state state;
+
+    file_context* ctx;
+    const char* path;
+    texture tex;
+};
+
+struct sdf_animation_asset {
+    asset_state state;
+    
+    // todo: implement this
+};
+
+struct font_asset {
+    asset_state state;
+
+    // todo: implement this
+};
+
+struct nn_asset {
+    asset_state state;
+
+    file_context* ctx;
+    const char* path;
     TfLiteInterpreter* interpreter;
     TfLiteInterpreterOptions* options;
     TfLiteModel* model;
-    TfLiteDelegate* delegate;
     TfLiteTensor* inp_ten;
 };
 
+// todo: deleteeeeee
+#define MAX_ASSETS_PER_TYPE 24
+
 struct asset_manager {
     file_context* ctx;
-    neural_network* nn;
+    thread_pool* threads;
 
-    void get_neural_network();
+    texture_asset texture_assets[MAX_ASSETS_PER_TYPE];
+    u32 texture_assets_size;
+    sdf_animation_asset sdf_animation_assets[MAX_ASSETS_PER_TYPE];
+    u32 sdf_animation_assets_size;
+    font_asset font_assets[MAX_ASSETS_PER_TYPE];
+    u32 font_assets_size;
+    nn_asset nn_assets[MAX_ASSETS_PER_TYPE];
+    u32 nn_assets_size;
+    
+    asset_manager(file_context* ctx, thread_pool* thread);
+
+    texture_asset_id load_texture_asset(const char* path);
+    sdf_animation_asset_id load_sdf_animation_asset(const char* path);
+    font_asset_id load_font_asset(const char* path);
+    nn_asset_id load_nn_asset(const char* path);
+
+    const texture_asset* get_texture_asset(texture_asset_id id);
+    const sdf_animation_asset* get_sdf_animation_asset(sdf_animation_asset_id id);
+    const font_asset* get_font_asset(font_asset_id id);
+    const nn_asset* get_nn_asset(nn_asset_id id);
 };
 
-struct neural_network_params {
-    asset_manager* assets;
-    const char* path;
-    execution_pref pref;
-};
-
-struct thread_pool;
-
-#ifdef ANDROID
-asset_manager* get_assets_from_asset_mngr(AAssetManager* mngr, char* internal_data_path);
-#endif
-
-void file_to_buffer(file_context* ctx, const char* path, u8* &data, u32 &size);
-
-void read_from_internal_file(file_context* ctx, const char* path, u8* &data, u32 &size);
-void write_to_internal_file(file_context* ctx, const char* path, u8* data, u32 size);
-
-struct engine_backend;
-
-void create_neural_network_from_path(asset_manager* assets, thread_pool* threads, const char* path, execution_pref pref);
-// void destory_neural_network(const neural_network* nn);
-void invoke_neural_network_on_data(asset_manager* assets, u8* inp_data, u32 inp_size, u8** out_datas, u32* out_sizes, u32 out_size);
-
-u32 read_texture_from_path(asset_manager* assets, thread_pool* threads, const char* path);
+void destory_neural_network(asset_manager* assets, nn_asset_id id);
+void invoke_neural_network_on_data(asset_manager* assets, nn_asset_id id, u8* inp_data, u32 inp_size, u8** out_datas, u32* out_sizes, u32 out_size);
 NAMESPACE_END

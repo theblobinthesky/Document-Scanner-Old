@@ -18,6 +18,11 @@ struct docscanner::camera {
     void get();
 };
 
+struct docscanner::file_context {
+    AAssetManager* mngr;
+    char* internal_data_path;
+};
+
 enum kotlin_motion_event {
     MOTION_EVENT_ACTION_DOWN = 0,
     MOTION_EVENT_ACTION_UP = 1,
@@ -199,7 +204,7 @@ camera* docscanner::find_and_open_back_camera(const svec2& min_size, svec2& size
     return cam;
 }
 
-void docscanner::init_camera_capture(camera* cam, ANativeWindow* texture_window) {
+void init_camera_capture(camera* cam, ANativeWindow* texture_window) {
     ACameraDevice* device = cam->device;
 
     // prepare request with desired template
@@ -257,6 +262,50 @@ void docscanner::pause_camera_capture(const camera* cam) {
 
 void docscanner::get_camera_frame(const camera* cam) {}
 
+void docscanner::read_from_package(file_context* ctx, const char* path, u8* &data, u32 &size) {
+    AAsset* asset = AAssetManager_open(ctx->mngr, path, AASSET_MODE_BUFFER);
+    ASSERT(asset != null, "AAsset open failed.");
+    
+    size = AAsset_getLength(asset);
+    data = new u8[size];
+
+    int status = AAsset_read(asset, data, size);
+    ASSERT(status >= 0, "AAsset read failed.");
+}
+
+std::string get_internal_path(file_context* ctx, const char* path) {
+    return std::string(ctx->internal_data_path) + "/" + std::string(path);
+}
+
+void docscanner::read_from_internal_file(file_context* ctx, const char* path, u8* &data, u32 &size) {
+    std::string full_path = get_internal_path(ctx, path);
+
+    FILE* file = fopen(full_path.c_str(), "rb");
+    if(!file) return;
+
+    fseek(file, 0, SEEK_END);
+    size = (u32)ftell(file);
+    rewind(file);
+
+    data = new u8[size];
+    fread(data, size, 1, file);
+    fclose(file);
+}
+
+void docscanner::write_to_internal_file(file_context* ctx, const char* path, u8* data, u32 size) {
+    std::string full_path = get_internal_path(ctx, path);
+    
+    FILE* file = fopen(full_path.c_str(), "wb");
+    fwrite(data, size, 1, file);
+    fclose(file);
+}
+
+file_context* get_file_context(AAssetManager* mngr, char* internal_data_path) {
+    file_context* ctx = new file_context({ mngr, internal_data_path });
+    ctx->mngr = mngr;
+    ctx->internal_data_path = internal_data_path;
+    return ctx;
+}
 
 jfieldID get_field_id(JNIEnv* env, jobject obj) {
     jclass cls = env->GetObjectClass(obj);
@@ -351,7 +400,8 @@ void docscanner::platform_init(JNIEnv *env, jobject obj, jobject asset_mngr, job
     persistent_handle* handle = new persistent_handle();
 
     auto* mngr_from_java  = AAssetManager_fromJava(env, asset_mngr);
-    auto assets = get_assets_from_asset_mngr(mngr_from_java, char_ptr_from_jstring(env, internal_data_path));
+    file_context* file_ctx = new file_context({ mngr_from_java, char_ptr_from_jstring(env, internal_data_path) });
+    asset_manager* assets = new asset_manager(file_ctx, &handle->threads);
 
     svec2 preview_size = { preview_width, preview_height };
     ANativeWindow *window = ANativeWindow_fromSurface(env, surface);

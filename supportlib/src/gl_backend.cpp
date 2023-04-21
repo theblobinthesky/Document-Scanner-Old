@@ -107,8 +107,8 @@ scoped_composite_group::~scoped_composite_group() {
     backend->end_composite_group();
 }
 
-engine_backend::engine_backend(thread_pool* threads, svec2 preview_size_px, asset_manager* assets) 
-    : assets(assets), threads(threads), cam_is_init(false), preview_size_px(preview_size_px) {
+engine_backend::engine_backend(file_context* file_ctx, thread_pool* threads, svec2 preview_size_px) 
+    : file_ctx(file_ctx), threads(threads), cam_is_init(false), preview_size_px(preview_size_px) {
     preview_height = preview_size_px.y / (f32)preview_size_px.x;
     input.init(preview_size_px, preview_height);
 
@@ -171,14 +171,14 @@ shader_program engine_backend::compile_and_link(const std::string& vert_src, con
     if(program_found == program_map.end()) {
         shader_program program;
 
-        if(!load_program_from_binary(assets->ctx, program_id, program)) {
+        if(!load_program_from_binary(file_ctx, program_id, program)) {
             LOGI("recompiling shader program");
 
             u32 vert_shader = find_or_insert_shader(shader_map, GL_VERTEX_SHADER, vert_src);
             u32 frag_shader = find_or_insert_shader(shader_map, GL_FRAGMENT_SHADER, frag_src);
             program = compile_and_link_program(vert_shader, frag_shader);
 
-            save_program_to_binary(assets->ctx, program_id, program);
+            save_program_to_binary(file_ctx, program_id, program);
         } else {
             LOGI("cached shader program");
         }

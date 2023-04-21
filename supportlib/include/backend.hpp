@@ -1,9 +1,6 @@
 #pragma once
-#include "utils.hpp"
 #include "platform.hpp"
-#include "assets.hpp"
 #include "shader_program.hpp"
-#include "camera.hpp"
 
 #include <vector>
 #include <queue>
@@ -98,6 +95,8 @@ struct composite_group {
     f32 opacity;
 };
 
+struct engine_backend;
+
 struct scoped_composite_group {
     engine_backend* backend;
 
@@ -110,7 +109,7 @@ struct scoped_composite_group {
 
 struct engine_backend {
     input_manager input;
-    asset_manager* assets;
+    file_context* file_ctx;
     thread_pool* threads;
 
     camera* cam;
@@ -143,7 +142,7 @@ struct engine_backend {
 
     f32 time;
 
-    engine_backend(thread_pool* threads, svec2 preview_size_px, asset_manager* assets);
+    engine_backend(file_context* file_ctx, thread_pool* threads, svec2 preview_size_px);
     void init_camera_related(camera* cam, svec2 cam_size_px);
 
     shader_program compile_and_link(const std::string& vert_src, const std::string& frag_src);

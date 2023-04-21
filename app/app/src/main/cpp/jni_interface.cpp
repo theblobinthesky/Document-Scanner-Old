@@ -18,6 +18,16 @@ DECL_FUNC(void, GLSurfaceRenderer, nativeInit)(JNIEnv *env, jobject obj, jobject
     platform_init(env, obj, asset_mngr, surface, internal_data_path, preview_width, preview_height, enable_dark_mode);
 }
 
+DECL_FUNC(void, GLSurfaceRenderer, nativeMotionEvent)(JNIEnv* env, jobject obj, jint event, jfloat x, jfloat y) {
+    platform_motion_event(env, obj, event, x, y);
+}
+
+DECL_FUNC(void, GLSurfaceRenderer, nativeRender)(JNIEnv *env, jobject obj) {
+    platform_render(env, obj);
+}
+
+
+
 #if false
 #include <jni.h>
 #include <android/configuration.h>
@@ -48,11 +58,3 @@ bool isDarkModeEnabled(ANativeActivity* activity) {
     return isDarkMode;
 }
 #endif
-
-DECL_FUNC(void, GLSurfaceRenderer, nativeMotionEvent)(JNIEnv* env, jobject obj, jint event, jfloat x, jfloat y) {
-    platform_motion_event(env, obj, event, x, y);
-}
-
-DECL_FUNC(void, GLSurfaceRenderer, nativeRender)(JNIEnv *env, jobject obj) {
-    platform_render(env, obj);
-}

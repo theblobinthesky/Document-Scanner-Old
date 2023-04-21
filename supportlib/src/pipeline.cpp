@@ -195,23 +195,25 @@ void unwrapped_options_screen::draw() {
     draw_preview_ui();
 }
 
-export_item_card::export_item_card(ui_manager* ui, texture icon, const char* title) : ui(ui), icon(icon), 
+export_item_card::export_item_card(ui_manager* ui, texture_asset_id icon, const char* title) : ui(ui), icon(icon), 
     title(ui->backend, ui->small_font, text_alignment::CENTER, title, ui->theme.foreground_color), checkbox(ui, false) {}
 
 void export_item_card::layout(rect bounds) {
     this->bounds = bounds; 
 
-    icon_bounds = get_texture_aligned_rect(bounds, icon.size, alignment::LEFT);
+    const texture_asset* asset = ui->assets->get_texture_asset(icon);
+    icon_bounds = get_texture_aligned_rect(bounds, asset->tex.size, alignment::LEFT);
     
     rect title_bounds = cut_margins(bounds, { {icon_bounds.size().x, 0}, {} });
     this->title.layout(title_bounds);
 
-    rect checkbox_bounds = get_texture_aligned_rect(bounds, icon.size, alignment::RIGHT);
+    rect checkbox_bounds = get_texture_aligned_rect(bounds, asset->tex.size, alignment::RIGHT);
     checkbox.layout(checkbox_bounds);
 }
 
 bool export_item_card::draw() {
-    ui->backend->draw_rounded_textured_quad(icon_bounds, {}, icon, { {}, {1, 1} });
+    const texture_asset* asset = ui->assets->get_texture_asset(icon);
+    ui->backend->draw_rounded_textured_quad(icon_bounds, {}, asset->tex, { {}, {1, 1} });
 
     title.render();
     checkbox.draw();
@@ -238,10 +240,10 @@ export_options_screen::export_options_screen(ui_manager* ui) : ui(ui),
     f32 card_top = 0.4f;
 
     // todo: fix this shitshow
-    export_cards[EXPORT_CARD_ONENOTE] = new export_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "one_note_icon.png"), 0, {356, 356} }, "OneNote as Image");
-    export_cards[EXPORT_CARD_GALLERY] = new export_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "gallery_icon.png"), 0, {356, 356} }, "Gallery");
-    export_cards[EXPORT_CARD_PDF]     = new export_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "pdf_icon.png"), 0, {356, 356} }, "PDF Document");
-    export_cards[EXPORT_CARD_DOCX]    = new export_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "word_icon.png"), 0, {356, 356} }, "Word Document");
+    export_cards[EXPORT_CARD_ONENOTE] = new export_item_card(ui, ui->assets->load_texture_asset("one_note_icon.png"), "OneNote as Image");
+    export_cards[EXPORT_CARD_GALLERY] = new export_item_card(ui, ui->assets->load_texture_asset("gallery_icon.png"), "Gallery");
+    export_cards[EXPORT_CARD_PDF]     = new export_item_card(ui, ui->assets->load_texture_asset("pdf_icon.png"), "PDF Document");
+    export_cards[EXPORT_CARD_DOCX]    = new export_item_card(ui, ui->assets->load_texture_asset("word_icon.png"), "Word Document");
     
     for(s32 i = 0; i < EXPORT_CARD_COUNT; i++) {
         f32 top = card_top + (card_height + card_spacing) * i;
@@ -298,7 +300,7 @@ void export_options_screen::draw() {
 }
 
 pipeline::pipeline(pipeline_args& args)
-    : backend(args.threads, args.preview_size, args.assets), ui(&backend, args.enable_dark_mode), 
+    : backend(args.assets->ctx, args.threads, args.preview_size), ui(&backend, args.assets, args.enable_dark_mode),
     cam_preview_screen(&backend, &ui, cam_preview_bottom_edge, unwrapped_mesh_rect), 
     options_screen(&ui, unwrapped_mesh_rect, &cam_preview_screen.tex_sampler.output_tex),
     export_screen(&ui),
