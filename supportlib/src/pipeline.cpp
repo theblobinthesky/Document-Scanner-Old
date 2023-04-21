@@ -25,6 +25,8 @@ constexpr rect crad_thin_to_the_left = { {min_max_button_crad.x, min_max_button_
 constexpr rect crad_thin_to_the_right = { {min_max_button_crad.y, min_max_button_crad.y}, {min_max_button_crad.x, min_max_button_crad.x} };
 constexpr rect crad_even = { {min_max_button_crad.x, min_max_button_crad.x}, {min_max_button_crad.x, min_max_button_crad.x} };
 
+constexpr f32 title_text_top = 0.15f;
+
 void get_time(u64& start_time, f32& time) {
     auto now = std::chrono::high_resolution_clock::now();
     u64 time_long = now.time_since_epoch().count();
@@ -127,7 +129,7 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     top_select_rect = cut_margins(grid_split(select_rect, 0, 2, split_direction::VERTICAL), { {0, 0}, {0, 0.015f} });
     bottom_select_rect = cut_margins(grid_split(select_rect, 1, 2, split_direction::VERTICAL), { {0, 0.015f}, {0, 0} });
 
-    rect select_text_rect = get_at_top(select_rect, 0.15f);
+    rect select_text_rect = get_at_top(select_rect, title_text_top);
     select_text.layout(select_text_rect);
 }
 
@@ -188,18 +190,14 @@ void unwrapped_options_screen::draw() {
     blendin_animation.update();
     select_animation.update();
 
-    {
-        SCOPED_COMPOSITE_GROUP(ui->backend, ui->theme.background_color, false, 1.0f);
-    }
-
+    ui->backend->clear_screen(ui->theme.background_color);
     draw_ui();
     draw_select_ui();
     draw_preview_ui();
 }
 
-export_item_card::export_item_card(ui_manager* ui, texture icon, vec3 bg_color, vec3 fg_color, const char* title) : ui(ui), icon(icon), 
-    bg_color(bg_color), fg_color(fg_color), 
-    title(ui->backend, ui->middle_font, text_alignment::CENTER, title, fg_color) {}
+export_item_card::export_item_card(ui_manager* ui, texture icon, const char* title) : ui(ui), icon(icon), 
+    title(ui->backend, ui->small_font, text_alignment::CENTER, title, ui->theme.foreground_color), checkbox(ui, false) {}
 
 void export_item_card::layout(rect bounds) {
     this->bounds = bounds; 
@@ -208,39 +206,54 @@ void export_item_card::layout(rect bounds) {
     
     rect title_bounds = cut_margins(bounds, { {icon_bounds.size().x, 0}, {} });
     this->title.layout(title_bounds);
+
+    rect checkbox_bounds = get_texture_aligned_rect(bounds, icon.size, alignment::RIGHT);
+    checkbox.layout(checkbox_bounds);
 }
 
 bool export_item_card::draw() {
-    ui->backend->draw_rounded_colored_quad(bounds, ui->theme.middle_crad, bg_color);
-    ui->backend->draw_rounded_textured_quad(icon_bounds, ui->theme.middle_crad, icon, { {}, {1, 1} });
+    ui->backend->draw_rounded_textured_quad(icon_bounds, {}, icon, { {}, {1, 1} });
 
     title.render();
+    checkbox.draw();
 
     motion_event event = ui->backend->input.get_motion_event(bounds);
     bool released = (event.type == motion_type::TOUCH_UP);
+
+    if(released) {
+        checkbox.set_checked(!checkbox.checked);
+    }
+
     return released;
 }
 
 export_options_screen::export_options_screen(ui_manager* ui) : ui(ui),
-    onenote_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "one_note_icon.png"), 0, {356, 356} },
-        color_from_int(0x81387a), ui->theme.white, "OneNote"),
-    gallery_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "one_note_icon.png"), 0, {356, 356} },
-        color_from_int(0x813838), ui->theme.white, "Gallery"),
-    pdf_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "one_note_icon.png"), 0, {356, 356} },
-        color_from_int(0x814d38), ui->theme.white, "Pdf"),
-    docx_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "word_icon.png"), 0, {356, 356} },
-        color_from_int(0x385b81), ui->theme.white, "Word"),
     finish_button(ui, "Finish", crad_even, ui->theme.accept_color),
-    dialogue_animation(ui->backend, animation_curve::EASE_IN_OUT, 0, 1, 0, 1.0f, 0) {
+    dialogue_animation(ui->backend, animation_curve::EASE_IN_OUT, 0, 1, 0, 1.0f, 0),
+    export_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Please select an option:", ui->theme.foreground_color) {
     
     rect screen = ui->get_screen_rect();
 
-    f32 card_height = 0.12f;
+    f32 card_height = 0.05f;
+    f32 card_spacing = 0.01f;
+    f32 card_top = 0.4f;
 
-    onenote_item_card.layout(cut_margins(get_between(screen, 0.05f, 0.05f + card_height), { {0.02f, 0}, {0.02f, 0} }));
-    gallery_item_card.layout(cut_margins(get_between(screen, 0.20f, 0.20f + card_height), { {0.02f, 0}, {0.02f, 0} }));
-    pdf_item_card.layout(    cut_margins(get_between(screen, 0.35f, 0.35f + card_height), { {0.02f, 0}, {0.02f, 0} }));
-    docx_item_card.layout(   cut_margins(get_between(screen, 0.50f, 0.50f + card_height), { {0.02f, 0}, {0.02f, 0} }));
+    // todo: fix this shitshow
+    export_cards[EXPORT_CARD_ONENOTE] = new export_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "one_note_icon.png"), 0, {356, 356} }, "OneNote as Image");
+    export_cards[EXPORT_CARD_GALLERY] = new export_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "gallery_icon.png"), 0, {356, 356} }, "Gallery");
+    export_cards[EXPORT_CARD_PDF]     = new export_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "pdf_icon.png"), 0, {356, 356} }, "PDF Document");
+    export_cards[EXPORT_CARD_DOCX]    = new export_item_card(ui, { read_texture_from_path(ui->backend->assets, ui->backend->threads, "word_icon.png"), 0, {356, 356} }, "Word Document");
+    
+    for(s32 i = 0; i < EXPORT_CARD_COUNT; i++) {
+        f32 top = card_top + (card_height + card_spacing) * i;
+        rect card_rect = cut_margins(get_between(screen, top, top + card_height), { {0.02f, 0}, {0.02f, 0} });
+        export_cards[i]->layout(card_rect);
+
+        if(i > 0) {
+            line_seperators[i - 1] = new line_seperator(ui, card_rect.tl - vec2({0, card_spacing / 2.0f}), card_rect.size().x);
+        }
+    }
+    
 
     rect finish_button_rect;
     get_large_control_button_rect(ui, finish_button_rect);
@@ -248,15 +261,23 @@ export_options_screen::export_options_screen(ui_manager* ui) : ui(ui),
 
     dialogue_rect_small = cut_margins(screen, 0.15f);
     dialogue_rect_large = cut_margins(screen, 0.05f);
+
+    rect export_text_rect = get_at_top(screen, 0.5f);
+    export_text.layout(export_text_rect);
 }
 
 void export_options_screen::draw_ui() {
     SCOPED_COMPOSITE_GROUP(ui->backend, {}, true, 1.0f - dialogue_animation.value);
 
-    onenote_item_card.draw();
-    gallery_item_card.draw();
-    pdf_item_card.draw();
-    docx_item_card.draw();
+    export_text.render();
+
+    for(s32 i = 0; i < EXPORT_CARD_COUNT; i++) {
+        export_cards[i]->draw();
+    }
+
+    for(s32 i = 0; i < EXPORT_CARD_COUNT - 1; i++) {
+        line_seperators[i]->draw();
+    }
 
     finish_button.draw();
 }
@@ -269,9 +290,7 @@ void export_options_screen::draw_dialogue_ui() {
 }
 
 void export_options_screen::draw() {
-    {
-        SCOPED_COMPOSITE_GROUP(ui->backend, ui->theme.background_color, false, 1.0f);
-    }
+    ui->backend->clear_screen(ui->theme.background_color);
 
     dialogue_animation.update();
 
@@ -345,11 +364,12 @@ void docscanner::pipeline::render() {
 
     bool redraw = false;
 
+    displayed_screen = screen_name::EXPORT_OPTIONS;
     if(displayed_screen == screen_name::CAM_PREVIEW) {
         redraw = true;
 
         if(cam_preview_screen.unwrap_animation.state == FINISHED) {
-            displayed_screen = screen_name::UNWRAPPED_OPTIONS;
+            displayed_screen = screen_name::EXPORT_OPTIONS;
         } else {
             backend.override_has_to_redraw = true;
             cam_preview_screen.render();

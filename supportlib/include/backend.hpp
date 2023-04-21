@@ -181,6 +181,7 @@ struct engine_backend {
     shader_program compile_and_link(const std::string& comp_src);
     void use_program(const shader_program& program);
 
+    void clear_screen(vec3 color);
     void begin_composite_group(const composite_group& comp);
     void end_composite_group();
 

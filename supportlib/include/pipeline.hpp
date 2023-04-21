@@ -39,29 +39,37 @@ struct export_item_card {
     rect icon_bounds;
     texture icon;
 
-    vec3 bg_color, fg_color;
     text title;
+    round_checkbox checkbox;
 
     rect bounds;
 
-    export_item_card(ui_manager* ui, texture icon, vec3 bg_color, vec3 fg_color, const char* title);
+    export_item_card(ui_manager* ui, texture icon, const char* title);
     void layout(rect bounds);
     bool draw();
+};
+
+enum export_cards {
+    EXPORT_CARD_ONENOTE,
+    EXPORT_CARD_GALLERY,
+    EXPORT_CARD_PDF,
+    EXPORT_CARD_DOCX,
+    EXPORT_CARD_COUNT
 };
 
 struct export_options_screen {
     ui_manager* ui;
 
-    export_item_card onenote_item_card;
-    export_item_card gallery_item_card;
-    export_item_card pdf_item_card;
-    export_item_card docx_item_card;
+    export_item_card* export_cards[EXPORT_CARD_COUNT];
+    line_seperator* line_seperators[EXPORT_CARD_COUNT - 1];
 
     button finish_button;
 
     rect dialogue_rect_small, dialogue_rect_large;
 
     animation<f32> dialogue_animation;
+
+    text export_text;
 
     export_options_screen(ui_manager* ui);
     void draw_ui();

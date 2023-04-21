@@ -7,8 +7,11 @@
 #define DECL_FUNC(return_type, class_name, func_name) \
     extern "C" JNIEXPORT return_type JNICALL Java_com_erikstern_documentscanner_##class_name##_##func_name
 
-constexpr s32 MOTION_EVENT_ACTION_DOWN = 0;
-constexpr s32 MOTION_EVENT_ACTION_UP = 1;
+enum motion_event {
+    MOTION_EVENT_ACTION_DOWN = 0,
+    MOTION_EVENT_ACTION_UP = 1,
+    MOTION_EVENT_MOVE = 2
+};
 
 DECL_FUNC(void, GLSurfaceRenderer, nativeDestroy)(JNIEnv *env, jobject obj) {
     docscanner::destroy_persistent_pipeline(env, obj);
@@ -106,6 +109,10 @@ DECL_FUNC(void, GLSurfaceRenderer, nativeMotionEvent)(JNIEnv* env, jobject obj, 
         } break;
         case MOTION_EVENT_ACTION_UP: {
             motion_event.type = docscanner::motion_type::TOUCH_UP;
+            motion_event.pos = { x, y };
+        } break;
+        case MOTION_EVENT_MOVE: {
+            motion_event.type = docscanner::motion_type::MOVE;
             motion_event.pos = { x, y };
         } break;
     }

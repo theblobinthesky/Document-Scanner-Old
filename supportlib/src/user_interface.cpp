@@ -126,12 +126,13 @@ ui_theme::ui_theme(bool enable_dark_mode) {
 
 ui_manager::ui_manager(engine_backend* backend, bool enable_dark_mode) : backend(backend), theme(enable_dark_mode) {
     std::string font = "font.ttf";
+    small_font = get_font(font, 0.08f);
     middle_font = get_font(font, 0.12f);
 }
 
 font_instance* ui_manager::get_font(const std::string& path, f32 size) {
     u32 path_hash = std::hash<std::string>()(path);
-    u64 key = (u64)path_hash << 32 | (u64)size;
+    u64 key = (u64)path_hash << 32 | *(reinterpret_cast<u64*>(&size));
 
     auto found = font_map.find(key);
 
@@ -256,6 +257,32 @@ bool button::draw() {
     return released;
 }
 
+line_seperator::line_seperator(ui_manager* ui, vec2 left, f32 width) : ui(ui), left(left), width(width) {}
+
+void line_seperator::draw() {
+    ui->backend->draw_rounded_colored_quad(rect::from_middle_and_size({left + vec2({width / 2.0f, 0})}, {width, ui->theme.line_seperator_height}), 
+        {}, ui->theme.line_seperator_color);
+}
+
+round_checkbox::round_checkbox(ui_manager* ui, bool checked) : ui(ui), checked(checked),
+    checked_icon({ read_texture_from_path(ui->backend->assets, ui->backend->threads, "checked.png"), 0, {356, 356} }) {}
+
+void round_checkbox::layout(rect bounds) {
+    this->bounds = bounds;
+}
+
+void round_checkbox::set_checked(bool checked) {
+    this->checked = checked;
+}
+
+void round_checkbox::draw() {
+    ui->backend->draw_rounded_colored_quad(bounds, {}, ui->theme.background_accent_color);
+    
+    if(checked) {
+        ui->backend->draw_rounded_textured_quad(bounds, {}, checked_icon, { {}, {1, 1} });
+    }
+}
+
 rect docscanner::get_texture_uvs_aligned_top(const rect& r, const svec2& tex_size) {
     vec2 size = r.size();
     
@@ -272,5 +299,13 @@ rect docscanner::get_texture_uvs_aligned_top(const rect& r, const svec2& tex_siz
 rect docscanner::get_texture_aligned_rect(const rect& r, const svec2& size, alignment align) {
     vec2 r_size = r.size();
     f32 scaled_width = r_size.y * (size.x / (f32)size.y);
-    return { r.tl, { r.tl.x + scaled_width, r.br.y } };
+
+    if(align == alignment::LEFT) {
+        return { r.tl, { r.tl.x + scaled_width, r.br.y } };
+    } else if(align == alignment::RIGHT) {
+        return { { r.br.x - scaled_width, r.br.y }, r.br };
+    } else {
+        LOGE_AND_BREAK("Fix this.");
+        return {};
+    }
 }

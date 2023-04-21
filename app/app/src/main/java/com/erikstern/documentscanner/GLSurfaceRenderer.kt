@@ -29,7 +29,6 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
     var frameAvailable = false
 
     private external fun nativeDestroy()
-    private external fun nativePreInit(preview_width: Int, preview_height: Int) : LongArray
     private external fun nativeInit(assetManager: AssetManager, surface: Surface, internalDataPath: String, preview_width: Int, preview_height: Int, enableDarkMode: Boolean)
     private external fun nativeMotionEvent(event: Int, x: Float, y: Float)
     private external fun nativeRender()
@@ -45,7 +44,7 @@ class GLSurfaceRenderer(val activity: Activity) : GLSurfaceView.Renderer {
 
         surfaceView.setOnTouchListener { _, motionEvent ->
             when(motionEvent.action) {
-                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP -> {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP, MotionEvent.ACTION_MOVE -> {
                     Log.i("motion_event", motionEvent.action.toString())
                     nativeMotionEvent(motionEvent.action, motionEvent.x, motionEvent.y)
                 }

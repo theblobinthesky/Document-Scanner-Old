@@ -43,6 +43,9 @@ struct ui_theme {
     vec3 accept_color;
 
     rect middle_crad = { { 0.05f, 0.05f }, { 0.05f, 0.05f } };
+
+    vec3 line_seperator_color = { 0.1f, 0.1f, 0.1f };
+    f32 line_seperator_height = 0.002f;
     
     ui_theme(bool enable_dark_mode);
 };
@@ -50,6 +53,7 @@ struct ui_theme {
 struct ui_manager {
     engine_backend* backend;
     ui_theme theme;
+    font_instance* small_font;
     font_instance* middle_font;
 
     std::unordered_map<u64, font_instance> font_map;
@@ -102,10 +106,33 @@ struct button {
     bool draw();
 };
 
+struct line_seperator {
+    ui_manager* ui;
+    vec2 left;
+    f32 width;
+
+    line_seperator(ui_manager* ui, vec2 left, f32 width);
+    void draw();
+};
+
+struct round_checkbox {
+    ui_manager* ui;
+    rect bounds;
+    bool checked;
+
+    texture checked_icon;
+
+    round_checkbox(ui_manager* ui, bool checked);
+    void layout(rect bounds);
+    void set_checked(bool checked);
+
+    void draw();
+};
+
 rect get_texture_uvs_aligned_top(const rect& r, const svec2& tex_size);
 
 enum class alignment {
-    LEFT
+    LEFT, RIGHT
 };
 
 rect get_texture_aligned_rect(const rect& r, const svec2& size, alignment align);

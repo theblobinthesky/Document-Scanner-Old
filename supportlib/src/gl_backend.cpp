@@ -270,6 +270,11 @@ void engine_backend::use_program(const shader_program &program) {
     get_variable(program, "projection").set_mat4(projection_mat);
 }
 
+void engine_backend::clear_screen(vec3 color) {
+    glClearColor(color.x, color.y, color.z, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+}
+
 void engine_backend::begin_composite_group(const composite_group& comp) {
     this->comp = comp;
 
