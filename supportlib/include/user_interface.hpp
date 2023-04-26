@@ -28,7 +28,7 @@ struct font_instance {
 
     f32 font_height, line_height;
 
-    font_instance(ui_manager* ui, const std::string& path, f32 height);
+    font_instance(ui_manager* ui, font_asset_id id, f32 height);
 
     const glyph* get_glyph(s32 g) const;
     f32 get_kerning(s32 first, s32 next) const;

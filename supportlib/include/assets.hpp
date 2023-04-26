@@ -24,14 +24,20 @@ using font_asset_id = u32;
 using nn_asset_id = u32;
 
 enum class asset_state : u32 {
-    queued, loaded
+    waiting = 0, queued, loaded
 };
 
 struct texture_asset {
     asset_state state;
 
-    file_context* ctx;
-    const char* path;
+    char* path;
+    u32 path_size;
+    u8* data;
+    u32 data_size;
+
+    f32* image_data;
+    svec2 image_size;
+    u32 image_channels;
     texture tex;
 };
 
@@ -44,14 +50,20 @@ struct sdf_animation_asset {
 struct font_asset {
     asset_state state;
 
-    // todo: implement this
+    char* path;
+    u32 path_size;
+    u8* data;
+    u32 data_size;
 };
 
 struct nn_asset {
     asset_state state;
 
-    file_context* ctx;
-    const char* path;
+    char* path;
+    u32 path_size;
+    u8* data;
+    u32 data_size;
+
     TfLiteInterpreter* interpreter;
     TfLiteInterpreterOptions* options;
     TfLiteModel* model;
@@ -74,7 +86,8 @@ struct asset_manager {
     nn_asset nn_assets[MAX_ASSETS_PER_TYPE];
     u32 nn_assets_size;
     
-    asset_manager(file_context* ctx, thread_pool* thread);
+    void parse_package(u8* data, u32 data_size);
+    asset_manager(file_context* ctx, const char* package_file, thread_pool* thread);
 
     texture_asset_id load_texture_asset(const char* path);
     sdf_animation_asset_id load_sdf_animation_asset(const char* path);

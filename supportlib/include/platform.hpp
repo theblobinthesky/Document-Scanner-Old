@@ -49,7 +49,7 @@ struct thread_pool {
     std::queue<thread_pool_task> gui_work_queue;
 
     thread_pool();
-    void thread_pool_loop();
+    void thread_pool_loop(s32 i);
     void work_on_gui_queue();
     void push(thread_pool_task task); 
     void push_gui(thread_pool_task task);

@@ -30,7 +30,7 @@ cam_preview::cam_preview(engine_backend* backend, ui_manager* ui, f32 bottom_edg
 
     shutter_program = backend->compile_and_link(vert_quad_src(), frag_shutter_src());
     
-    nn_id = ui->assets->load_nn_asset("contour_model.tflite");
+    nn_id = ui->assets->load_nn_asset("contour_network");
 
     is_init = true;
 }

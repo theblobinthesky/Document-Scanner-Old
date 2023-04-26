@@ -10,11 +10,16 @@
 
 using namespace docscanner;
 
-u32 read_texture_from_path(file_context* ctx, const char* path) {    
-    u8* data;
-    u32 data_size;
-    read_from_package(ctx, path, data, data_size);
+enum class asset_type : u32 {
+    image, sdf_animation, font, neural_network
+};
 
+struct data_internal {
+    thread_pool* threads;
+    void* data;
+};
+
+f32* read_texture_from_data(u8* data, u32 data_size) {
     svec2 size;
     s32 channels;
     unsigned char *stbi_data = stbi_load_from_memory(data, data_size, &size.x, &size.y, &channels, 3);
@@ -48,21 +53,25 @@ u32 read_texture_from_path(file_context* ctx, const char* path) {
         LOGE_AND_BREAK("Something other than 3/4 channels is not supported right now.");
     }
 
-    texture tex = make_texture(size, GL_RGBA32F);
-    set_texture_data(tex, (u8*)cvt_f32, size);    
-
     stbi_image_free(stbi_data);
-    delete[] data;
-    delete[] cvt_f32;
+    return cvt_f32;
+}
 
-    return tex.id;   
+void upload_texture_asset_internal(void* data) {
+    texture_asset* asset = reinterpret_cast<texture_asset*>(data);
+
+    asset->tex = make_texture(asset->image_size, GL_RGBA32F);
+    set_texture_data(asset->tex, (u8*)asset->image_data, asset->image_size);
+
+    asset->state = asset_state::loaded;
 }
 
 void load_texture_asset_internal(void* data) {
-    texture_asset* asset = reinterpret_cast<texture_asset*>(data);
-    
-    asset->tex = { read_texture_from_path(asset->ctx, asset->path), 0, {} };
-    asset->state = asset_state::loaded;
+    data_internal* internal = reinterpret_cast<data_internal*>(data);
+    texture_asset* asset = reinterpret_cast<texture_asset*>(internal->data);
+
+    asset->image_data = read_texture_from_data(asset->data, asset->data_size);
+    internal->threads->push_gui({ upload_texture_asset_internal, asset });
 }
 
 void load_nn_asset_internal(void* data) {
@@ -70,11 +79,7 @@ void load_nn_asset_internal(void* data) {
 
     // todo: fix the delegate "situation" TfLiteDelegate* delegate = create_gpu_delegate(execution_pref::sustained_speed);
 
-    u8* model_data;
-    u32 model_size;
-    read_from_package(asset->ctx, asset->path, model_data, model_size);
-
-    TfLiteModel* model = TfLiteModelCreate(model_data, model_size);
+    TfLiteModel* model = TfLiteModelCreate(asset->data, asset->data_size);
     
     auto options = TfLiteInterpreterOptionsCreate();
     // TfLiteInterpreterOptionsAddDelegate(options, delegate);
@@ -92,20 +97,100 @@ void load_nn_asset_internal(void* data) {
     asset->inp_ten = input_tensor;
 }
 
-asset_manager::asset_manager(file_context* ctx, thread_pool* threads) : ctx(ctx), threads(threads) {
-    // todo: fix this
+void asset_manager::parse_package(u8* data, u32 data_size) {
+    u32 table_of_contents_offset = *reinterpret_cast<u32*>(data + data_size - 8);
+    u32 entries_size = *reinterpret_cast<u32*>(data + data_size - 4);
+
+    LOGI("asset_manager table_of_contents_offset: %u", table_of_contents_offset);
+    LOGI("asset_manager entries_size: %u", entries_size);
+
+    u32* entries_offsets = reinterpret_cast<u32*>(data + table_of_contents_offset);
+    for(u32 i = 0; i < entries_size; i++) {
+        u32* entry_ptr = reinterpret_cast<u32*>(data + entries_offsets[i]);
+        
+        u32 entry_type = entry_ptr[0];
+        u32 name_offset = entry_ptr[1];
+        u32 name_size = entry_ptr[2];
+        u32 entry_data_offset = entry_ptr[3];
+        u32 entry_data_size = entry_ptr[4];
+
+        char* name = (char*)(data + name_offset);
+        u8* entry_data = data + entry_data_offset;
+        LOGI("asset_manager entry_type: %u, name: %s, name_size: %u, entry_data_offset: %u, entry_data_size: %u", entry_type, name, name_size, entry_data_offset, entry_data_size);
+
+        switch(entry_type) {
+            case static_cast<u32>(asset_type::image): {
+                texture_asset asset = {};
+                
+                asset.state = asset_state::waiting;
+                asset.path = name;
+                asset.path_size = name_size;
+                asset.data = entry_data;
+                asset.data_size = entry_data_size;
+
+                asset.image_size = { (s32)entry_ptr[5], (s32)entry_ptr[6] };
+                asset.image_channels = entry_ptr[7];
+
+                texture_assets[texture_assets_size++] = asset;
+            } break;
+            case static_cast<u32>(asset_type::font): {
+                font_asset asset = {};
+
+                asset.state = asset_state::waiting;
+                asset.path = name;
+                asset.path_size = name_size;
+                asset.data = entry_data;
+                asset.data_size = entry_data_size;
+
+                font_assets[font_assets_size++] = asset;
+            } break;
+            case static_cast<u32>(asset_type::neural_network): {
+                nn_asset asset = {};
+
+                asset.state = asset_state::waiting;
+                asset.path = name;
+                asset.path_size = name_size;
+                asset.data = entry_data;
+                asset.data_size = entry_data_size;
+
+                nn_assets[nn_assets_size++] = asset;
+            } break;
+        }
+    }
+}
+
+asset_manager::asset_manager(file_context* ctx, const char* package_file, thread_pool* threads) : ctx(ctx), threads(threads) {
+    SCOPED_TIMER("ASSET MANAGER SYNCHRONOUS OVERHEAD");
     texture_assets_size = 0;
     sdf_animation_assets_size = 0;
     font_assets_size = 0;
     nn_assets_size = 0;
+
+    u8* data;
+    u32 data_size;
+    read_from_package(ctx, package_file, data, data_size);
+    parse_package(data, data_size);
 }
 
 texture_asset_id asset_manager::load_texture_asset(const char* path) {
-    texture tex;
-    texture_assets[texture_assets_size] = texture_asset({ asset_state::queued, ctx, path, tex });
+    texture_asset_id id = -1;
 
-    texture_asset_id id = texture_assets_size++;
-    threads->push({ load_texture_asset_internal, &texture_assets[id] });
+    for(s32 i = 0; i < texture_assets_size; i++) {
+        const texture_asset& asset = texture_assets[i];        
+        if(memcmp(asset.path, path, asset.path_size) == 0) {
+            id = i;
+            break;
+        }
+    }
+
+    ASSERT(id != -1, "Texture asset name '%s' does not exist.", path);
+
+    if(texture_assets[id].state == asset_state::waiting) {
+        // @Memory leak
+        data_internal* internal = new data_internal({ threads, &texture_assets[id] });
+        threads->push({ load_texture_asset_internal, internal });
+    }
+
     return id;
 }
 
@@ -115,15 +200,42 @@ sdf_animation_asset_id asset_manager::load_sdf_animation_asset(const char* path)
 }
 
 font_asset_id asset_manager::load_font_asset(const char* path) {
-    LOGE_AND_BREAK("not implemented.");
-    return 0;
+    font_asset_id id = -1;
+
+    for(s32 i = 0; i < font_assets_size; i++) {
+        const font_asset& asset = font_assets[i];        
+        if(memcmp(asset.path, path, asset.path_size) == 0) {
+            id = i;
+            break;
+        }
+    }
+
+    ASSERT(id != -1, "Font asset name '%s' does not exist.", path);
+
+    if(font_assets[id].state == asset_state::waiting) {
+        // todo: fix this threads->push({ load_font_asset_internal, &font_assets[id] });
+    }
+
+    return id;
 }
 
 nn_asset_id asset_manager::load_nn_asset(const char* path) {
-    nn_assets[nn_assets_size] = nn_asset({ asset_state::queued, ctx, path, null, null, null, null });
+    nn_asset_id id = -1;
 
-    nn_asset_id id = nn_assets_size++;
-    threads->push({ load_nn_asset_internal, &nn_assets[id] });
+    for(s32 i = 0; i < nn_assets_size; i++) {
+        const nn_asset& asset = nn_assets[i];        
+        if(memcmp(asset.path, path, asset.path_size) == 0) {
+            id = i;
+            break;
+        }
+    }
+
+    ASSERT(id != -1, "Neural network asset name '%s' does not exist.", path);
+
+    if(nn_assets[id].state == asset_state::waiting) {
+        threads->push({ load_nn_asset_internal, &nn_assets[id] });
+    }
+
     return id;
 }
 

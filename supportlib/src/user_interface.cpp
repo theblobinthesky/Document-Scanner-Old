@@ -5,13 +5,11 @@
 
 using namespace docscanner;
 
-font_instance::font_instance(ui_manager* ui, const std::string& path, f32 height) : ui(ui) {
+font_instance::font_instance(ui_manager* ui, font_asset_id id, f32 height) : ui(ui) {
     stbtt_fontinfo f = {};
 
-    u8* data;
-    u32 size;
-    read_from_package(ui->assets->ctx, path.c_str(), data, size);
-    stbtt_InitFont(&f, data, stbtt_GetFontOffsetForIndex(data, 0));
+    const font_asset* asset = ui->assets->get_font_asset(id);
+    stbtt_InitFont(&f, asset->data, stbtt_GetFontOffsetForIndex(asset->data, 0));
 
 
     s32 x = 1, y = 1, bottom_y = 1;
@@ -140,7 +138,7 @@ ui_theme::ui_theme(bool enable_dark_mode) {
 
 ui_manager::ui_manager(engine_backend* backend, asset_manager* assets, bool enable_dark_mode) 
     : backend(backend), assets(assets), theme(enable_dark_mode) {
-    std::string font = "font.ttf";
+    std::string font = "main_font";
     small_font = get_font(font, 0.08f);
     middle_font = get_font(font, 0.12f);
 }
@@ -152,7 +150,7 @@ font_instance* ui_manager::get_font(const std::string& path, f32 size) {
     auto found = font_map.find(key);
 
     if(found == font_map.end()) {
-        font_instance inst(this, path, size);
+        font_instance inst(this, assets->load_font_asset(path.c_str()), size);
         font_map.emplace(key, inst);
 
         found = font_map.find(key);

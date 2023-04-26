@@ -14,10 +14,12 @@
 .vscode/*
 *.tflite
 supportlib/bin
-supportlib/deps
+**/deps
+**/exports
 *.npy
 *.ttf
 *.mp4
 /autolabel/output
 datasets/*
 .fuse_hidden*
+assets/packs

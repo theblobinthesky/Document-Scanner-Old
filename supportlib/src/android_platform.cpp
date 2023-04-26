@@ -269,6 +269,8 @@ void docscanner::read_from_package(file_context* ctx, const char* path, u8* &dat
     size = AAsset_getLength(asset);
     data = new u8[size];
 
+    // todo: try AAsset_getBuffer
+
     int status = AAsset_read(asset, data, size);
     ASSERT(status >= 0, "AAsset read failed.");
 }
@@ -401,7 +403,7 @@ void docscanner::platform_init(JNIEnv *env, jobject obj, jobject asset_mngr, job
 
     auto* mngr_from_java  = AAssetManager_fromJava(env, asset_mngr);
     file_context* file_ctx = new file_context({ mngr_from_java, char_ptr_from_jstring(env, internal_data_path) });
-    asset_manager* assets = new asset_manager(file_ctx, &handle->threads);
+    asset_manager* assets = new asset_manager(file_ctx, "test.assetpack", &handle->threads);
 
     svec2 preview_size = { preview_width, preview_height };
     ANativeWindow *window = ANativeWindow_fromSurface(env, surface);

@@ -202,12 +202,12 @@ void export_item_card::layout(rect bounds) {
     this->bounds = bounds; 
 
     const texture_asset* asset = ui->assets->get_texture_asset(icon);
-    icon_bounds = get_texture_aligned_rect(bounds, asset->tex.size, alignment::LEFT);
+    icon_bounds = get_texture_aligned_rect(bounds, asset->image_size, alignment::LEFT);
     
     rect title_bounds = cut_margins(bounds, { {icon_bounds.size().x, 0}, {} });
     this->title.layout(title_bounds);
 
-    rect checkbox_bounds = get_texture_aligned_rect(bounds, asset->tex.size, alignment::RIGHT);
+    rect checkbox_bounds = get_texture_aligned_rect(bounds, asset->image_size, alignment::RIGHT);
     checkbox.layout(checkbox_bounds);
 }
 
@@ -240,10 +240,10 @@ export_options_screen::export_options_screen(ui_manager* ui) : ui(ui),
     f32 card_top = 0.4f;
 
     // todo: fix this shitshow
-    export_cards[EXPORT_CARD_ONENOTE] = new export_item_card(ui, ui->assets->load_texture_asset("one_note_icon.png"), "OneNote as Image");
-    export_cards[EXPORT_CARD_GALLERY] = new export_item_card(ui, ui->assets->load_texture_asset("gallery_icon.png"), "Gallery");
-    export_cards[EXPORT_CARD_PDF]     = new export_item_card(ui, ui->assets->load_texture_asset("pdf_icon.png"), "PDF Document");
-    export_cards[EXPORT_CARD_DOCX]    = new export_item_card(ui, ui->assets->load_texture_asset("word_icon.png"), "Word Document");
+    export_cards[EXPORT_CARD_ONENOTE] = new export_item_card(ui, ui->assets->load_texture_asset("one_note_icon"), "OneNote as Image");
+    export_cards[EXPORT_CARD_GALLERY] = new export_item_card(ui, ui->assets->load_texture_asset("gallery_icon"), "Gallery");
+    export_cards[EXPORT_CARD_PDF]     = new export_item_card(ui, ui->assets->load_texture_asset("pdf_icon"), "PDF Document");
+    export_cards[EXPORT_CARD_DOCX]    = new export_item_card(ui, ui->assets->load_texture_asset("word_icon"), "Word Document");
     
     for(s32 i = 0; i < EXPORT_CARD_COUNT; i++) {
         f32 top = card_top + (card_height + card_spacing) * i;
@@ -324,7 +324,7 @@ void docscanner::pipeline::render() {
         redraw = true;
 
         if(cam_preview_screen.unwrap_animation.state == FINISHED) {
-            displayed_screen = screen_name::EXPORT_OPTIONS;
+            displayed_screen = screen_name::UNWRAPPED_OPTIONS;
         } else {
             cam_preview_screen.render();
         }

@@ -2,23 +2,26 @@
 
 using namespace docscanner;
 
+// todo: something related to threading still seems to produce errors from time to time shortly after startup
+
 thread_pool::thread_pool() : keep_running(true) {
-    u32 num_threads = 1; // std::thread::hardware_concurrency();
+    u32 num_threads = std::thread::hardware_concurrency();
     threads.resize(num_threads);
 
     for (u32 i = 0; i < num_threads; i++) {
-        threads[i] = std::thread(&thread_pool::thread_pool_loop, this);
+        threads[i] = std::thread(&thread_pool::thread_pool_loop, this, i);
     }
 }
 
-void thread_pool::thread_pool_loop() {
+void thread_pool::thread_pool_loop(s32 i) {
     while(keep_running) {
         thread_pool_task task;
 
         {
             std::unique_lock<std::mutex> lock(mutex);
+
             if(work_queue.empty()) {
-                mutex_condition.wait(lock);
+                mutex_condition.wait(lock, [&]{ return !work_queue.empty(); });
             }
 
             if(!keep_running) return;
@@ -27,7 +30,7 @@ void thread_pool::thread_pool_loop() {
             work_queue.pop();
         }
 
-        LOGI("issued thread task");
+        LOGI("issued thread task %lu on %d", (u64)task.data, i);
 
         task.function(task.data);
     }
