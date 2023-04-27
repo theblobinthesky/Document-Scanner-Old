@@ -35,6 +35,17 @@ cam_preview::cam_preview(engine_backend* backend, ui_manager* ui, f32 bottom_edg
     is_init = true;
 }
 
+void loop_nn_inference(void* data) {
+    cam_preview* preview = reinterpret_cast<cam_preview*>(data);
+
+    while(true) {
+        constexpr u32 out_size = 1; // 2
+        u8* out_datas[out_size] = { preview->nn_contour_out }; //, (u8*)&nn_exists_out };
+        u32 out_sizes[out_size] = { preview->nn_contour_out_size }; // , sizeof(f32) };
+        invoke_neural_network_on_data(preview->ui->assets, preview->nn_id, preview->nn_input_buffer, preview->nn_input_buffer_size, out_datas, out_sizes, out_size);
+    }
+}
+
 void cam_preview::init_camera_related() {
     f32 w = (1.0f / preview_aspect_ratio) * (backend->cam_size_px.x / (f32)backend->cam_size_px.y);
     f32 l = 0.5f - w / 2.0f;
@@ -86,6 +97,8 @@ void cam_preview::init_camera_related() {
 #else
     tex_sampler.init(backend, unwrap_size, false, (texture*)&backend->cam.cam_tex, unwrapped_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
 #endif
+
+    backend->threads->push({ loop_nn_inference, this });
 }
 
 void cam_preview::unwrap() {
@@ -170,12 +183,7 @@ void cam_preview::render() {
         tex_downsampler.downsample();
 
         get_framebuffer_data(*tex_downsampler.output_fb, tex_downsampler.output_size, nn_input_buffer, nn_input_buffer_size);
-        
-        constexpr u32 out_size = 1; // 2;
-        u8* out_datas[out_size] = { nn_contour_out }; //, (u8*)&nn_exists_out };
-        u32 out_sizes[out_size] = { nn_contour_out_size }; // , sizeof(f32) };
-        invoke_neural_network_on_data(ui->assets, nn_id, nn_input_buffer, nn_input_buffer_size, out_datas, out_sizes, out_size);
-
+    
         mesher.mesh(backend);
     }
 
