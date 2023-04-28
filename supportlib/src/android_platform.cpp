@@ -1,3 +1,4 @@
+#ifdef ANDROID
 #include "platform.hpp"
 #include "pipeline.hpp"
 
@@ -44,41 +45,6 @@ struct camera_loader_data {
     jobject obj;
     ANativeWindow* texture_window;
 };
-
-void input_manager::init(svec2 preview_size, f32 aspect_ratio) {
-    this->preview_size = preview_size;
-    this->aspect_ratio = aspect_ratio;
-}
-
-void docscanner::input_manager::handle_motion_event(const motion_event& event) {
-    LOGI("MOTION_EVENT: %u, %f, %f", event.type, event.pos.x, event.pos.y);
-    
-    this->event = {
-        .type = event.type,
-        .pos = { event.pos.x / (f32)(preview_size.x - 1), aspect_ratio * event.pos.y / (f32)(preview_size.y - 1) }
-    };
-}
-
-motion_event input_manager::get_motion_event(const rect& bounds) {
-    if(event.type != motion_type::NO_MOTION &&
-        bounds.tl.x <= event.pos.x && event.pos.x <= bounds.br.x &&
-        bounds.tl.y <= event.pos.y && event.pos.y <= bounds.br.y) {
-        return event;
-    }
-
-    return {
-        .type = motion_type::NO_MOTION,
-        .pos = {}
-    };
-}
-
-void input_manager::end_frame() {
-    event = {
-        .type = motion_type::NO_MOTION,
-        .pos = {}
-    };
-}
-
 
 void onDisconnected(void* context, ACameraDevice* device) {
     LOGE("onDisconnected");
@@ -422,8 +388,7 @@ void docscanner::platform_init(JNIEnv *env, jobject obj, jobject asset_mngr, job
 
     pipeline_args args = {
         .texture_window = window, .assets = assets, .preview_size = preview_size, 
-        .enable_dark_mode = (bool)enable_dark_mode, .cam_callback = cam_init_callback_internal,
-        .threads = &handle->threads
+        .enable_dark_mode = (bool)enable_dark_mode, .threads = &handle->threads
     };
 
     create_persistent_handle(env, obj, handle, args);
@@ -461,3 +426,5 @@ void docscanner::platform_render(JNIEnv *env, jobject obj) {
 
     if (handle) handle->pipe->render();
 }
+
+#endif

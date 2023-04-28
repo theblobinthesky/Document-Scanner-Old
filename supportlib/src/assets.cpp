@@ -116,7 +116,7 @@ void asset_manager::parse_package(u8* data, u32 data_size) {
 
         char* name = (char*)(data + name_offset);
         u8* entry_data = data + entry_data_offset;
-        LOGI("asset_manager entry_type: %u, name: %s, name_size: %u, entry_data_offset: %u, entry_data_size: %u", entry_type, name, name_size, entry_data_offset, entry_data_size);
+        // LOGI("asset_manager entry_type: %u, name: %s, name_size: %u, entry_data_offset: %u, entry_data_size: %u", entry_type, name, name_size, entry_data_offset, entry_data_size);
 
         switch(entry_type) {
             case static_cast<u32>(asset_type::image): {
@@ -280,6 +280,7 @@ void docscanner::read_from_package(file_context* ctx, const char* path, u8* &dat
 #endif
 #endif
 
+#ifdef false
 TfLiteDelegate* create_nnapi_delegate(execution_pref pref) {
     TfLiteNnapiDelegateOptions options = TfLiteNnapiDelegateOptionsDefault();
 
@@ -321,6 +322,7 @@ void destroy_xnnpack_delegate(TfLiteDelegate* delegate) {
 void destroy_gpu_delegate(TfLiteDelegate* delegate) {
     TfLiteGpuDelegateV2Delete(delegate);
 }
+#endif
 
 void docscanner::destory_neural_network(asset_manager* assets, nn_asset_id id) {
     const nn_asset* asset = assets->get_nn_asset(id);

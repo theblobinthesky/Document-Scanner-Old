@@ -8,3 +8,9 @@ do
     ninja
     cd ../../..
 done
+
+if [ "$1" = "RUN" ]; then
+    cd bin/linux/x86_64
+    ./docscanner
+    cd ../../..
+fi

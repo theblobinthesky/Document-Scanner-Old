@@ -9,6 +9,8 @@
 
 NAMESPACE_BEGIN
 
+// NOTE(Erik): The input manager is implemented platform-independently in platform.cpp.
+
 enum class motion_type : s32 {
     NO_MOTION,
     TOUCH_DOWN, TOUCH_UP,
@@ -30,6 +32,9 @@ struct input_manager {
     motion_event get_motion_event(const rect& bounds);
     void end_frame();
 };
+
+// NOTE(Erik): The threadpool related functions are implemented in platform.cpp because
+// we're using std::thread. For our purposes, it is a fine already platform-independent choice.
 
 typedef void(*thread_pool_function)(void*);
 
@@ -63,6 +68,12 @@ void resume_camera_capture(camera* cam);
 void pause_camera_capture(const camera* cam);
 void get_camera_frame(const camera* cam);
 
+// TODO(Erik): Does it make sense to have a texture that supports both OES and normal textures at the same time?
+#ifdef LINUX
+struct texture;
+const texture* get_camera_frame_texture(const camera* cam);
+#endif
+
 struct file_context;
 
 void read_from_package(file_context* ctx, const char* path, u8* &data, u32 &size);
@@ -82,4 +93,5 @@ void platform_motion_event(JNIEnv* env, jobject obj, jint event, jfloat x, jfloa
 void platform_render(JNIEnv *env, jobject obj);
 
 NAMESPACE_END
+
 #endif

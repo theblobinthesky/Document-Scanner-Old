@@ -1,6 +1,5 @@
 #include "pipeline.hpp"
 #include "backend.hpp"
-#include "camera.hpp"
 #include <chrono>
 
 using namespace docscanner;

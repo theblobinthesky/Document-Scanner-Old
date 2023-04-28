@@ -1,7 +1,6 @@
 #include "cam_preview.hpp"
 #include "backend.hpp"
 #include "platform.hpp"
-#include "camera.hpp"
 #include <chrono>
 
 using namespace docscanner;
@@ -88,14 +87,15 @@ void cam_preview::init_camera_related() {
 #if CAM_USES_OES_TEXTURE
     tex_downsampler.init(backend, backend->cam_size_px, downsampled_size, true, null, 2, 1.0f);
 #else
-    tex_downsampler.init(backend, backend->cam_size_px, downsampled_size, false, (texture*)&backend->cam.cam_tex, 2, 1.0f); // todo: this is janky since texture also contains the format....
+    const texture* cam_tex = get_camera_frame_texture(backend->cam);
+    tex_downsampler.init(backend, backend->cam_size_px, downsampled_size, false, cam_tex, 2, 1.0f); // todo: this is janky since texture also contains the format....
 #endif
 
 
 #if CAM_USES_OES_TEXTURE
     tex_sampler.init(backend, unwrap_size, true, null, unwrapped_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
 #else
-    tex_sampler.init(backend, unwrap_size, false, (texture*)&backend->cam.cam_tex, unwrapped_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
+    tex_sampler.init(backend, unwrap_size, false, cam_tex, unwrapped_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
 #endif
 
     backend->threads->push({ loop_nn_inference, this });
@@ -134,7 +134,8 @@ void cam_preview::draw_ui() {
 #if CAM_USES_OES_TEXTURE
         backend->draw_rounded_oes_textured_quad(cam_pos_bounds, cam_preview_crad, cam_uv_bounds, rot_mode::ROT_270_DEG);
 #else
-    //backend->cam.cam_tex
+        const texture* cam_tex = get_camera_frame_texture(backend->cam);
+        backend->draw_rounded_textured_quad(cam_pos_bounds, cam_preview_crad, *cam_tex, 1, cam_uv_bounds, rot_mode::ROT_270_DEG);
 #endif
     }
 

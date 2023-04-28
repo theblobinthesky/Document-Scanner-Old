@@ -84,7 +84,6 @@ struct pipeline_args {
     asset_manager* assets;
     svec2 preview_size;
     bool enable_dark_mode;
-    cam_init_callback cam_callback;
     thread_pool* threads;
 };
 

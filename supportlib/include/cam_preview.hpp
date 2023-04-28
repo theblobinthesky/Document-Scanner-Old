@@ -3,7 +3,6 @@
 #include "user_interface.hpp"
 #include "assets.hpp"
 #include "img_proc.hpp"
-#include "camera.hpp"
 #include "shader_program.hpp"
 
 #include <vector>
