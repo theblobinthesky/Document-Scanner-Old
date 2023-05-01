@@ -19,16 +19,27 @@ struct data_internal {
     void* data;
 };
 
-f32* read_texture_from_data(u8* data, u32 data_size) {
+f32* read_texture_from_data(u8* data, u32 data_size, u32 desired_channels) {
     svec2 size;
     s32 channels;
-    unsigned char *stbi_data = stbi_load_from_memory(data, data_size, &size.x, &size.y, &channels, 3);
+    unsigned char *stbi_data = stbi_load_from_memory(data, data_size, &size.x, &size.y, &channels, desired_channels);
+
+    if(desired_channels == 1) { // TODO: This is a shit way to handle things.
+        f32* cvt_f32 = new f32[size.area()];
+        memset(cvt_f32, 0, sizeof(f32) * size.area());
+
+        for(s32 i = 0; i < size.area(); i++) {
+            cvt_f32[i] = stbi_data[i] / 255.0f;
+        }
+
+        stbi_image_free(stbi_data);
+        return cvt_f32;
+    }
 
     f32* cvt_f32 = new f32[size.area() * 4];
     memset(cvt_f32, 0, sizeof(f32) * size.area() * 4);
-
-    if(channels == 3) {
     
+    if(channels == 3) {
         for(s32 i = 0; i < size.area(); i++) {
             s32 idx = i * 4;
             
@@ -38,17 +49,14 @@ f32* read_texture_from_data(u8* data, u32 data_size) {
 
             cvt_f32[idx + 3] = 1.0f;
         }
-    
     } else if(channels == 4) {
-        
         for(s32 i = 0; i < size.area(); i++) {
             s32 idx = i * 4;
             
             for(s32 c = 0; c < 4; c++) {
-                cvt_f32[idx + c] = stbi_data[i * 3 + c] / 255.0f;
+                cvt_f32[idx + c] = stbi_data[idx + c] / 255.0;
             }
         }
-
     } else {
         LOGE_AND_BREAK("Something other than 3/4 channels is not supported right now.");
     }
@@ -70,8 +78,25 @@ void load_texture_asset_internal(void* data) {
     data_internal* internal = reinterpret_cast<data_internal*>(data);
     texture_asset* asset = reinterpret_cast<texture_asset*>(internal->data);
 
-    asset->image_data = read_texture_from_data(asset->data, asset->data_size);
+    asset->image_data = read_texture_from_data(asset->data, asset->data_size, 4);
     internal->threads->push_gui({ upload_texture_asset_internal, asset });
+}
+
+void upload_sdf_animation_asset_internal(void* data) {
+    sdf_animation_asset* asset = reinterpret_cast<sdf_animation_asset*>(data);
+
+    asset->tex = make_stack_texture(asset->image_depth, asset->image_size, GL_R32F);
+    set_texture_data(asset->tex, (u8*)asset->image_data, asset->image_size);
+
+    asset->state = asset_state::loaded;
+}
+
+void load_sdf_animation_internal(void* data) {
+    data_internal* internal = reinterpret_cast<data_internal*>(data);
+    sdf_animation_asset* asset = reinterpret_cast<sdf_animation_asset*>(internal->data);
+
+    asset->image_data = read_texture_from_data(asset->data, asset->data_size, 1);
+    internal->threads->push_gui({ upload_sdf_animation_asset_internal, asset });
 }
 
 void load_nn_asset_internal(void* data) {
@@ -116,7 +141,11 @@ void asset_manager::parse_package(u8* data, u32 data_size) {
 
         char* name = (char*)(data + name_offset);
         u8* entry_data = data + entry_data_offset;
-        // LOGI("asset_manager entry_type: %u, name: %s, name_size: %u, entry_data_offset: %u, entry_data_size: %u", entry_type, name, name_size, entry_data_offset, entry_data_size);
+
+        char name_end = name[name_size];
+        name[name_size] = 0;
+        LOGI("asset_manager entry_type: %u, name: %s, name_size: %u, entry_data_offset: %u, entry_data_size: %u", entry_type, name, name_size, entry_data_offset, entry_data_size);
+        name[name_size] = name_end;
 
         switch(entry_type) {
             case static_cast<u32>(asset_type::image): {
@@ -132,6 +161,21 @@ void asset_manager::parse_package(u8* data, u32 data_size) {
                 asset.image_channels = entry_ptr[7];
 
                 texture_assets[texture_assets_size++] = asset;
+            } break;
+            case static_cast<u32>(asset_type::sdf_animation): {
+                sdf_animation_asset asset = {};
+
+                asset.state = asset_state::waiting;
+                asset.path = name;
+                asset.path_size = name_size;
+                asset.data = entry_data;
+                asset.data_size = entry_data_size;
+
+                asset.image_size = { (s32)entry_ptr[5], (s32)entry_ptr[6] };
+                asset.image_depth = (s32)entry_ptr[7];
+                asset.zero_dist = reinterpret_cast<f32*>(entry_ptr)[8];
+
+                sdf_animation_assets[sdf_animation_assets_size++] = asset;
             } break;
             case static_cast<u32>(asset_type::font): {
                 font_asset asset = {};
@@ -195,8 +239,25 @@ texture_asset_id asset_manager::load_texture_asset(const char* path) {
 }
 
 sdf_animation_asset_id asset_manager::load_sdf_animation_asset(const char* path) {
-    LOGE_AND_BREAK("not implemented.");
-    return 0;
+    sdf_animation_asset_id id = -1;
+
+    for(s32 i = 0; i < texture_assets_size; i++) {
+        const sdf_animation_asset& asset = sdf_animation_assets[i];        
+        if(memcmp(asset.path, path, asset.path_size) == 0) {
+            id = i;
+            break;
+        }
+    }
+
+    ASSERT(id != -1, "Sdf animation asset name '%s' does not exist.", path);
+
+    if(sdf_animation_assets[id].state == asset_state::waiting) {
+        // @Memory leak
+        data_internal* internal = new data_internal({ threads, &sdf_animation_assets[id] });
+        threads->push({ load_sdf_animation_internal, internal });
+    }
+
+    return id;
 }
 
 font_asset_id asset_manager::load_font_asset(const char* path) {

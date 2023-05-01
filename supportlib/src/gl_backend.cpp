@@ -114,6 +114,7 @@ engine_backend::engine_backend(file_context* file_ctx, thread_pool* threads, sve
 
     glEnable(GL_BLEND);  
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    check_gl_error("glEnable");
 
     u32 indices[6] = { 
         0, 1, 2, 
@@ -132,6 +133,7 @@ engine_backend::engine_backend(file_context* file_ctx, thread_pool* threads, sve
 
     rounded_quad_with_color = compile_and_link(vert_quad_src(), frag_rounded_colored_quad_src());
     rounded_quad_with_texture = compile_and_link(vert_quad_src(), frag_rounded_textured_quad_src(false));
+    sdf_quad_with_texture = compile_and_link(vert_quad_src(), frag_sdf_quad_src());
 
 #if USES_OES_TEXTURES
     rounded_quad_with_oes_texture = compile_and_link(vert_quad_src(), frag_rounded_textured_quad_src(true));
@@ -183,7 +185,6 @@ shader_program engine_backend::compile_and_link(const std::string& vert_src, con
             LOGI("cached shader program");
         }
 
-        LOGI("program.program: %d", program.program);
         program_map.emplace(program_id, program.program);
         return program;
     }
@@ -291,6 +292,16 @@ void engine_backend::draw_rounded_textured_quad(const rect& bounds, const rect& 
     get_variable(rounded_quad_with_texture, "quad_size").set_vec2(bounds.size());
     get_variable(rounded_quad_with_texture, "corner_rad").set_vec4(crad);
     draw_quad(rounded_quad_with_texture, bounds, uv_bounds, uv_rot);
+}
+
+void engine_backend::draw_colored_sdf_quad(const rect& bounds, const stack_texture& tex, const vec4& color, f32 from_depth, f32 to_depth, f32 blend_depth, f32 blendin) {
+    bind_texture_to_slot(0, tex);
+
+    use_program(sdf_quad_with_texture);
+    get_variable(sdf_quad_with_texture, "zero_dist").set_f32(blendin);
+    get_variable(sdf_quad_with_texture, "depths").set_vec3({from_depth, to_depth, blend_depth * 0.999f}); // 0.999f makes it not reset at 1.0f
+    get_variable(sdf_quad_with_texture, "color").set_vec4(color);
+    draw_quad(sdf_quad_with_texture, bounds);
 }
 
 #ifdef USES_OES_TEXTURES
@@ -898,6 +909,22 @@ texture docscanner::make_texture(svec2 size, u32 format) {
     return {id, format, size};
 }
 
+stack_texture docscanner::make_stack_texture(s32 depth, svec2 size, u32 format) {
+    u32 id;
+    glGenTextures(1, &id);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, id);
+    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, format, (int) size.x, (int) size.y, depth);
+    check_gl_error("glTexStorage3D");
+
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    check_gl_error("glTexParameteri");
+    
+    return {id, format, size, depth};
+}
+
 void docscanner::bind_image_to_slot(u32 slot, const texture &tex) {
     glBindImageTexture(slot, tex.id, 0, GL_FALSE, 0, GL_WRITE_ONLY, tex.format);
     check_gl_error("glBindImageTexture");
@@ -906,6 +933,12 @@ void docscanner::bind_image_to_slot(u32 slot, const texture &tex) {
 void docscanner::bind_texture_to_slot(u32 slot, const texture &tex) {
     glActiveTexture(GL_TEXTURE0 + slot);
     glBindTexture(GL_TEXTURE_2D, tex.id);
+    check_gl_error("glBindTexture");
+}
+
+void docscanner::bind_texture_to_slot(u32 slot, const stack_texture &tex) {
+    glActiveTexture(GL_TEXTURE0 + slot);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, tex.id);
     check_gl_error("glBindTexture");
 }
 
@@ -937,9 +970,8 @@ void docscanner::get_framebuffer_data(const frame_buffer &fb, const svec2 &size,
     check_gl_error("glReadPixels");
 }
 
-void docscanner::set_texture_data(const texture &tex, u8* data, const svec2& size) {
-    GLenum format = 0, type = 0;
-    switch(tex.format) {
+void get_texture_format_and_type(u32 tex_format, GLenum& format, GLenum& type) {
+    switch(tex_format) {
     case GL_R32F: {
         format = GL_RED;
         type = GL_FLOAT;
@@ -950,12 +982,28 @@ void docscanner::set_texture_data(const texture &tex, u8* data, const svec2& siz
     } break;
     default: LOGE_AND_BREAK("Unsupported texture format in set_texture_data.");
     }
+}
+
+void docscanner::set_texture_data(const texture &tex, u8* data, const svec2& size) {
+    GLenum format = 0, type = 0;
+    get_texture_format_and_type(tex.format, format, type);
 
     glBindTexture(GL_TEXTURE_2D, tex.id);
     check_gl_error("glBindTexture");
 
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, size.x, size.y, format, type, data);
     check_gl_error("glTexSubImage2D");
+}
+
+void docscanner::set_texture_data(const stack_texture &tex, u8* data, const svec2& size) {
+    GLenum format = 0, type = 0;
+    get_texture_format_and_type(tex.format, format, type);
+
+    glBindTexture(GL_TEXTURE_2D_ARRAY, tex.id);
+    check_gl_error("glBindTexture");
+
+    glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, 0, size.x, size.y, tex.depth, format, type, data);
+    check_gl_error("glTexSubImage3D");
 }
 
 variable docscanner::get_variable(const shader_program& program, const char* name) {

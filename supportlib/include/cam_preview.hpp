@@ -33,6 +33,7 @@ struct cam_preview {
     mesh_border border;
     mesh_cutout cutout;
 
+    sdf_button flash_button;
     shader_program shutter_program;
     animation<f32> shutter_animation;
 

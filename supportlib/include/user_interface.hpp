@@ -131,8 +131,8 @@ struct ui_theme {
 
     rect middle_crad = { { 0.05f, 0.05f }, { 0.05f, 0.05f } };
 
-    vec3 line_seperator_color = { 0.1f, 0.1f, 0.1f };
-    f32 line_seperator_height = 0.002f;
+    vec3 line_seperator_color = { 0.3f, 0.3f, 0.3f };
+    f32 line_seperator_height = 0.0025f;
     
     ui_theme(bool enable_dark_mode);
 };
@@ -208,13 +208,39 @@ struct round_checkbox {
     rect bounds;
     bool checked;
 
-    texture_asset_id checked_icon;
+    sdf_animation_asset_id checked_icon;
+    animation<f32> check_animation;
 
     round_checkbox(ui_manager* ui, bool checked);
     void layout(rect bounds);
     void set_checked(bool checked);
 
     void draw();
+};
+
+struct sdf_image {
+    ui_manager* ui;
+    rect bounds;
+    vec4 color;
+
+    sdf_animation_asset_id id;
+    s32 l_depth, c_depth, n_depth;
+    animation<f32> blend_animation;
+
+    sdf_image(ui_manager* ui, vec3 color, sdf_animation_asset_id id, f32 blend_duration);
+    void layout(rect bounds);
+    void next_depth();
+
+    void draw();
+};
+
+struct sdf_button {
+    sdf_image img;
+
+    sdf_button(ui_manager* ui, vec3 color, sdf_animation_asset_id id);
+    void layout(rect bounds);
+
+    bool draw();
 };
 
 vec2 map_to_rect(const vec2& pt, const rect* rect);

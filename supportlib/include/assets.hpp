@@ -43,8 +43,17 @@ struct texture_asset {
 
 struct sdf_animation_asset {
     asset_state state;
-    
-    // todo: implement this
+
+    char* path;
+    u32 path_size;
+    u8* data;
+    u32 data_size;
+
+    f32* image_data;
+    svec2 image_size;
+    s32 image_depth;
+    f32 zero_dist;
+    stack_texture tex;
 };
 
 struct font_asset {

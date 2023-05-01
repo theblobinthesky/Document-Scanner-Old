@@ -14,9 +14,6 @@ struct unwrapped_options_screen {
     const texture* unwrapped_texture;
 
     button discard_button, next_button;
-    lines border_lines;
-    lines corner_lines[4];
-    lines split_lines;
 
     rect desc_rect;
     text desc_text;

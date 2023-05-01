@@ -29,6 +29,13 @@ struct texture {
     svec2 size;
 };
 
+struct stack_texture {
+    u32 id;
+    u32 format;
+    svec2 size;
+    s32 depth;
+};
+
 struct shader_buffer {
     u32 vao, vbo, ebo;
 };
@@ -123,6 +130,7 @@ struct engine_backend {
     shader_buffer quad_buffer;
     shader_program rounded_quad_with_color;
     shader_program rounded_quad_with_texture;
+    shader_program sdf_quad_with_texture;
 
 #ifdef USES_OES_TEXTURES
     shader_program rounded_quad_with_oes_texture;
@@ -159,6 +167,7 @@ struct engine_backend {
     void draw_rounded_colored_quad(const rect& bounds, const rect& crad, const vec4& color);
     void draw_rounded_textured_quad(const rect& bounds, const rect& crad, const texture& tex, const rect& uv_bounds);
     void draw_rounded_textured_quad(const rect& bounds, const rect& crad, const texture& tex, f32 opacity, const rect& uv_bounds, rot_mode uv_rot);
+    void draw_colored_sdf_quad(const rect& bounds, const stack_texture& tex, const vec4& color, f32 from_depth, f32 to_depth, f32 blend_depth, f32 blendin);
 
 #ifdef USES_OES_TEXTURES
     void draw_rounded_oes_textured_quad(const rect& bounds, const rect& crad, const rect& uv_bounds, rot_mode uv_rot);
@@ -300,9 +309,13 @@ void fill_shader_buffer(const shader_buffer& buff, const vertex* vertices, u32 v
 
 texture make_texture(svec2 size, u32 format);
 
+stack_texture make_stack_texture(s32 depth, svec2 size, u32 format);
+
 void bind_image_to_slot(u32 slot, const texture &tex);
 
 void bind_texture_to_slot(u32 slot, const texture &tex);
+
+void bind_texture_to_slot(u32 slot, const stack_texture &tex);
 
 void bind_framebuffer(const frame_buffer &fb);
 
@@ -313,6 +326,8 @@ frame_buffer framebuffer_from_texture(const texture& tex);
 void get_framebuffer_data(const frame_buffer &fb, const svec2 &size, u8* &data, u32 data_size);
 
 void set_texture_data(const texture &tex, u8* data, const svec2& size);
+
+void set_texture_data(const stack_texture &tex, u8* data, const svec2& size);
 
 variable get_variable(const shader_program& program, const char* name);
 

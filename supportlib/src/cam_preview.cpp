@@ -5,13 +5,20 @@
 
 using namespace docscanner;
 
+#ifdef ANDROID
 constexpr f32 preview_aspect_ratio = 16.0f / 9.0f;
+#else
+constexpr f32 preview_aspect_ratio = 4.0f / 3.0f;
+#endif
+
 constexpr svec2 unwrap_size = { 1240, 1754 };
 constexpr svec2 downsampled_size = {64, 64};
 constexpr rect cam_preview_crad = { { 0.1, 0.1 }, { 0.1, 0.1 } };
+constexpr f32 top_icons_height = 0.05f;
 
 cam_preview::cam_preview(engine_backend* backend, ui_manager* ui, f32 bottom_edge, const rect& unwrapped_rect) 
     : backend(backend), ui(ui),
+      flash_button(ui, ui->theme.white, ui->assets->load_sdf_animation_asset("flash")),
       shutter_animation(backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.0f, 0.15f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED),
       unwrap_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0),
       blendout_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.2f, 0.5f, 0),
@@ -26,6 +33,12 @@ cam_preview::cam_preview(engine_backend* backend, ui_manager* ui, f32 bottom_edg
 
     nn_contour_out_size = downsampled_size.area() * points_per_contour * sizeof(f32);
     nn_contour_out = new u8[nn_contour_out_size];
+
+    rect screen = ui->get_screen_rect();
+    screen = get_between(screen, 0.05f, 0.05f + top_icons_height);
+    screen = cut_margins(screen, { {0.05f, 0}, {0.05f, 0} });
+    screen = get_texture_aligned_rect(screen, { 1, 1 }, alignment::LEFT);
+    flash_button.layout(screen);
 
     shutter_program = backend->compile_and_link(vert_quad_src(), frag_shutter_src());
     
@@ -147,6 +160,10 @@ void cam_preview::draw_ui() {
     if(event.type == motion_type::TOUCH_DOWN) {
         shutter_animation.start();
         unwrap();
+    }
+
+    if(flash_button.draw()) {
+        LOGI("flash tapped!");
     }
 
     backend->use_program(shutter_program);

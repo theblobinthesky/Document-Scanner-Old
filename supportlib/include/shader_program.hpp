@@ -36,4 +36,6 @@ std::string frag_rounded_colored_quad_src();
 
 std::string frag_rounded_textured_quad_src(bool use_oes);
 
+std::string frag_sdf_quad_src();
+
 NAMESPACE_END

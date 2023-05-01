@@ -80,48 +80,8 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     discard_button.layout(discard_button_rect);
     next_button.layout(next_button_rect);
 
-
-    vec2 unwrapped_size = unwrapped_rect.size();
-    vec2* border_points = new vec2[4] {
-        unwrapped_rect.tl, unwrapped_rect.tl + vec2({ unwrapped_size.x, 0 }),
-        unwrapped_rect.br, unwrapped_rect.tl + vec2({ 0, unwrapped_size.y })
-    };
-
-    f32 hl_border_perc = 0.1f;
-    vec2 hl_border_size_x = { hl_border_perc, 0 };
-    vec2 hl_border_size_y = { 0, hl_border_perc };
-
-    vec2* tl_border_points = new vec2[3] {
-        unwrapped_rect.tl + hl_border_size_y, unwrapped_rect.tl, unwrapped_rect.tl + hl_border_size_x
-    };
-
-    vec2 unwrapped_rect_tr = unwrapped_rect.tl + vec2({ unwrapped_size.x, 0 });    
-    vec2* tr_border_points = new vec2[3] {
-        unwrapped_rect_tr - hl_border_size_x, unwrapped_rect_tr, unwrapped_rect_tr + hl_border_size_y
-    };
-
-    vec2* br_border_points = new vec2[3] {
-        unwrapped_rect.br - hl_border_size_y, unwrapped_rect.br, unwrapped_rect.br - hl_border_size_x
-    };
-
-    vec2 unwrapped_rect_bl = unwrapped_rect.tl + vec2({ 0, unwrapped_size.y });
-    vec2* bl_border_points = new vec2[3] {
-        unwrapped_rect_bl - hl_border_size_y, unwrapped_rect_bl, unwrapped_rect_bl + hl_border_size_x
-    };
-
-    border_lines.init(ui->backend, border_points, 4, 0.01f, ui->theme.primary_color, true);
-    corner_lines[0].init(ui->backend, tl_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
-    corner_lines[1].init(ui->backend, tr_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
-    corner_lines[2].init(ui->backend, br_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
-    corner_lines[3].init(ui->backend, bl_border_points, 3, 0.03f, ui->theme.primary_dark_color, false);
-    
-
-    vec2* split_points = new vec2[2] { vec2::lerp(border_points[0], border_points[3], 0.5f), vec2::lerp(border_points[1], border_points[2], 0.5f) };
-    split_lines.init(ui->backend, split_points, 2, 0.01f, ui->theme.primary_color, false);
-
     desc_rect = get_at_bottom(unwrapped_rect, 0.2f );
     desc_text.layout(desc_rect);
-
     
     rect select_rect = cut_margins(screen_rect, { { margin, 0.25f }, { margin, 0.1f } });
     top_select_rect = cut_margins(grid_split(select_rect, 0, 2, split_direction::VERTICAL), { {0, 0}, {0, 0.015f} });
@@ -134,12 +94,6 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
 void unwrapped_options_screen::draw_ui() {
     f32 opacity = blendin_animation.value * (1.0f - select_animation.value);
     SCOPED_COMPOSITE_GROUP(ui->backend, {}, true, opacity);
-
-    border_lines.draw();
-
-    for(s32 i = 0; i < 4; i++) {
-        corner_lines[i].draw();
-    }
 
     if(discard_button.draw()) {
         LOGI("discard!");
@@ -165,8 +119,6 @@ void unwrapped_options_screen::draw_select_ui() {
     if(select_animation.state != animation_state::WAITING) {
         ui->backend->draw_rounded_textured_quad(rect::lerp(unwrapped_rect, bottom_select_rect, select_animation.value), {}, *unwrapped_texture, 
                 rect::lerp(unwrapped_uv, split_unwrapped_uv, select_animation.value));
-
-        split_lines.draw();
     }
 }
 
@@ -319,6 +271,7 @@ void docscanner::pipeline::render() {
 
     bool redraw = false;
 
+    // displayed_screen = screen_name::EXPORT_OPTIONS;
     if(displayed_screen == screen_name::CAM_PREVIEW) {
         redraw = true;
 

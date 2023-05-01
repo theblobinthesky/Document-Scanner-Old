@@ -2,7 +2,6 @@
 #include "platform.hpp"
 #include "pipeline.hpp"
 
-#include "camera.hpp"
 #include <camera/NdkCameraDevice.h>
 #include <camera/NdkCameraManager.h>
 #include <media/NdkImage.h>

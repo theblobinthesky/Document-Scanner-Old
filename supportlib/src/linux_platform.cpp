@@ -23,7 +23,7 @@
 
 using namespace docscanner;
 
-constexpr svec2 size = { 1080 / 2, 2400 / 2 };
+constexpr svec2 size = { 1080 / 2, 1920 / 2 };
 
 struct docscanner::camera {
     s32 fd;
@@ -38,7 +38,6 @@ struct docscanner::camera {
 camera* docscanner::find_and_open_back_camera(const svec2& min_size, svec2& size) {
     camera* cam = new camera();
 
-    printf("find_and_open_camera");
     cam->fd = open("/dev/video0", O_RDWR);
     
     if(cam->fd < 0) {
@@ -274,21 +273,29 @@ int platform_init() {
     pipe.backend.cam_is_init = true;
 
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
+    bool mouse_pressed = false; 
 
     do {
         int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-        if (state == GLFW_PRESS) {
+        motion_event event = { .type = motion_type::NO_MOTION, .pos = {} };
+
+        if (state == GLFW_PRESS && !mouse_pressed) {
+            mouse_pressed = true;
+            event.type = motion_type::TOUCH_DOWN;
+        } else if(state != GLFW_PRESS && mouse_pressed) {
+            mouse_pressed = false;
+            event.type = motion_type::TOUCH_UP;            
+        }
+
+        if(event.type != motion_type::NO_MOTION) {
             double x, y;
             glfwGetCursorPos(window, &x, &y);
+            event.pos = { (f32)x, (f32)y };
 
-            motion_event event = {
-                .type = docscanner::motion_type::TOUCH_DOWN,
-                .pos = { (f32)x, (f32)y }
-            };
-
-            pipe.backend.input.handle_motion_event(event);
+            pipe.backend.input.handle_motion_event(event);    
         }
         
+        threads.work_on_gui_queue();
         pipe.render();
         
         glfwSwapBuffers(window);

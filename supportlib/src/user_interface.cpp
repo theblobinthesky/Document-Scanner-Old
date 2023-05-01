@@ -277,7 +277,8 @@ void line_seperator::draw() {
         {}, ui->theme.line_seperator_color);
 }
 
-round_checkbox::round_checkbox(ui_manager* ui, bool checked) : ui(ui), checked(checked), checked_icon(ui->assets->load_texture_asset("checked.png")) {}
+round_checkbox::round_checkbox(ui_manager* ui, bool checked) : ui(ui), checked(checked), checked_icon(ui->assets->load_sdf_animation_asset("checked")),
+    check_animation(ui->backend, animation_curve::EASE_IN_OUT, 0, 1, 0, 0.15f, 0) {}
 
 void round_checkbox::layout(rect bounds) {
     this->bounds = bounds;
@@ -285,15 +286,67 @@ void round_checkbox::layout(rect bounds) {
 
 void round_checkbox::set_checked(bool checked) {
     this->checked = checked;
+    check_animation.start();
 }
 
 void round_checkbox::draw() {
-    ui->backend->draw_rounded_colored_quad(bounds, {}, ui->theme.background_accent_color);
+    // TODO: Do we need non-square checkbox rectangles?
+    vec2 h_size = bounds.size() * 0.5f;
+    f32 crad = std::min(h_size.x, h_size.y);
+
+    ui->backend->draw_rounded_colored_quad(bounds, { {crad, crad}, {crad, crad} }, ui->theme.background_accent_color);
     
     if(checked) {
-        const texture_asset* asset = ui->assets->get_texture_asset(checked_icon);
-        ui->backend->draw_rounded_textured_quad(bounds, {}, asset->tex, { {}, {1, 1} });
+        const sdf_animation_asset* asset = ui->assets->get_sdf_animation_asset(checked_icon);
+        f32 zero_dist = lerp(0, asset->zero_dist, check_animation.update());
+        ui->backend->draw_colored_sdf_quad(bounds, asset->tex, ui->theme.foreground_color, 0, 0, 0, zero_dist);
     }
+}
+
+sdf_image::sdf_image(ui_manager* ui, vec3 color, sdf_animation_asset_id id, f32 blend_duration) : ui(ui), color(color), id(id), 
+    l_depth(-1), c_depth(0), n_depth(1),
+    blend_animation(ui->backend, animation_curve::EASE_IN_OUT, 0, 1, 0, blend_duration, 0) {
+    blend_animation.state = animation_state::FINISHED;
+    blend_animation.value = 1.0f;
+}
+
+void sdf_image::layout(rect bounds) {
+    this->bounds = bounds;
+}
+
+void sdf_image::next_depth() {
+    const sdf_animation_asset* asset = ui->assets->get_sdf_animation_asset(id);
+    l_depth = (l_depth + 1) % asset->image_depth;
+    c_depth = (c_depth + 1) % asset->image_depth;
+    n_depth = (n_depth + 1) % asset->image_depth;
+
+    blend_animation.start();
+
+    // ASSERT(i >= 0 && i < asset->image_depth, "Sdf animation has depth %d but tried to access index %d.", asset->image_depth, i);
+}
+
+void sdf_image::draw() {
+    const sdf_animation_asset* asset = ui->assets->get_sdf_animation_asset(id);
+    ui->backend->draw_colored_sdf_quad(bounds, asset->tex, color, l_depth, c_depth, blend_animation.update(), asset->zero_dist);
+}
+
+sdf_button::sdf_button(ui_manager* ui, vec3 color, sdf_animation_asset_id id) : img(ui, color, id, 0.15f) {}
+
+void sdf_button::layout(rect bounds) {
+    img.layout(bounds);
+}
+
+bool sdf_button::draw() {
+    img.draw();
+
+    motion_event event = img.ui->backend->input.get_motion_event(img.bounds);
+    bool released = (event.type == motion_type::TOUCH_UP);
+    
+    if(released) {
+        img.next_depth();
+    }
+
+    return released;
 }
 
 rect docscanner::get_texture_uvs_aligned_top(const rect& r, const svec2& tex_size) {
@@ -302,9 +355,6 @@ rect docscanner::get_texture_uvs_aligned_top(const rect& r, const svec2& tex_siz
     f32 r_aspect_ratio = size.y / size.x;
     f32 tex_aspect_ratio = (f32)tex_size.y / (f32)tex_size.x;
     
-    LOGI("tex_size: %d, %d", tex_size.x, tex_size.y);
-    LOGI("r_aspect_ratio: %f, tex_aspect_ratio: %f", r_aspect_ratio, tex_aspect_ratio);
-
     f32 uv_bottom = r_aspect_ratio / tex_aspect_ratio;
     return { {}, {1.0, uv_bottom} };
 }
@@ -316,7 +366,7 @@ rect docscanner::get_texture_aligned_rect(const rect& r, const svec2& size, alig
     if(align == alignment::LEFT) {
         return { r.tl, { r.tl.x + scaled_width, r.br.y } };
     } else if(align == alignment::RIGHT) {
-        return { { r.br.x - scaled_width, r.br.y }, r.br };
+        return { { r.br.x - scaled_width, r.tl.y }, r.br };
     } else {
         LOGE_AND_BREAK("Fix this.");
         return {};

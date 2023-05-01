@@ -125,6 +125,13 @@ std::string get_sampler_src(bool use_oes, u32 binding_slot) {
     )";
 }
 
+std::string get_array_sampler_src(u32 binding_slot) {
+    return 
+    R"(
+        uniform layout(binding = )" + std::to_string(binding_slot) + R"() sampler2DArray sampler;
+    )";
+}
+
 std::string docscanner::frag_glyph_src(u32 binding_slot) {
     return version_head + get_sampler_src(false, binding_slot) + precision_head + R"(
             in vec2 out_uvs;
@@ -376,4 +383,24 @@ std::string docscanner::frag_rounded_textured_quad_src(bool use_oes) {
             out_col = vec4(color.rgb, opacity * color.a * smoothed_alpha);
         }
     )";
+}
+
+std::string docscanner::frag_sdf_quad_src() {
+    return version_head "precision mediump sampler2DArray;\n" + get_array_sampler_src(0) + precision_head + R"(
+        in vec2 out_rel_pos;
+        in vec2 out_uvs;
+        out vec4 out_col;
+
+        uniform float zero_dist;
+        uniform vec3 depths;
+        uniform vec4 color;
+
+        void main() {
+            vec3 uvs_c = vec3(out_uvs, depths.x);
+            vec3 uvs_n = vec3(out_uvs, depths.y);
+            float sampled_dist = mix(texture(sampler, uvs_c).r, texture(sampler, uvs_n).r, fract(depths.z));
+            float alpha = float(sampled_dist < zero_dist);
+            out_col = vec4(color.rgb, alpha * color.a);
+        }
+    )";   
 }
