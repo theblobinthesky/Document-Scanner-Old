@@ -22,7 +22,7 @@ cam_preview::cam_preview(engine_backend* backend, ui_manager* ui, f32 bottom_edg
       shutter_animation(backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.0f, 0.15f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED),
       unwrap_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0),
       blendout_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.2f, 0.5f, 0),
-      is_live_camera_streaming(true), is_init(false) {
+      is_live_camera_streaming(true), is_init(false), is_visible(true) {
     SCOPED_TIMER("init_backend");
 
     this->bottom_edge = bottom_edge;
@@ -50,7 +50,7 @@ cam_preview::cam_preview(engine_backend* backend, ui_manager* ui, f32 bottom_edg
 void loop_nn_inference(void* data) {
     cam_preview* preview = reinterpret_cast<cam_preview*>(data);
 
-    while(true) {
+    while(preview->is_visible) {
         constexpr u32 out_size = 1; // 2
         u8* out_datas[out_size] = { preview->nn_contour_out }; //, (u8*)&nn_exists_out };
         u32 out_sizes[out_size] = { preview->nn_contour_out_size }; // , sizeof(f32) };

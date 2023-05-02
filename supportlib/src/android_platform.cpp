@@ -6,8 +6,11 @@
 #include <camera/NdkCameraManager.h>
 #include <media/NdkImage.h>
 #include <string.h>
+#include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
 #include <android/native_window_jni.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 using namespace docscanner;
 
@@ -232,12 +235,27 @@ void docscanner::read_from_package(file_context* ctx, const char* path, u8* &dat
     ASSERT(asset != null, "AAsset open failed.");
     
     size = AAsset_getLength(asset);
-    data = new u8[size];
 
-    // todo: try AAsset_getBuffer
-
-    int status = AAsset_read(asset, data, size);
-    ASSERT(status >= 0, "AAsset read failed.");
+    long start, len;
+    int fd = AAsset_openFileDescriptor(asset, &start, &len);
+    if(fd >= 0) {
+        data = (u8*)mmap(NULL, len, PROT_READ, MAP_SHARED, fd, start);
+        close(fd);
+        
+        // todo: 
+        // if (buffer != MAP_FAILED) {
+        //     munmap(buffer, len);
+        // }
+    } else {
+#if false
+        data = new u8[size];
+        int status = AAsset_read(asset, data, size);
+        ASSERT(status >= 0, "AAsset_read failed.");
+#else
+        data = (u8*)AAsset_getBuffer(asset);
+        ASSERT(data, "AAsset_getBuffer failed.")
+#endif
+    }
 }
 
 std::string get_internal_path(file_context* ctx, const char* path) {

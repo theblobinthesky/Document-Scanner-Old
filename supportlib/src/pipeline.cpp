@@ -294,6 +294,7 @@ void docscanner::pipeline::render() {
 
         if(cam_preview_screen.unwrap_animation.state == FINISHED) {
             displayed_screen = screen_name::UNWRAPPED_OPTIONS;
+            cam_preview_screen.is_visible = false;
         } else {
             cam_preview_screen.render();
         }

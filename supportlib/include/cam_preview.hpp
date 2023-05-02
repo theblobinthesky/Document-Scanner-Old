@@ -40,7 +40,7 @@ struct cam_preview {
     animation<f32> unwrap_animation, blendout_animation;
     
     bool is_live_camera_streaming;
-    bool is_init;
+    bool is_init, is_visible;
 
     f32 bottom_edge; // hack
     rect unwrapped_rect;
