@@ -115,6 +115,8 @@ struct rect {
     vec2 tl, br;
     vec2 middle() const;
     vec2 size() const;
+    vec2 tr() const;
+    vec2 bl() const;
 
     static rect from_tl_and_size(const vec2& tl, const vec2& size);
     static rect from_middle_and_size(const vec2& middle, const vec2& size);

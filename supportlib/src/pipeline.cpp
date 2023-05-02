@@ -60,6 +60,7 @@ void get_large_control_button_rect(const ui_manager* ui, rect& r) {
 
 unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect, const texture* unwrapped_texture) 
     : ui(ui), unwrapped_rect(unwrapped_rect), unwrapped_texture(unwrapped_texture),
+    top_select_checkbox(ui, true), bottom_select_checkbox(ui, false), top_selected(true),
     discard_button(ui, "Discard", crad_thin_to_the_left, ui->theme.deny_color), next_button(ui, "Keep", crad_thin_to_the_right, ui->theme.accept_color),
     desc_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Unenhanced", ui->theme.foreground_color),
     select_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Pick an option:", ui->theme.foreground_color),
@@ -87,6 +88,10 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     top_select_rect = cut_margins(grid_split(select_rect, 0, 2, split_direction::VERTICAL), { {0, 0}, {0, 0.015f} });
     bottom_select_rect = cut_margins(grid_split(select_rect, 1, 2, split_direction::VERTICAL), { {0, 0.015f}, {0, 0} });
 
+    rect checkbox_rect = rect::from_middle_and_size({}, {0.1f, 0.1f});
+    top_select_checkbox.layout(align_rect(cut_margins(top_select_rect, 0.05f), checkbox_rect, alignment::TOP_RIGHT));
+    bottom_select_checkbox.layout(align_rect(cut_margins(bottom_select_rect, 0.05f), checkbox_rect, alignment::TOP_RIGHT));
+    
     rect select_text_rect = get_at_top(select_rect, title_text_top);
     select_text.layout(select_text_rect);
 }
@@ -119,6 +124,18 @@ void unwrapped_options_screen::draw_select_ui() {
     if(select_animation.state != animation_state::WAITING) {
         ui->backend->draw_rounded_textured_quad(rect::lerp(unwrapped_rect, bottom_select_rect, select_animation.value), {}, *unwrapped_texture, 
                 rect::lerp(unwrapped_uv, split_unwrapped_uv, select_animation.value));
+
+        bool top_clicked = ui->backend->input.get_motion_event(top_select_rect).type == motion_type::TOUCH_UP;
+        bool bottom_clicked = ui->backend->input.get_motion_event(bottom_select_rect).type == motion_type::TOUCH_UP;
+        
+        if(top_clicked)     top_selected = true;
+        if(bottom_clicked)  top_selected = false;
+
+        top_select_checkbox.set_checked(top_selected);
+        bottom_select_checkbox.set_checked(!top_selected);
+
+        top_select_checkbox.draw();
+        bottom_select_checkbox.draw();
     }
 }
 
@@ -142,8 +159,8 @@ void unwrapped_options_screen::draw() {
 
     ui->backend->clear_screen(ui->theme.background_color);
     draw_ui();
-    draw_select_ui();
     draw_preview_ui();
+    draw_select_ui();
 }
 
 export_item_card::export_item_card(ui_manager* ui, texture_asset_id icon, const char* title) : ui(ui), icon(icon), 

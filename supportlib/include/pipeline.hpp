@@ -13,6 +13,9 @@ struct unwrapped_options_screen {
     
     const texture* unwrapped_texture;
 
+    round_checkbox top_select_checkbox, bottom_select_checkbox;
+    bool top_selected;
+    
     button discard_button, next_button;
 
     rect desc_rect;

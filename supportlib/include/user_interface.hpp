@@ -80,6 +80,12 @@ struct animation {
         start_time = backend->time;
     }
 
+    void reverse() {
+        T temp = start_value;
+        start_value = end_value;
+        end_value = temp;
+    }
+
     T update() {
         if(state != STARTED) return value;
 
@@ -214,6 +220,7 @@ struct round_checkbox {
     round_checkbox(ui_manager* ui, bool checked);
     void layout(rect bounds);
     void set_checked(bool checked);
+    void toggle_checked();
 
     void draw();
 };
@@ -262,9 +269,12 @@ rect get_between(const rect& r, f32 t, f32 b);
 rect get_texture_uvs_aligned_top(const rect& r, const svec2& tex_size);
 
 enum class alignment {
-    LEFT, RIGHT
+    LEFT, RIGHT,
+    TOP_RIGHT
 };
 
 rect get_texture_aligned_rect(const rect& r, const svec2& size, alignment align);
+
+rect align_rect(const rect& bounds, const rect& r, alignment align);
 
 NAMESPACE_END

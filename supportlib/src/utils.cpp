@@ -118,6 +118,14 @@ vec2 rect::size() const {
     return br - tl;
 }
 
+vec2 rect::tr() const {
+    return { br.x, tl.y };;
+}
+
+vec2 rect::bl() const {
+    return { tl.x, br.y };
+}
+
 rect rect::from_tl_and_size(const vec2& tl, const vec2& size) {
     return { tl, tl + size };
 }

@@ -285,8 +285,14 @@ void round_checkbox::layout(rect bounds) {
 }
 
 void round_checkbox::set_checked(bool checked) {
+    if(checked == this->checked) return;
+
     this->checked = checked;
     check_animation.start();
+}
+
+void round_checkbox::toggle_checked() {
+    set_checked(!checked);
 }
 
 void round_checkbox::draw() {
@@ -294,13 +300,12 @@ void round_checkbox::draw() {
     vec2 h_size = bounds.size() * 0.5f;
     f32 crad = std::min(h_size.x, h_size.y);
 
-    ui->backend->draw_rounded_colored_quad(bounds, { {crad, crad}, {crad, crad} }, ui->theme.background_accent_color);
+    const sdf_animation_asset* asset = ui->assets->get_sdf_animation_asset(checked_icon);
     
-    if(checked) {
-        const sdf_animation_asset* asset = ui->assets->get_sdf_animation_asset(checked_icon);
-        f32 zero_dist = lerp(0, asset->zero_dist, check_animation.update());
-        ui->backend->draw_colored_sdf_quad(bounds, asset->tex, ui->theme.foreground_color, 0, 0, 0, zero_dist);
-    }
+    ui->backend->draw_rounded_colored_quad(bounds, { {crad, crad}, {crad, crad} }, ui->theme.background_accent_color);
+        
+    f32 zero_dist = checked ? lerp(0, asset->zero_dist, check_animation.update()) : lerp(asset->zero_dist, 0, check_animation.update());
+    ui->backend->draw_colored_sdf_quad(bounds, asset->tex, ui->theme.foreground_color, 0, 0, 0, zero_dist);
 }
 
 sdf_image::sdf_image(ui_manager* ui, vec3 color, sdf_animation_asset_id id, f32 blend_duration) : ui(ui), color(color), id(id), 
@@ -370,6 +375,21 @@ rect docscanner::get_texture_aligned_rect(const rect& r, const svec2& size, alig
     } else {
         LOGE_AND_BREAK("Fix this.");
         return {};
+    }
+}
+
+rect docscanner::align_rect(const rect& bounds, const rect& r, alignment align) {
+    vec2 size = r.size();
+
+    switch(align) {
+    case alignment::TOP_RIGHT: {
+        vec2 tr = bounds.tr(); 
+        return { tr - vec2({ size.x, 0 }), tr + vec2({ 0, size.y }) };
+    } break;
+    default: {
+        LOGE_AND_BREAK("Alignment in align_rect is not supported.");
+        return {};
+    } break;
     }
 }
 
