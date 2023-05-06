@@ -62,7 +62,7 @@ void option_card::layout(f32 height) {
 }
 
 bool option_card::draw() {
-    ui->backend->draw_rounded_colored_quad(bounds, { 0.05f, 0.05f, 0.05f, 0.05f }, ui->theme.background_accent_color);
+    ui->backend->draw_rounded_colored_quad({ .bounds = bounds, .crad = { 0.05f, 0.05f, 0.05f, 0.05f }, .color = ui->theme.background_accent_color });
     img.draw();
     title.draw();
 
@@ -161,8 +161,11 @@ void unwrapped_options_screen::draw_select_ui() {
     rect split_unwrapped_uv = get_texture_uvs_aligned_top(top_select_rect, unwrapped_texture->size);
 
     if(select_animation.state != animation_state::WAITING) {
-        ui->backend->draw_rounded_textured_quad(rect::lerp(unwrapped_rect, bottom_select_rect, select_animation.value), {}, *unwrapped_texture, 
-                rect::lerp(unwrapped_uv, split_unwrapped_uv, select_animation.value));
+        ui->backend->draw_rounded_textured_quad({
+            .bounds = rect::lerp(unwrapped_rect, bottom_select_rect, select_animation.value), 
+            .tex = *unwrapped_texture, 
+            .uv_bounds = rect::lerp(unwrapped_uv, split_unwrapped_uv, select_animation.value)
+        });
 
         bool top_clicked = ui->backend->input.get_motion_event(top_select_rect).type == motion_type::CLICKED;
         bool bottom_clicked = ui->backend->input.get_motion_event(bottom_select_rect).type == motion_type::CLICKED;
@@ -184,8 +187,11 @@ void unwrapped_options_screen::draw_preview_ui() {
     rect unwrapped_uv = { {}, { 1, 1 } };
     rect split_unwrapped_uv = get_texture_uvs_aligned_top(top_select_rect, unwrapped_texture->size);
 
-    ui->backend->draw_rounded_textured_quad(rect::lerp(unwrapped_rect, top_select_rect, select_animation.value), {}, *unwrapped_texture, 
-            rect::lerp(unwrapped_uv, split_unwrapped_uv, select_animation.value));
+    ui->backend->draw_rounded_textured_quad({ 
+        .bounds = rect::lerp(unwrapped_rect, top_select_rect, select_animation.value), 
+        .tex = *unwrapped_texture, 
+        .uv_bounds = rect::lerp(unwrapped_uv, split_unwrapped_uv, select_animation.value)
+    });
 }
 
 bool unwrapped_options_screen::draw() {
@@ -222,7 +228,7 @@ void export_item_card::layout(rect bounds) {
 
 bool export_item_card::draw() {
     const texture_asset* asset = ui->assets->get_texture_asset(icon);
-    ui->backend->draw_rounded_textured_quad(icon_bounds, {}, asset->tex, { {}, {1, 1} });
+    ui->backend->draw_rounded_textured_quad({ .bounds = icon_bounds, .tex = asset->tex });
 
     title.draw();
     checkbox.draw();
@@ -296,7 +302,7 @@ void export_options_screen::draw_dialogue_ui() {
     SCOPED_COMPOSITE_GROUP(ui->backend, {}, true, dialogue_animation.value);
 
     rect dialogue_rect = rect::lerp(dialogue_rect_small, dialogue_rect_large, dialogue_animation.value);
-    ui->backend->draw_rounded_colored_quad(dialogue_rect, { 0.05f, 0.05f, 0.05f, 0.05f }, ui->theme.background_accent_color);
+    ui->backend->draw_rounded_colored_quad({ .bounds = dialogue_rect, .crad = { 0.05f, 0.05f, 0.05f, 0.05f }, .color = ui->theme.background_accent_color });
 }
 
 void export_options_screen::draw() {

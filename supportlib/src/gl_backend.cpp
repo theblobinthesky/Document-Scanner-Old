@@ -244,7 +244,7 @@ void engine_backend::begin_composite_group(const composite_group& comp) {
 void engine_backend::end_composite_group() {
     unbind_framebuffer();
 
-    draw_rounded_textured_quad({ {}, {1.0f, preview_height} }, {}, comp_texture, comp.opacity, { {}, {1, 1} }, rot_mode::ROT_180_DEG);
+    draw_rounded_textured_quad({ .bounds = { {}, {1.0f, preview_height} }, .tex = comp_texture, .opacity = comp.opacity, .uv_rot = rot_mode::ROT_180_DEG });
 }
 
 void engine_backend::draw_quad(const shader_program& program, const rect& bounds) {
@@ -286,50 +286,43 @@ void engine_backend::draw_quad(const shader_program& program, const rect& bounds
     check_gl_error("glDrawElements");
 }
 
-void engine_backend::draw_rounded_colored_quad(const rect& bounds, const rect& crad, const vec4& color) {
+
+void engine_backend::draw_rounded_colored_quad(const colored_quad& quad) {
     use_program(rounded_quad_with_color);
-    get_variable(rounded_quad_with_color, "quad_size").set_vec2(bounds.size());
-    get_variable(rounded_quad_with_color, "corner_rad").set_vec4(crad);
-    get_variable(rounded_quad_with_color, "light_color").set_vec4(color);
-    get_variable(rounded_quad_with_color, "dark_color").set_vec4(color * 0.95f);
-    draw_quad(rounded_quad_with_color, bounds);
+    get_variable(rounded_quad_with_color, "quad_size").set_vec2(quad.bounds.size());
+    get_variable(rounded_quad_with_color, "corner_rad").set_vec4(quad.crad);
+    get_variable(rounded_quad_with_color, "light_color").set_vec4(quad.color);
+    get_variable(rounded_quad_with_color, "dark_color").set_vec4(quad.color * 0.95f);
+    draw_quad(rounded_quad_with_color, quad.bounds);
 }
 
-void engine_backend::draw_rounded_textured_quad(const rect& bounds, const rect& crad, const texture& tex, const rect& uv_bounds) {
-    draw_rounded_textured_quad(bounds, crad, tex, 1.0f, uv_bounds, rot_mode::ROT_0_DEG);
-}
-
-void engine_backend::draw_rounded_textured_quad(const rect& bounds, const rect& crad, const texture& tex, f32 opacity, const rect& uv_bounds, rot_mode uv_rot) {
-    bind_texture_to_slot(0, tex);
+void engine_backend::draw_rounded_textured_quad(const textured_quad& quad) {
+    bind_texture_to_slot(0, quad.tex);
 
     use_program(rounded_quad_with_texture);
-    get_variable(rounded_quad_with_texture, "opacity").set_f32(opacity);
-    get_variable(rounded_quad_with_texture, "quad_size").set_vec2(bounds.size());
-    get_variable(rounded_quad_with_texture, "corner_rad").set_vec4(crad);
-    draw_quad(rounded_quad_with_texture, bounds, uv_bounds, uv_rot);
+    get_variable(rounded_quad_with_texture, "opacity").set_f32(quad.opacity);
+    get_variable(rounded_quad_with_texture, "quad_size").set_vec2(quad.bounds.size());
+    get_variable(rounded_quad_with_texture, "corner_rad").set_vec4(quad.crad);
+    draw_quad(rounded_quad_with_texture, quad.bounds, quad.uv_bounds, quad.uv_rot);
 }
 
-void engine_backend::draw_colored_sdf_quad(const rect& bounds, const stack_texture& tex, const vec4& color, f32 from_depth, f32 to_depth, f32 blend_depth, f32 blendin, rot_mode uv_rot) {
-    bind_texture_to_slot(0, tex);
+void engine_backend::draw_colored_sdf_quad(const sdf_quad& quad) {
+    bind_texture_to_slot(0, quad.tex);
 
     use_program(sdf_quad_with_texture);
-    get_variable(sdf_quad_with_texture, "zero_dist").set_f32(blendin);
-    get_variable(sdf_quad_with_texture, "depths").set_vec3({from_depth, to_depth, blend_depth * 0.999f}); // 0.999f makes it not reset at 1.0f
-    get_variable(sdf_quad_with_texture, "color").set_vec4(color);
-    draw_quad(sdf_quad_with_texture, bounds, { {}, {1, 1} }, uv_rot);
-}
-
-void engine_backend::draw_colored_sdf_quad(const rect& bounds, const stack_texture& tex, const vec4& color, f32 from_depth, f32 to_depth, f32 blend_depth, f32 blendin) {
-    draw_colored_sdf_quad(bounds, tex, color, from_depth, to_depth, blend_depth, blendin, rot_mode::ROT_0_DEG);
+    get_variable(sdf_quad_with_texture, "zero_dist").set_f32(quad.blendin);
+    get_variable(sdf_quad_with_texture, "depths").set_vec3({quad.from_depth, quad.to_depth, quad.blend_depth * 0.999f}); // 0.999f makes it not reset at 1.0f
+    get_variable(sdf_quad_with_texture, "color").set_vec4(quad.color);
+    draw_quad(sdf_quad_with_texture, quad.bounds, { {}, {1, 1} }, quad.uv_rot);
 }
 
 #ifdef USES_OES_TEXTURES
-void engine_backend::draw_rounded_oes_textured_quad(const rect& bounds, const rect& crad, const rect& uv_bounds, rot_mode uv_rot) {
+void engine_backend::draw_rounded_oes_textured_quad(const textured_quad& quad) {
     use_program(rounded_quad_with_oes_texture);
     get_variable(rounded_quad_with_texture, "opacity").set_f32(1.0f);
-    get_variable(rounded_quad_with_oes_texture, "quad_size").set_vec2(bounds.size());
-    get_variable(rounded_quad_with_oes_texture, "corner_rad").set_vec4(crad);
-    draw_quad(rounded_quad_with_oes_texture, bounds, uv_bounds, uv_rot);
+    get_variable(rounded_quad_with_oes_texture, "quad_size").set_vec2(quad.bounds.size());
+    get_variable(rounded_quad_with_oes_texture, "corner_rad").set_vec4(quad.crad);
+    draw_quad(rounded_quad_with_oes_texture, quad.bounds, quad.uv_bounds, quad.uv_rot);
 }
 #endif
 

@@ -125,6 +125,32 @@ struct scoped_transform {
 #define SCOPED_TRANSFORM(backend, transform) \
     scoped_transform SCOPED_TRANSFORM_INSTANCE(backend, transform);
 
+struct colored_quad {
+    rect bounds;
+    rect crad = {};
+    vec4 color;
+};
+
+struct textured_quad {
+    rect bounds;
+    rect crad = {};
+    texture tex;
+    f32 opacity = 1.0f;
+    rect uv_bounds = { {}, {1, 1} };
+    rot_mode uv_rot = rot_mode::ROT_0_DEG;
+};
+
+struct sdf_quad {
+    rect bounds;
+    stack_texture tex;
+    vec4 color;
+    f32 from_depth = 0.0f;
+    f32 to_depth = 0.0f;
+    f32 blend_depth = 0.0f;
+    f32 blendin;
+    rot_mode uv_rot = rot_mode::ROT_0_DEG;
+};
+
 struct engine_backend {
     input_manager input;
     file_context* file_ctx;
@@ -178,14 +204,12 @@ struct engine_backend {
     void draw_quad(const shader_program& program, const rect& bounds);
     void draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds);
     void draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds, rot_mode uv_rot);
-    void draw_rounded_colored_quad(const rect& bounds, const rect& crad, const vec4& color);
-    void draw_rounded_textured_quad(const rect& bounds, const rect& crad, const texture& tex, const rect& uv_bounds);
-    void draw_rounded_textured_quad(const rect& bounds, const rect& crad, const texture& tex, f32 opacity, const rect& uv_bounds, rot_mode uv_rot);
-    void draw_colored_sdf_quad(const rect& bounds, const stack_texture& tex, const vec4& color, f32 from_depth, f32 to_depth, f32 blend_depth, f32 blendin, rot_mode uv_rot);
-    void draw_colored_sdf_quad(const rect& bounds, const stack_texture& tex, const vec4& color, f32 from_depth, f32 to_depth, f32 blend_depth, f32 blendin);
+    void draw_rounded_colored_quad(const colored_quad& quad);
+    void draw_rounded_textured_quad(const textured_quad& quad);
+    void draw_colored_sdf_quad(const sdf_quad& quad);
 
 #ifdef USES_OES_TEXTURES
-    void draw_rounded_oes_textured_quad(const rect& bounds, const rect& crad, const rect& uv_bounds, rot_mode uv_rot);
+    void draw_rounded_oes_textured_quad(const textured_quad& quad);
 #endif
 
 #ifdef DEBUG

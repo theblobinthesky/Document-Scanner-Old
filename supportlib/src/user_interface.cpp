@@ -256,7 +256,7 @@ void button::layout(const rect& bounds) {
 
 bool button::draw() {
     vec3 bg_color = vec3::lerp(color, click_color, click_animation.update());
-    ui->backend->draw_rounded_colored_quad(bounds, crad, bg_color);
+    ui->backend->draw_rounded_colored_quad({ .bounds = bounds, .crad = crad, .color = bg_color });
 
     content.draw();
 
@@ -282,8 +282,10 @@ bool button::draw() {
 line_seperator::line_seperator(ui_manager* ui, vec2 left, f32 width) : ui(ui), left(left), width(width) {}
 
 void line_seperator::draw() {
-    ui->backend->draw_rounded_colored_quad(rect::from_middle_and_size({left + vec2({width / 2.0f, 0})}, {width, ui->theme.line_seperator_height}), 
-        {}, ui->theme.line_seperator_color);
+    ui->backend->draw_rounded_colored_quad({ 
+        .bounds = rect::from_middle_and_size({left + vec2({width / 2.0f, 0})}, {width, ui->theme.line_seperator_height}), 
+        .color = ui->theme.line_seperator_color
+    });
 }
 
 round_checkbox::round_checkbox(ui_manager* ui, bool checked) : ui(ui), checked(checked), checked_icon(ui->assets->load_sdf_animation_asset("checked")),
@@ -319,10 +321,10 @@ void round_checkbox::draw() {
 
     const sdf_animation_asset* asset = ui->assets->get_sdf_animation_asset(checked_icon);
     
-    ui->backend->draw_rounded_colored_quad(bounds, { crad, crad, crad, crad }, ui->theme.background_accent_color);
+    ui->backend->draw_rounded_colored_quad({ .bounds = bounds, .crad = { crad, crad, crad, crad }, .color = ui->theme.background_accent_color });
         
     f32 zero_dist = lerp(0, asset->zero_dist, check_animation.value);
-    ui->backend->draw_colored_sdf_quad(bounds, asset->tex, ui->theme.foreground_color, 0, 0, 0, zero_dist);
+    ui->backend->draw_colored_sdf_quad({ .bounds = bounds, .tex = asset->tex, .color = ui->theme.foreground_color, .blendin = zero_dist });
 }
 
 sdf_image::sdf_image(ui_manager* ui, vec3 color, sdf_animation_asset_id id, f32 blend_duration) : 
@@ -352,7 +354,11 @@ void sdf_image::next_depth() {
 
 void sdf_image::draw() {
     const sdf_animation_asset* asset = ui->assets->get_sdf_animation_asset(id);
-    ui->backend->draw_colored_sdf_quad(bounds, asset->tex, color, l_depth, c_depth, blend_animation.update(), asset->zero_dist, uv_rot);
+    ui->backend->draw_colored_sdf_quad({ 
+        .bounds = bounds, .tex = asset->tex, .color = color, 
+        .from_depth = (f32)l_depth, .to_depth = (f32)c_depth, .blend_depth = blend_animation.update(),
+        .blendin = asset->zero_dist, .uv_rot = uv_rot
+    });
 }
 
 sdf_button::sdf_button(ui_manager* ui, vec3 color, sdf_animation_asset_id id) : sdf_button(ui, color, id, rot_mode::ROT_0_DEG) {}
@@ -391,7 +397,7 @@ const vec2 image::get_image_size() const {
     
 void image::draw() {
     const texture_asset* asset = ui->assets->get_texture_asset(id);
-    ui->backend->draw_rounded_textured_quad(bounds, {}, asset->tex, 1, { {}, {1,1} }, uv_rot);
+    ui->backend->draw_rounded_textured_quad({ .bounds = bounds, .tex = asset->tex, .uv_rot = uv_rot });
 }
 
 rect docscanner::get_texture_uvs_aligned_top(const rect& r, const svec2& tex_size) {
