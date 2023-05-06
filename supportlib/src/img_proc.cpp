@@ -12,6 +12,8 @@ const s32 docscanner::points_per_contour = points_per_side_incl_start_corner * 4
 
 constexpr s32 points_per_side = 10;
 
+#include <string.h>
+
 void mask_mesher::init(const f32* exists, f32* heatmap, const svec2& heatmap_size, const rect& point_range, const rect& point_dst, f32 smoothness) {
     this->point_range = point_range;
     this->point_dst = point_dst;
@@ -23,7 +25,8 @@ void mask_mesher::init(const f32* exists, f32* heatmap, const svec2& heatmap_siz
     this->smoothness = smoothness;
     
     contour = new vec2[points_per_contour];
-    top_contour = new vec2[points_per_side];
+    memset(contour, 0, points_per_contour * sizeof(vec2)); // todo: maybe make a default vector constructor?
+    top_contour  = new vec2[points_per_side];
     right_contour = new vec2[points_per_side];
     bottom_contour = new vec2[points_per_side];
     left_contour = new vec2[points_per_side];
@@ -103,10 +106,10 @@ void interpolate_mesh(vertex* vertices, const vec2* left, const vec2* top, const
 }
 
 vec2 mask_mesher::sample_at(vec2 pt) const {
-    // ASSERT(pt.x >= 0.0f && pt.y >= 0.0f && pt.x <= 1.0f && pt.y <= 1.0f, "Point is out of bounds.");
+    // ASSERT(pt.x >= 0.0f && pt.y >= 0.0f && pt.x <= 1.0f && pt.y <= 1.0f, "Point (%f, %f) is out of bounds.", pt.x, pt.y);
 
-    pt.x = clamp(pt.x, 0.0f, 1.0f - 1e-5);
-    pt.y = clamp(pt.y, 0.0f, 1.0f - 1e-5);
+    pt.x = clamp(pt.x, 0.0f, 1.0f);
+    pt.y = clamp(pt.y, 0.0f, 1.0f);
 
     f32 x_i, y_i;
     f32 x_t = modff(pt.x * (f32)(mesh_size.x - 1), &x_i);
@@ -115,13 +118,22 @@ vec2 mask_mesher::sample_at(vec2 pt) const {
     s32 x = (s32)x_i;
     s32 y = (s32)y_i;
 
+    vec2 t;
     const vec2& tl = blend_vertices[x * mesh_size.y + y].pos;
-    const vec2& tr = blend_vertices[(x + 1) * mesh_size.y + y].pos;
-    const vec2& br = blend_vertices[(x + 1) * mesh_size.y + (y + 1)].pos;
-    const vec2& bl = blend_vertices[x * mesh_size.y + (y + 1)].pos;
 
-    const vec2 t = tr * x_t + tl * (1.0f - x_t);
-    const vec2 b = br * x_t + bl * (1.0f - x_t);
+    if(x < mesh_size.x - 1) {
+        const vec2& tr = blend_vertices[(x + 1) * mesh_size.y + y].pos;
+        t  = tr * x_t + tl * (1.0f - x_t);
+    } else t = tl;
+
+    vec2 b;
+
+    if(y < mesh_size.y - 1) {
+        const vec2& br = blend_vertices[(x + 1) * mesh_size.y + (y + 1)].pos;
+        const vec2& bl = blend_vertices[x * mesh_size.y + (y + 1)].pos;
+        b = br * x_t + bl * (1.0f - x_t);
+    } else b = t;
+
 
     const vec2 ret = b * y_t + t * (1.0f - y_t);
 
