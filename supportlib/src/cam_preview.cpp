@@ -80,7 +80,7 @@ void cam_preview::init_camera_related() {
     };
 
 
-    mesher.init(&nn_exists_out, (f32*)nn_contour_out, downsampled_size, cam_uv_bounds, cam_pos_bounds, 0); // todo: fix smoothness init period 0.4f);
+    mesher.init(&nn_exists_out, (f32*)nn_contour_out, downsampled_size, cam_uv_bounds, cam_pos_bounds, 0.4f);
 
     particles.init(backend, &mesher, svec2({ 4, 4 }), 0.05f, 0.015f, 2.0f);
     border.init(backend, &mesher, svec2({ 16, 16 }), 0.01f);
@@ -114,7 +114,16 @@ void cam_preview::init_camera_related() {
     tex_sampler.init(backend, unwrap_size, false, cam_tex, unwrapped_vertices, mesher.mesh_size.area(), mesher.mesh_indices.data(), mesher.mesh_indices.size());
 #endif
 
+    reset();
+
     backend->threads->push({ loop_nn_inference, this });
+}
+
+void cam_preview::reset() {
+    is_visible = true;
+    is_live_camera_streaming = true;
+    unwrap_animation.reset();
+    blendout_animation.reset();
 }
 
 void cam_preview::unwrap() {

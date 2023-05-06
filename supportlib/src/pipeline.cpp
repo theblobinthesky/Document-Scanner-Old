@@ -315,7 +315,8 @@ void docscanner::pipeline::render() {
             options_screen.draw();
             
             if(options_screen.discard_clicked) {
-                displayed_screen = screen_name::CAM_PREVIEW;
+                // cam_preview_screen.reset();
+                // displayed_screen = screen_name::CAM_PREVIEW;
             } else if(options_screen.next_clicked) {
                 displayed_screen = screen_name::EXPORT_OPTIONS;
             }

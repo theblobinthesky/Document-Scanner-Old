@@ -614,7 +614,8 @@ int main() {
     });
 
     pack.add_sdf_animation("stripes", {
-        "/media/shared/Projekte/DocumentScanner/assets/packs/test/sdf_animations/stripes/default.png"
+        "/media/shared/Projekte/DocumentScanner/assets/packs/test/sdf_animations/stripes/default.png",
+        "/media/shared/Projekte/DocumentScanner/assets/packs/test/sdf_animations/stripes/thick.png"
     });
 
     pack.add_font("main_font", "/media/shared/Projekte/DocumentScanner/assets/packs/test/fonts/font.ttf");

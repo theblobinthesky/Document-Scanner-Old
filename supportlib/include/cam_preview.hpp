@@ -48,6 +48,7 @@ struct cam_preview {
     rect unwrapped_rect;
     cam_preview(engine_backend* backend, ui_manager* ui, f32 bottom_edge, const rect& unwrapped_rect);
     void init_camera_related();
+    void reset();
 
     void unwrap();
     void draw_ui();

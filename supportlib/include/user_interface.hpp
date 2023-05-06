@@ -71,12 +71,15 @@ struct animation {
         : backend(backend), curve(curve), start_value(start_value), end_value(end_value), value(start_value), 
           start_delay(start_delay), duration(duration), state(WAITING), flags(flags) {}
 
-    void start() {
-        // todo: fix this if(state != STARTED) backend->running_animations++;
-        state = STARTED;
-
+    void reset() {
+        state = WAITING;
         value = start_value;
+    }
 
+    void start() {
+        reset();
+
+        state = STARTED;
         start_time = backend->time;
     }
 
