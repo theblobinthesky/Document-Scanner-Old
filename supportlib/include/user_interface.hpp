@@ -142,6 +142,8 @@ struct ui_theme {
 
     vec3 line_seperator_color = { 0.3f, 0.3f, 0.3f };
     f32 line_seperator_height = 0.0025f;
+
+    f32 small_border_thickness = 0.005f;
     
     ui_theme(bool enable_dark_mode);
 };
@@ -164,22 +166,25 @@ enum class text_alignment {
     TOP_LEFT, CENTER_LEFT, CENTER
 };
 
+struct text_desc {
+    const font_instance* font;
+    rect bounds = {};
+    std::string str;
+    const text_alignment align = text_alignment::CENTER;
+    const vec3 color;
+    bool underline = false;
+};
+
 struct text {
     engine_backend* backend;
-
-    rect bounds;
-    text_alignment align;
-
-    const font_instance* font;
-    std::string str;
-
-    vec4 color;
+    text_desc desc;
 
     shader_program shader;
     instanced_quads quads;
+    lines line;
 
-    text(engine_backend* backend, const font_instance* font, text_alignment align, const std::string str, const vec3& color);
-    text(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str, const vec3& color);
+    text(engine_backend* backend, const text_desc& desc);
+    text(engine_backend* backend, const rect& bounds, const text_desc& desc);
     void layout(const rect& bounds);
 
     void set_text(const std::string str);

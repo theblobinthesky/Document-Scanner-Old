@@ -68,6 +68,8 @@ vec4::vec4(f32 x, f32 y, f32 z, f32 w) : x(x), y(y), z(z), w(w) {}
 
 vec4::vec4(const vec3& v) : x(v.x), y(v.y), z(v.z), w(1.0f) {}
 
+vec4::vec4(const vec3& v, f32 w) : x(v.x), y(v.y), z(v.z), w(w) {}
+
 vec4 vec4::lerp(const vec4& a, const vec4& b, f32 t) {
     return {
         ::lerp(a.x, b.x, t),

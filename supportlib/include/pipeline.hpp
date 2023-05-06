@@ -29,6 +29,7 @@ enum class stack_mode : u32 {
 struct scrollable_view {
     ui_manager* ui;
     const std::vector<option_card*> views;
+    f32 spacing;
     stack_mode mode;
 
     rect bounds;
@@ -39,8 +40,8 @@ struct scrollable_view {
     vec2 drag_start_delta;
     vec2 delta;
 
-    scrollable_view(ui_manager* ui, const std::vector<option_card*>& views, stack_mode mode) : 
-        ui(ui), views(views), mode(mode) {}
+    scrollable_view(ui_manager* ui, const std::vector<option_card*>& views, f32 spacing, stack_mode mode) : 
+        ui(ui), views(views), spacing(spacing), mode(mode) {}
 
     void layout(const rect& bounds) {
         this->bounds = bounds;
@@ -52,9 +53,9 @@ struct scrollable_view {
             card->layout(height);
         }
 
-        total_size = 0.0f;
+        total_size = 1.0f * spacing;
         for(option_card* card: views) {
-            total_size += card->bounds.size().x;
+            total_size += spacing + card->bounds.size().x;
         }
     }
 
@@ -67,7 +68,6 @@ struct scrollable_view {
         }
 
         if(dragging && (event.type == motion_type::MOVE)) {
-            LOGI("dragging!");
             delta = drag_start_delta + drag_start_pos - event.pos;
         }
 
@@ -77,16 +77,15 @@ struct scrollable_view {
         }
 
         delta.x = std::min(std::max(delta.x, 0.0f), total_size - 1.0f);
-        LOGI("delta.x: %f, total_size: %f", delta.x, total_size);
 
-        vec2 transform = bounds.tl - vec2({ delta.x, 0 });
+        vec2 transform = bounds.tl - vec2({ delta.x - spacing, 0 });
 
         for(option_card* card: views) {
             SCOPED_TRANSFORM(ui->backend, transform);
         
             card->draw();
 
-            transform = transform + vec2({ card->bounds.size().x, 0 });
+            transform = transform + vec2({ card->bounds.size().x + spacing, 0 });
         }
 
         return 0;

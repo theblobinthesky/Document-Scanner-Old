@@ -163,32 +163,32 @@ rect ui_manager::get_screen_rect() const {
     return { {}, {1, backend->preview_height} };
 }
 
-text::text(engine_backend* backend, const font_instance* font, text_alignment align, const std::string str, const vec3& color) :
-    backend(backend), align(align), font(font), str(str), color(color) {
+text::text(engine_backend* backend, const text_desc& desc) : backend(backend), desc(desc) {
     shader = backend->compile_and_link(vert_instanced_quad_src(), frag_glyph_src(0));
-    quads.init(str.size());
-}
+    quads.init(desc.str.size());
+    if(desc.underline) {
+        vec2* points = new vec2[2];
+        line.init(backend, points, 2, 0.004f, desc.color, false);
+    }
 
-text::text(engine_backend* backend, const font_instance* font, const rect& bounds, text_alignment align, const std::string str, const vec3& color) :
-    text(backend, font, align, str, color) {
-    layout(bounds);
+    layout(desc.bounds);
 }
 
 void text::layout(const rect& bounds) {
-    this->bounds = bounds;
+    desc.bounds = bounds;
 }
 
 void text::set_text(const std::string str) {
-    this->str = str;
+    desc.str = str;
 }
 
 const vec2 text::get_text_size() const {
     vec2 text_size = { 0.0f, 0.0f };
 
-    for(s32 i = 0; i < str.size(); i++) {
-        const glyph* g = font->get_glyph((s32)str.at(i));
+    for(s32 i = 0; i < desc.str.size(); i++) {
+        const glyph* g = desc.font->get_glyph((s32)desc.str.at(i));
         
-        if(i == str.size() - 1) text_size.x += g->size.y;
+        if(i == desc.str.size() - 1) text_size.x += g->size.y;
         else text_size.x += g->x_advance;
 
         text_size.y = std::max(text_size.y, g->size.y);
@@ -198,28 +198,30 @@ const vec2 text::get_text_size() const {
 }
 
 void text::draw() {
-    font->use(0);
+    desc.font->use(0);
 
     const vec2 text_size = get_text_size();
 
-    vec2 tl;
-    switch(align) {
+    vec2 tl_bounds;
+    switch(desc.align) {
     case text_alignment::TOP_LEFT: {
-        tl = bounds.tl;
+        tl_bounds = desc.bounds.tl;
     } break;
     case text_alignment::CENTER_LEFT: {
-        tl = { bounds.tl.x, bounds.middle().y - text_size.y * 0.5f };
+        tl_bounds = { desc.bounds.tl.x, desc.bounds.middle().y - text_size.y * 0.5f };
     } break;
     case text_alignment::CENTER: {
-        tl = { bounds.middle() - text_size * 0.5f };
+        tl_bounds = { desc.bounds.middle() - text_size * 0.5f };
     } break;
     default: {
         LOGE_AND_BREAK("Text alignment is not supported.");
     } break;
     }
 
-    for(s32 i = 0; i < str.size(); i++) {
-        const glyph* g = font->get_glyph((s32)str.at(i));
+    vec2 tl = tl_bounds;
+
+    for(s32 i = 0; i < desc.str.size(); i++) {
+        const glyph* g = desc.font->get_glyph((s32)desc.str.at(i));
 
         vec2 q_pos = vec2({ tl.x, tl.y + text_size.y }) + g->off;
         
@@ -234,24 +236,33 @@ void text::draw() {
 
 
         tl.x += g->x_advance;
-        if(i != str.size() - 1) tl.x += font->get_kerning(str.at(i), str.at(i + 1));
+        if(i != desc.str.size() - 1) tl.x += desc.font->get_kerning(desc.str.at(i), desc.str.at(i + 1));
     }
 
     quads.fill();
 
     backend->use_program(shader);
-    get_variable(shader, "color").set_vec4(color);
+    get_variable(shader, "color").set_vec4(desc.color);
     quads.draw();
+
+
+    if(desc.underline) {
+        // todo: this is horrible code. seriously. not even mentioning the memory leak by "points";
+        line.points[0] = tl_bounds + vec2({ 0, text_size.y }) + vec2({ 0.01f, 0.005f });
+        line.points[1] = tl_bounds + text_size + vec2({ -0.01f, 0.005f });
+        line.fill();
+        line.draw();
+    }
 }
 
 button::button(ui_manager* ui, const std::string& str, const rect& crad, vec3 color) 
     : ui(ui), crad(crad), color(color), click_color(color * 1.2f),
-      content(ui->backend, ui->middle_font, bounds, text_alignment::CENTER, str, ui->theme.foreground_color),
+      content(ui->backend, { .font = ui->middle_font, .bounds = bounds, .str = str, .color = ui->theme.foreground_color}),
       click_animation(ui->backend, animation_curve::EASE_IN_OUT, 0, 1, 0, 0.15, 0) {}
 
 void button::layout(const rect& bounds) {
     this->bounds = bounds;
-    content.bounds = bounds;
+    content.layout(bounds);
 }
 
 bool button::draw() {

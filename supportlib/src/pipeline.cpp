@@ -47,7 +47,7 @@ void get_large_control_button_rect(const ui_manager* ui, rect& r) {
 
 option_card::option_card(ui_manager* ui, const std::vector<texture_asset_id>& images, const std::vector<std::string>& titles) :
     ui(ui), images(images), titles(titles), 
-    img(ui, images[0]), title(ui->backend, ui->small_font, text_alignment::CENTER, titles[0], ui->theme.white) {}
+    img(ui, images[0]), title(ui->backend, { .font = ui->small_font, .str = titles[0], .color = ui->theme.white }) {}
 
 void option_card::layout(f32 height) {
     bounds = rect::from_tl_and_size({}, {0, height});
@@ -62,7 +62,11 @@ void option_card::layout(f32 height) {
 }
 
 bool option_card::draw() {
-    ui->backend->draw_rounded_colored_quad_desc({ .bounds = bounds, .crad = { 0.05f, 0.05f, 0.05f, 0.05f }, .color = ui->theme.background_accent_color });
+    ui->backend->draw_rounded_colored_quad_desc({ 
+        .bounds = bounds, .crad = { 0.05f, 0.05f, 0.05f, 0.05f }, 
+        .color = vec4(ui->theme.background_accent_color, 0.5f), .border_color = ui->theme.white, .border_thickness = ui->theme.small_border_thickness 
+    });
+
     img.draw();
     title.draw();
 
@@ -73,19 +77,19 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     : ui(ui), 
     back_button(ui, ui->theme.white, ui->assets->load_sdf_animation_asset("back"), rot_mode::ROT_0_DEG), 
     next_button(ui, ui->theme.white, ui->assets->load_sdf_animation_asset("back"), rot_mode::ROT_180_DEG),
-    category_general(ui->backend, ui->small_font, text_alignment::CENTER, "GENERAL", ui->theme.white), 
-    category_crop(ui->backend, ui->small_font, text_alignment::CENTER, "CATEGORY", ui->theme.white),
+    category_general(ui->backend, { .font = ui->small_font, .str = "GENERAL", .color = ui->theme.white, .underline = true }), 
+    category_crop(ui->backend, { .font = ui->small_font, .str = "CROP", .color = ui->theme.white, .underline = true }),
 
     option_card_0(ui, { ui->assets->load_texture_asset("one_note_icon") }, { "OneNote" }),
     option_card_1(ui, { ui->assets->load_texture_asset("gallery_icon") }, { "Gallery" }),
     option_card_2(ui, { ui->assets->load_texture_asset("pdf_icon") }, { "Pdf" }),
-    categories_scroll_view(ui, { &option_card_0, &option_card_1, &option_card_2 }, stack_mode::STACK_HORIZONTAL),
+    categories_scroll_view(ui, { &option_card_0, &option_card_1, &option_card_2 }, 0.05f, stack_mode::STACK_HORIZONTAL),
 
     unwrapped_rect(unwrapped_rect), unwrapped_texture(unwrapped_texture),
     top_select_checkbox(ui, true), bottom_select_checkbox(ui, false), top_selected(true),
     desc_button(ui, ui->theme.black, ui->assets->load_sdf_animation_asset("stripes")),
-    desc_text(ui->backend, ui->small_font, text_alignment::CENTER, "UNENHANCED", ui->theme.foreground_color),
-    select_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Pick an option:", ui->theme.foreground_color),
+    desc_text(ui->backend, { .font = ui->small_font, .str = "UNENHANCED", .color = ui->theme.foreground_color }),
+    select_text(ui->backend, { .font = ui->middle_font, .str = "Pick an option:", .color = ui->theme.foreground_color }),
     blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0), 
     select_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 0.5f, 0) {
 
@@ -204,14 +208,14 @@ bool unwrapped_options_screen::draw() {
 
     ui->backend->clear_screen(ui->theme.black);
     draw_ui();
-    // draw_preview_ui();
-    // draw_select_ui();
+    draw_preview_ui();
+    draw_select_ui();
 
     return next_clicked;
 }
 
 export_item_card::export_item_card(ui_manager* ui, texture_asset_id icon, const char* title) : ui(ui), icon(icon), 
-    title(ui->backend, ui->small_font, text_alignment::CENTER, title, ui->theme.foreground_color), checkbox(ui, false) {}
+    title(ui->backend, { .font = ui->small_font, .str = title, .color = ui->theme.foreground_color }), checkbox(ui, false) {}
 
 void export_item_card::layout(rect bounds) {
     this->bounds = bounds; 
@@ -246,7 +250,7 @@ bool export_item_card::draw() {
 export_options_screen::export_options_screen(ui_manager* ui) : ui(ui),
     finish_button(ui, "Finish", crad_even, ui->theme.accept_color),
     dialogue_animation(ui->backend, animation_curve::EASE_IN_OUT, 0, 1, 0, 1.0f, 0),
-    export_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Please select an option:", ui->theme.foreground_color) {
+    export_text(ui->backend, { .font = ui->middle_font, .str = "Please select an option:", .color = ui->theme.foreground_color }) {
     
     rect screen = ui->get_screen_rect();
 

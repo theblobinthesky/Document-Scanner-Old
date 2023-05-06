@@ -325,6 +325,10 @@ std::string rounded_box_sdf_src() {
         float rounded_box_alpha(float distance) {
             return 1.0 - smoothstep(0.0, edge_softness, distance);
         }
+
+        float rounded_box_border_alpha(float distance) {
+            return 1.0 - smoothstep(0.0, -border_thickness - edge_softness, distance);
+        }
     )";
 }
 
@@ -334,10 +338,12 @@ std::string docscanner::frag_rounded_colored_quad_desc_src() {
         in vec2 out_uvs;
         out vec4 out_col;
 
-        uniform vec2 quad_size;
-        uniform vec4 corner_rad;
-        uniform vec4 light_color;
-        uniform vec4 dark_color;
+        uniform vec2  quad_size;
+        uniform vec4  corner_rad;
+        uniform vec4  light_color;
+        uniform vec4  dark_color;
+        uniform vec4  border_color;
+        uniform float border_thickness;
 
         const float color_mix_dist = 0.05f;
         const float color_mix_width = 0.2f;
@@ -350,11 +356,14 @@ std::string docscanner::frag_rounded_colored_quad_desc_src() {
 
             float distance = rounded_box_sdf(pos, half_size, corner_rad); 
             float smoothed_alpha = rounded_box_alpha(distance);
+            float smoothed_border_alpha = smoothed_alpha * rounded_box_border_alpha(distance);
 
             float norm_distance = abs(distance) / length(half_size);
             float color_mix = smoothstep(color_mix_dist, color_mix_dist + color_mix_width, norm_distance);
 
             vec4 color = mix(dark_color, light_color, color_mix);
+            color = mix(color, border_color, smoothed_border_alpha);
+
             out_col = vec4(color.rgb, smoothed_alpha * color.a);
         }
     )";
@@ -367,8 +376,10 @@ std::string docscanner::frag_rounded_textured_quad_desc_src(bool use_oes) {
         out vec4 out_col;
 
         uniform float opacity;
-        uniform vec2 quad_size;
-        uniform vec4 corner_rad;
+        uniform vec2  quad_size;
+        uniform vec4  corner_rad;
+        uniform vec4  border_color;
+        uniform float border_thickness;
 
         )" + rounded_box_sdf_src() + R"(
 
@@ -378,8 +389,11 @@ std::string docscanner::frag_rounded_textured_quad_desc_src(bool use_oes) {
 
             float distance = rounded_box_sdf(pos, half_size, corner_rad); 
             float smoothed_alpha = rounded_box_alpha(distance);
+            float smoothed_border_alpha = smoothed_alpha * rounded_box_border_alpha(distance);
 
             vec4 color = texture(sampler, out_uvs);
+            color = mix(color, border_color, smoothed_border_alpha);
+            
             out_col = vec4(color.rgb, opacity * color.a * smoothed_alpha);
         }
     )";

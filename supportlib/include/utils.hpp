@@ -92,6 +92,7 @@ struct vec4 {
     vec4();
     vec4(f32 x, f32 y, f32 z, f32 w);
     vec4(const vec3& v);
+    vec4(const vec3& v, f32 w);
 
     static vec4 lerp(const vec4& a, const vec4& b, f32 t);
     static vec4 fill_value(f32 v);

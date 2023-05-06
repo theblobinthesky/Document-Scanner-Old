@@ -19,7 +19,7 @@ constexpr f32 bar_height = 0.05f;
 cam_preview::cam_preview(engine_backend* backend, ui_manager* ui, f32 bottom_edge, const rect& unwrapped_rect) 
     : backend(backend), ui(ui),
       flash_button(ui, ui->theme.white, ui->assets->load_sdf_animation_asset("flash")),
-      title_text(backend, ui->small_font, text_alignment::CENTER, "Document Scanner", ui->theme.white),
+      title_text(backend, { .font = ui->small_font, .str = "Document Scanner", .color = ui->theme.white }),
       shutter_animation(backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.0f, 0.15f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED),
       unwrap_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0),
       blendout_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.2f, 0.5f, 0),

@@ -129,6 +129,8 @@ struct colored_quad_desc {
     rect bounds;
     rect crad = {};
     vec4 color;
+    vec4 border_color    = vec4::fill_value(0);
+    f32 border_thickness = 0;
 };
 
 struct textured_quad_desc {
@@ -138,6 +140,8 @@ struct textured_quad_desc {
     f32 opacity = 1.0f;
     rect uv_bounds = { {}, {1, 1} };
     rot_mode uv_rot = rot_mode::ROT_0_DEG;
+    vec4 border_color    = vec4::fill_value(0);
+    f32 border_thickness = 0;
 };
 
 struct sdf_quad_desc {
