@@ -228,11 +228,7 @@ void cam_preview::render() {
         blendout_animation.update();
     }
 
-    {
-        vec3 bg_color = vec3::lerp(ui->theme.black, ui->theme.background_color, blendout_animation.value);
-        SCOPED_COMPOSITE_GROUP(backend, bg_color, false, 1.0f);
-    }
-
+    backend->clear_screen(ui->theme.black);
     draw_ui();
     draw_unwrapped_ui();
     draw_shutter();

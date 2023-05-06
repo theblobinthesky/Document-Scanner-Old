@@ -183,6 +183,7 @@ struct text {
     void layout(const rect& bounds);
 
     void set_text(const std::string str);
+    const vec2 get_text_size() const;
     void draw();
 };
 
@@ -231,6 +232,7 @@ struct round_checkbox {
 struct sdf_image {
     ui_manager* ui;
     rect bounds;
+    rot_mode uv_rot;
     vec4 color;
 
     sdf_animation_asset_id id;
@@ -238,6 +240,7 @@ struct sdf_image {
     animation<f32> blend_animation;
 
     sdf_image(ui_manager* ui, vec3 color, sdf_animation_asset_id id, f32 blend_duration);
+    sdf_image(ui_manager* ui, vec3 color, sdf_animation_asset_id id, f32 blend_duration, rot_mode uv_rot);
     void layout(rect bounds);
     void next_depth();
 
@@ -248,9 +251,25 @@ struct sdf_button {
     sdf_image img;
 
     sdf_button(ui_manager* ui, vec3 color, sdf_animation_asset_id id);
+    sdf_button(ui_manager* ui, vec3 color, sdf_animation_asset_id id, rot_mode uv_rot);
     void layout(rect bounds);
 
     bool draw();
+};
+
+struct image {
+    ui_manager* ui;
+    rect bounds;
+    rot_mode uv_rot;
+    
+    texture_asset_id id;
+    
+    image(ui_manager* ui, texture_asset_id id);
+    image(ui_manager* ui, texture_asset_id id, rot_mode uv_rot);
+
+    void layout(rect bounds);
+    const vec2 get_image_size() const;
+    void draw();
 };
 
 vec2 map_to_rect(const vec2& pt, const rect* rect);
@@ -273,11 +292,22 @@ rect get_texture_uvs_aligned_top(const rect& r, const svec2& tex_size);
 
 enum class alignment {
     LEFT, RIGHT,
-    TOP_RIGHT
+    TOP_LEFT, TOP_RIGHT
 };
 
 rect get_texture_aligned_rect(const rect& r, const svec2& size, alignment align);
 
 rect align_rect(const rect& bounds, const rect& r, alignment align);
+rect align_rect(const rect& bounds, const vec2& size, alignment align);
+
+rect cut_bottom(rect& bounds, f32 height);
+
+enum class rect_side {
+    LEFT, RIGHT, TOP, BOTTOM
+};
+
+rect expand_rect(rect& bounds, f32 size, rect_side side);
+
+f32 get_width_from_height_and_aspect_ratio(f32 height, f32 y_over_x);
 
 NAMESPACE_END

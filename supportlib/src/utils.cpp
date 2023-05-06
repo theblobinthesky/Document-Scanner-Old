@@ -77,6 +77,10 @@ vec4 vec4::lerp(const vec4& a, const vec4& b, f32 t) {
     };
 }
 
+vec4 vec4::fill_value(f32 v) {
+    return { v, v, v, v };
+}
+
 svec2 svec2::operator+(svec2 other) const {
     return { x + other.x, y + other.y }; 
 }

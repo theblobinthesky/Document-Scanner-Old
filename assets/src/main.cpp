@@ -603,7 +603,7 @@ int main() {
     pack.add_image("word_icon", "/media/shared/Projekte/DocumentScanner/assets/packs/test/images/word_icon.png");
     pack.add_image("gallery_icon", "/media/shared/Projekte/DocumentScanner/assets/packs/test/images/gallery_icon.png");
     pack.add_image("pdf_icon", "/media/shared/Projekte/DocumentScanner/assets/packs/test/images/pdf_icon.png");
-
+    
     pack.add_sdf_animation("checked", {
         "/media/shared/Projekte/DocumentScanner/assets/packs/test/sdf_animations/checked/checked.png"
     });
@@ -616,6 +616,10 @@ int main() {
     pack.add_sdf_animation("stripes", {
         "/media/shared/Projekte/DocumentScanner/assets/packs/test/sdf_animations/stripes/default.png",
         "/media/shared/Projekte/DocumentScanner/assets/packs/test/sdf_animations/stripes/thick.png"
+    });
+
+    pack.add_sdf_animation("back", {
+        "/media/shared/Projekte/DocumentScanner/assets/packs/test/sdf_animations/back/back.png"
     });
 
     pack.add_font("main_font", "/media/shared/Projekte/DocumentScanner/assets/packs/test/fonts/font.ttf");

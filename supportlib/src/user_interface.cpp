@@ -182,10 +182,9 @@ void text::set_text(const std::string str) {
     this->str = str;
 }
 
-void text::draw() {
-    font->use(0);
-
+const vec2 text::get_text_size() const {
     vec2 text_size = { 0.0f, 0.0f };
+
     for(s32 i = 0; i < str.size(); i++) {
         const glyph* g = font->get_glyph((s32)str.at(i));
         
@@ -194,6 +193,14 @@ void text::draw() {
 
         text_size.y = std::max(text_size.y, g->size.y);
     }
+
+    return text_size;
+}
+
+void text::draw() {
+    font->use(0);
+
+    const vec2 text_size = get_text_size();
 
     vec2 tl;
     switch(align) {
@@ -216,13 +223,15 @@ void text::draw() {
 
         vec2 q_pos = vec2({ tl.x, tl.y + text_size.y }) + g->off;
         
+        // TODO(hack): Remove the global transform from here! Also move this code to the engine. Don't draw with shaders directly if it's not necessary.
         instanced_quad& quad = quads.quads[i];
-        quad.v0 = q_pos;
-        quad.v1 = q_pos + vec2({ g->size.x, 0 });
-        quad.v2 = q_pos + g->size;
-        quad.v3 = q_pos + vec2({ 0, g->size.y });
+        quad.v0 = q_pos + backend->global_transform;
+        quad.v1 = q_pos + vec2({ g->size.x, 0 }) + backend->global_transform;
+        quad.v2 = q_pos + g->size + backend->global_transform;
+        quad.v3 = q_pos + vec2({ 0, g->size.y }) + backend->global_transform;
         quad.uv_tl = g->uv.tl;
         quad.uv_br = g->uv.br;
+
 
         tl.x += g->x_advance;
         if(i != str.size() - 1) tl.x += font->get_kerning(str.at(i), str.at(i + 1));
@@ -310,13 +319,16 @@ void round_checkbox::draw() {
 
     const sdf_animation_asset* asset = ui->assets->get_sdf_animation_asset(checked_icon);
     
-    ui->backend->draw_rounded_colored_quad(bounds, { {crad, crad}, {crad, crad} }, ui->theme.background_accent_color);
+    ui->backend->draw_rounded_colored_quad(bounds, { crad, crad, crad, crad }, ui->theme.background_accent_color);
         
     f32 zero_dist = lerp(0, asset->zero_dist, check_animation.value);
     ui->backend->draw_colored_sdf_quad(bounds, asset->tex, ui->theme.foreground_color, 0, 0, 0, zero_dist);
 }
 
-sdf_image::sdf_image(ui_manager* ui, vec3 color, sdf_animation_asset_id id, f32 blend_duration) : ui(ui), color(color), id(id), 
+sdf_image::sdf_image(ui_manager* ui, vec3 color, sdf_animation_asset_id id, f32 blend_duration) : 
+    sdf_image(ui, color, id, blend_duration, rot_mode::ROT_0_DEG) {}
+
+sdf_image::sdf_image(ui_manager* ui, vec3 color, sdf_animation_asset_id id, f32 blend_duration, rot_mode uv_rot) : ui(ui), uv_rot(uv_rot), color(color), id(id), 
     l_depth(-1), c_depth(0), n_depth(1),
     blend_animation(ui->backend, animation_curve::EASE_IN_OUT, 0, 1, 0, blend_duration, 0) {
     blend_animation.state = animation_state::FINISHED;
@@ -340,10 +352,12 @@ void sdf_image::next_depth() {
 
 void sdf_image::draw() {
     const sdf_animation_asset* asset = ui->assets->get_sdf_animation_asset(id);
-    ui->backend->draw_colored_sdf_quad(bounds, asset->tex, color, l_depth, c_depth, blend_animation.update(), asset->zero_dist);
+    ui->backend->draw_colored_sdf_quad(bounds, asset->tex, color, l_depth, c_depth, blend_animation.update(), asset->zero_dist, uv_rot);
 }
 
-sdf_button::sdf_button(ui_manager* ui, vec3 color, sdf_animation_asset_id id) : img(ui, color, id, 0.15f) {}
+sdf_button::sdf_button(ui_manager* ui, vec3 color, sdf_animation_asset_id id) : sdf_button(ui, color, id, rot_mode::ROT_0_DEG) {}
+
+sdf_button::sdf_button(ui_manager* ui, vec3 color, sdf_animation_asset_id id, rot_mode uv_rot) : img(ui, color, id, 0.15f, uv_rot) {}
 
 void sdf_button::layout(rect bounds) {
     img.layout(bounds);
@@ -360,6 +374,24 @@ bool sdf_button::draw() {
     }
 
     return released;
+}
+
+image::image(ui_manager* ui, texture_asset_id id) : image(ui, id, rot_mode::ROT_0_DEG) {}
+
+image::image(ui_manager* ui, texture_asset_id id, rot_mode uv_rot) : ui(ui), uv_rot(uv_rot), id(id) {}
+
+void image::layout(rect bounds) {
+    this->bounds = bounds;
+}
+
+const vec2 image::get_image_size() const {
+    const texture_asset* asset = ui->assets->get_texture_asset(id);
+    return { (f32)asset->image_size.x, (f32)asset->image_size.y };
+}
+    
+void image::draw() {
+    const texture_asset* asset = ui->assets->get_texture_asset(id);
+    ui->backend->draw_rounded_textured_quad(bounds, {}, asset->tex, 1, { {}, {1,1} }, uv_rot);
 }
 
 rect docscanner::get_texture_uvs_aligned_top(const rect& r, const svec2& tex_size) {
@@ -388,8 +420,14 @@ rect docscanner::get_texture_aligned_rect(const rect& r, const svec2& size, alig
 
 rect docscanner::align_rect(const rect& bounds, const rect& r, alignment align) {
     vec2 size = r.size();
+    return align_rect(bounds, size, align);
+}
 
+rect docscanner::align_rect(const rect& bounds, const vec2& size, alignment align) {
     switch(align) {
+    case alignment::TOP_LEFT: {
+        return { bounds.tl, bounds.tl + size };
+    } break;
     case alignment::TOP_RIGHT: {
         vec2 tr = bounds.tr(); 
         return { tr - vec2({ size.x, 0 }), tr + vec2({ 0, size.y }) };
@@ -399,6 +437,44 @@ rect docscanner::align_rect(const rect& bounds, const rect& r, alignment align) 
         return {};
     } break;
     }
+
+}
+
+rect docscanner::cut_bottom(rect& bounds, f32 height) {
+    rect cut_bounds = {
+        { bounds.tl.x, bounds.br.y - height },
+        bounds.br
+    };
+
+    bounds = {
+        .tl = bounds.tl,
+        .br = { bounds.br.x, bounds.size().y - height }
+    };
+
+    return cut_bounds;
+}
+
+rect docscanner::expand_rect(rect& bounds, f32 size, rect_side side) {
+    switch(side) {
+    case rect_side::RIGHT: {
+        rect expand_bounds = {
+            { bounds.br.x, bounds.tl.y },
+            { bounds.br.x + size, bounds.br.y } 
+        };
+
+        bounds = { bounds.tl, expand_bounds.br };
+
+        return expand_bounds;
+    } break;
+    default: {
+        LOGE_AND_BREAK("expand_rect doesn't implement the side.");
+        return {};
+    } break;
+    }
+}
+
+f32 docscanner::get_width_from_height_and_aspect_ratio(f32 height, f32 y_over_x) {
+    return height * y_over_x;
 }
 
 vec2 docscanner::map_to_rect(const vec2& pt, const rect* rect) {

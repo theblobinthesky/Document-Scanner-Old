@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <queue>
+#include <stack>
 
 // nocheckin
 #ifdef ANDROID
@@ -114,6 +115,16 @@ struct scoped_composite_group {
 #define SCOPED_COMPOSITE_GROUP(backend, bg_color, bg_transparent, opacity) \
     scoped_composite_group SCOPED_COMPOSITE_GROUP_INSTANCE(backend, bg_color, bg_transparent, opacity);
 
+struct scoped_transform {
+    engine_backend* backend;
+
+    scoped_transform(engine_backend* backend, vec2 transform);
+    ~scoped_transform();
+};
+
+#define SCOPED_TRANSFORM(backend, transform) \
+    scoped_transform SCOPED_TRANSFORM_INSTANCE(backend, transform);
+
 struct engine_backend {
     input_manager input;
     file_context* file_ctx;
@@ -143,6 +154,9 @@ struct engine_backend {
     texture comp_texture;
     frame_buffer comp_fb;
 
+    std::stack<vec2> transform_stack;
+    vec2 global_transform;
+
 #ifdef DEBUG
     shader_program DEBUG_marker_program;
     std::vector<DEBUG_marker> DEBUG_marker_queue;
@@ -167,6 +181,7 @@ struct engine_backend {
     void draw_rounded_colored_quad(const rect& bounds, const rect& crad, const vec4& color);
     void draw_rounded_textured_quad(const rect& bounds, const rect& crad, const texture& tex, const rect& uv_bounds);
     void draw_rounded_textured_quad(const rect& bounds, const rect& crad, const texture& tex, f32 opacity, const rect& uv_bounds, rot_mode uv_rot);
+    void draw_colored_sdf_quad(const rect& bounds, const stack_texture& tex, const vec4& color, f32 from_depth, f32 to_depth, f32 blend_depth, f32 blendin, rot_mode uv_rot);
     void draw_colored_sdf_quad(const rect& bounds, const stack_texture& tex, const vec4& color, f32 from_depth, f32 to_depth, f32 blend_depth, f32 blendin);
 
 #ifdef USES_OES_TEXTURES

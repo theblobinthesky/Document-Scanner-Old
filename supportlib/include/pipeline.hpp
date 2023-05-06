@@ -5,8 +5,105 @@
 
 NAMESPACE_BEGIN
 
+struct option_card {
+    ui_manager* ui;
+    std::vector<texture_asset_id> images;
+    std::vector<std::string> titles;
+
+    rect bounds;
+    image img;
+    text title;
+
+    s32 index;
+
+    option_card(ui_manager* ui, const std::vector<texture_asset_id>& images, const std::vector<std::string>& titles);
+    
+    void layout(f32 height);
+    bool draw();
+};
+
+enum class stack_mode : u32 {
+    STACK_HORIZONTAL, STACK_VERTICAL
+};
+
+struct scrollable_view {
+    ui_manager* ui;
+    const std::vector<option_card*> views;
+    stack_mode mode;
+
+    rect bounds;
+    f32 total_size;
+
+    bool dragging;
+    vec2 drag_start_pos;
+    vec2 drag_start_delta;
+    vec2 delta;
+
+    scrollable_view(ui_manager* ui, const std::vector<option_card*>& views, stack_mode mode) : 
+        ui(ui), views(views), mode(mode) {}
+
+    void layout(const rect& bounds) {
+        this->bounds = bounds;
+        delta = {};
+
+        f32 height = bounds.size().y;
+
+        for(option_card* card: views) {
+            card->layout(height);
+        }
+
+        total_size = 0.0f;
+        for(option_card* card: views) {
+            total_size += card->bounds.size().x;
+        }
+    }
+
+    s32 draw() {
+        motion_event event = ui->backend->input.get_motion_event(bounds);
+        if(event.type == motion_type::TOUCH_DOWN) {
+            dragging = true;
+            drag_start_pos   = event.pos;
+            drag_start_delta = delta;
+        }
+
+        if(dragging && (event.type == motion_type::MOVE)) {
+            LOGI("dragging!");
+            delta = drag_start_delta + drag_start_pos - event.pos;
+        }
+
+        if(event.type == motion_type::TOUCH_UP) {
+            dragging = false;
+            drag_start_delta = delta;
+        }
+
+        delta.x = std::min(std::max(delta.x, 0.0f), total_size - 1.0f);
+        LOGI("delta.x: %f, total_size: %f", delta.x, total_size);
+
+        vec2 transform = bounds.tl - vec2({ delta.x, 0 });
+
+        for(option_card* card: views) {
+            SCOPED_TRANSFORM(ui->backend, transform);
+        
+            card->draw();
+
+            transform = transform + vec2({ card->bounds.size().x, 0 });
+        }
+
+        return 0;
+    }
+};
+
 struct unwrapped_options_screen {
     ui_manager* ui;
+
+    sdf_button back_button, next_button;
+    rect scrollable_rect, categories_rect;
+    text category_general, category_crop;
+
+    option_card option_card_0;
+    option_card option_card_1;
+    option_card option_card_2;
+    scrollable_view categories_scroll_view;
     
     rect unwrapped_rect;
     rect top_select_rect, bottom_select_rect;
@@ -16,8 +113,6 @@ struct unwrapped_options_screen {
     round_checkbox top_select_checkbox, bottom_select_checkbox;
     bool top_selected;
     
-    button discard_button, next_button;
-
     sdf_button desc_button;
     rect desc_rect;
     text desc_text;

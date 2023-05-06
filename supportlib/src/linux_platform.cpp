@@ -279,9 +279,13 @@ int platform_init() {
         int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
         motion_event event = { .type = motion_type::NO_MOTION, .pos = {} };
 
-        if (state == GLFW_PRESS && !mouse_pressed) {
-            mouse_pressed = true;
-            event.type = motion_type::TOUCH_DOWN;
+        if (state == GLFW_PRESS) {
+            if(!mouse_pressed) {
+                mouse_pressed = true;
+                event.type = motion_type::TOUCH_DOWN;
+            } else {
+                event.type = motion_type::MOVE;
+            }
         } else if(state != GLFW_PRESS && mouse_pressed) {
             mouse_pressed = false;
             event.type = motion_type::TOUCH_UP;            

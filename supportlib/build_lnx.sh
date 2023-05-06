@@ -11,6 +11,6 @@ done
 
 if [ "$1" = "RUN" ]; then
     cd bin/linux/x86_64
-    ./docscanner
+    gdb -ex run --batch ./docscanner
     cd ../../..
 fi

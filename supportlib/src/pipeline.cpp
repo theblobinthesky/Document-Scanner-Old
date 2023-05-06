@@ -19,9 +19,7 @@ constexpr rect unwrapped_mesh_rect = {
 constexpr rect desc_crad = { { 0.05f, 0 }, { 0.05f, 0 } };
 
 constexpr vec2 min_max_button_crad = { 0.05f, 0.1f };
-constexpr rect crad_thin_to_the_left = { {min_max_button_crad.x, min_max_button_crad.x}, {min_max_button_crad.y, min_max_button_crad.y} };
-constexpr rect crad_thin_to_the_right = { {min_max_button_crad.y, min_max_button_crad.y}, {min_max_button_crad.x, min_max_button_crad.x} };
-constexpr rect crad_even = { {min_max_button_crad.x, min_max_button_crad.x}, {min_max_button_crad.x, min_max_button_crad.x} };
+const rect crad_even = { min_max_button_crad.x, min_max_button_crad.x, min_max_button_crad.x, min_max_button_crad.x };
 
 constexpr f32 title_text_top = 0.15f;
 
@@ -37,17 +35,6 @@ void get_time(u64& start_time, f32& time) {
     }
 }
 
-void get_split_control_button_rects(const ui_manager* ui, rect* left, rect* right) {
-    rect left_right_margin = { { 0.02f, 0 }, { 0.02f, 0 } };
-    f32 top = 0.8f, bottom = 0.9f;
-
-    rect rect = ui->get_screen_rect();
-    rect = get_between(rect, top, bottom);
-
-    if(left) *left = cut_margins(grid_split(rect, 0, 2, split_direction::HORIZONTAL), left_right_margin);
-    if(right) *right = cut_margins(grid_split(rect, 1, 2, split_direction::HORIZONTAL), left_right_margin);
-}
-
 void get_large_control_button_rect(const ui_manager* ui, rect& r) {
     rect left_right_margin = { { 0.02f, 0 }, { 0.02f, 0 } };
     f32 top = 0.8f, bottom = 0.9f;
@@ -58,28 +45,56 @@ void get_large_control_button_rect(const ui_manager* ui, rect& r) {
     r = cut_margins(rect, left_right_margin);
 }
 
+option_card::option_card(ui_manager* ui, const std::vector<texture_asset_id>& images, const std::vector<std::string>& titles) :
+    ui(ui), images(images), titles(titles), 
+    img(ui, images[0]), title(ui->backend, ui->small_font, text_alignment::CENTER, titles[0], ui->theme.white) {}
+
+void option_card::layout(f32 height) {
+    bounds = rect::from_tl_and_size({}, {0, height});
+
+    const vec2 image_size = img.get_image_size();
+    rect image_rect = expand_rect(bounds, get_width_from_height_and_aspect_ratio(height, image_size.y / image_size.x), rect_side::RIGHT);
+    img.layout(image_rect);
+
+    const vec2 text_size = title.get_text_size();
+    rect text_rect  = expand_rect(bounds, text_size.x, rect_side::RIGHT);
+    title.layout(text_rect);
+}
+
+bool option_card::draw() {
+    ui->backend->draw_rounded_colored_quad(bounds, { 0.05f, 0.05f, 0.05f, 0.05f }, ui->theme.background_accent_color);
+    img.draw();
+    title.draw();
+
+    return true;
+}
+
 unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect, const texture* unwrapped_texture) 
-    : ui(ui), unwrapped_rect(unwrapped_rect), unwrapped_texture(unwrapped_texture),
+    : ui(ui), 
+    back_button(ui, ui->theme.white, ui->assets->load_sdf_animation_asset("back"), rot_mode::ROT_0_DEG), 
+    next_button(ui, ui->theme.white, ui->assets->load_sdf_animation_asset("back"), rot_mode::ROT_180_DEG),
+    category_general(ui->backend, ui->small_font, text_alignment::CENTER, "GENERAL", ui->theme.white), 
+    category_crop(ui->backend, ui->small_font, text_alignment::CENTER, "CATEGORY", ui->theme.white),
+
+    option_card_0(ui, { ui->assets->load_texture_asset("one_note_icon") }, { "OneNote" }),
+    option_card_1(ui, { ui->assets->load_texture_asset("gallery_icon") }, { "Gallery" }),
+    option_card_2(ui, { ui->assets->load_texture_asset("pdf_icon") }, { "Pdf" }),
+    categories_scroll_view(ui, { &option_card_0, &option_card_1, &option_card_2 }, stack_mode::STACK_HORIZONTAL),
+
+    unwrapped_rect(unwrapped_rect), unwrapped_texture(unwrapped_texture),
     top_select_checkbox(ui, true), bottom_select_checkbox(ui, false), top_selected(true),
-    discard_button(ui, "Discard", crad_thin_to_the_left, ui->theme.deny_color), next_button(ui, "Keep", crad_thin_to_the_right, ui->theme.accept_color),
     desc_button(ui, ui->theme.black, ui->assets->load_sdf_animation_asset("stripes")),
     desc_text(ui->backend, ui->small_font, text_alignment::CENTER, "UNENHANCED", ui->theme.foreground_color),
     select_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Pick an option:", ui->theme.foreground_color),
     blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0), 
     select_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 0.5f, 0) {
 
-    rect screen_rect = {
-        .tl = {},
-        .br = { 1, ui->backend->preview_height }
-    };
+    rect screen_rect = cut_margins(ui->get_screen_rect(), { {}, {0, 0.1f} });
+    
+    rect back_button_rect = align_rect(cut_margins(screen_rect, 0.05f), vec2({0.15f, 0.15f}), alignment::TOP_LEFT);
+    rect next_button_rect = align_rect(cut_margins(screen_rect, 0.05f), vec2({0.15f, 0.15f}), alignment::TOP_RIGHT);
 
-    rect screen = rect(screen_rect);
-
-    screen = get_between(screen, 0.8f, 0.9f);
-
-    rect discard_button_rect, next_button_rect;
-    get_split_control_button_rects(ui, &discard_button_rect, &next_button_rect);
-    discard_button.layout(discard_button_rect);
+    back_button.layout(back_button_rect);
     next_button.layout(next_button_rect);
 
     desc_rect = get_at_bottom(unwrapped_rect, 0.15f);
@@ -96,19 +111,28 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     
     rect select_text_rect = get_at_top(select_rect, title_text_top);
     select_text.layout(select_text_rect);
+
+
+    scrollable_rect = cut_bottom(screen_rect, 0.20f);
+    categories_rect = cut_bottom(screen_rect, 0.15f);
+
+    category_general.layout(grid_split(categories_rect, 0, 2, split_direction::HORIZONTAL));
+    category_crop.layout(grid_split(categories_rect, 1, 2, split_direction::HORIZONTAL));
+
+    categories_scroll_view.layout(scrollable_rect);
 }
 
 void unwrapped_options_screen::draw_ui() {
     f32 opacity = blendin_animation.value * (1.0f - select_animation.value);
     SCOPED_COMPOSITE_GROUP(ui->backend, {}, true, opacity);
 
-    motion_event event = ui->backend->input.get_motion_event(desc_rect);
+    // motion_event event = ui->backend->input.get_motion_event(desc_rect);
 
-    if(event.type == motion_type::CLICKED) {
-        select_animation.start();
-    }
+    // if(event.type == motion_type::CLICKED) {
+    //     select_animation.start();
+    // }
 
-    if(discard_button.draw()) {
+    if(back_button.draw()) {
         discard_clicked = true;
     }
 
@@ -116,9 +140,15 @@ void unwrapped_options_screen::draw_ui() {
         next_clicked = true;
     }
 
-    ui->backend->draw_rounded_colored_quad(desc_rect, desc_crad, ui->theme.background_accent_color);
-    desc_button.draw();
-    desc_text.draw();
+    // ui->backend->draw_rounded_colored_quad(desc_rect, desc_crad, ui->theme.background_accent_color);
+    // desc_button.draw();
+    // desc_text.draw();
+
+
+    category_general.draw();
+    category_crop.draw();
+
+    categories_scroll_view.draw();
 }
 
 void unwrapped_options_screen::draw_select_ui() {
@@ -166,10 +196,10 @@ bool unwrapped_options_screen::draw() {
     blendin_animation.update();
     select_animation.update();
 
-    ui->backend->clear_screen(ui->theme.background_color);
+    ui->backend->clear_screen(ui->theme.black);
     draw_ui();
-    draw_preview_ui();
-    draw_select_ui();
+    // draw_preview_ui();
+    // draw_select_ui();
 
     return next_clicked;
 }
@@ -266,7 +296,7 @@ void export_options_screen::draw_dialogue_ui() {
     SCOPED_COMPOSITE_GROUP(ui->backend, {}, true, dialogue_animation.value);
 
     rect dialogue_rect = rect::lerp(dialogue_rect_small, dialogue_rect_large, dialogue_animation.value);
-    ui->backend->draw_rounded_colored_quad(dialogue_rect, { {0.05f, 0.05f}, {0.05f, 0.05f} }, ui->theme.background_accent_color);
+    ui->backend->draw_rounded_colored_quad(dialogue_rect, { 0.05f, 0.05f, 0.05f, 0.05f }, ui->theme.background_accent_color);
 }
 
 void export_options_screen::draw() {
@@ -299,7 +329,7 @@ void docscanner::pipeline::render() {
 
     bool redraw = false;
 
-    // displayed_screen = screen_name::EXPORT_OPTIONS;
+    // displayed_screen = screen_name::UNWRAPPED_OPTIONS;
     if(displayed_screen == screen_name::CAM_PREVIEW) {
         redraw = true;
 

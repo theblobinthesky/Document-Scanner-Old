@@ -107,8 +107,19 @@ scoped_composite_group::~scoped_composite_group() {
     backend->end_composite_group();
 }
 
+scoped_transform::scoped_transform(engine_backend* backend, vec2 transform) : backend(backend) {
+    backend->transform_stack.push(transform);
+    backend->global_transform = backend->global_transform + transform;
+}
+
+scoped_transform::~scoped_transform() {
+    vec2 transform = backend->transform_stack.top();
+    backend->transform_stack.pop();
+    backend->global_transform = backend->global_transform - transform;
+}
+
 engine_backend::engine_backend(file_context* file_ctx, thread_pool* threads, svec2 preview_size_px) 
-    : file_ctx(file_ctx), threads(threads), cam_is_init(false), preview_size_px(preview_size_px) {
+    : file_ctx(file_ctx), threads(threads), cam_is_init(false), preview_size_px(preview_size_px), global_transform({}) {
     preview_height = preview_size_px.y / (f32)preview_size_px.x;
     input.init(preview_size_px, preview_height);
 
@@ -247,8 +258,12 @@ void engine_backend::draw_quad(const shader_program& program, const rect& bounds
 void engine_backend::draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds, rot_mode uv_rot) {
     bind_shader_buffer(quad_buffer);
 
+    rect real_bounds = bounds;
+    real_bounds.tl = real_bounds.tl + global_transform;
+    real_bounds.br = real_bounds.br + global_transform;
+
     use_program(program);
-    get_variable(program, "bounds").set_vec4(bounds);
+    get_variable(program, "bounds").set_vec4(real_bounds);
 
     bool rot_uv_90_deg = false;
     rect real_uv_bounds = uv_bounds;
@@ -294,14 +309,18 @@ void engine_backend::draw_rounded_textured_quad(const rect& bounds, const rect& 
     draw_quad(rounded_quad_with_texture, bounds, uv_bounds, uv_rot);
 }
 
-void engine_backend::draw_colored_sdf_quad(const rect& bounds, const stack_texture& tex, const vec4& color, f32 from_depth, f32 to_depth, f32 blend_depth, f32 blendin) {
+void engine_backend::draw_colored_sdf_quad(const rect& bounds, const stack_texture& tex, const vec4& color, f32 from_depth, f32 to_depth, f32 blend_depth, f32 blendin, rot_mode uv_rot) {
     bind_texture_to_slot(0, tex);
 
     use_program(sdf_quad_with_texture);
     get_variable(sdf_quad_with_texture, "zero_dist").set_f32(blendin);
     get_variable(sdf_quad_with_texture, "depths").set_vec3({from_depth, to_depth, blend_depth * 0.999f}); // 0.999f makes it not reset at 1.0f
     get_variable(sdf_quad_with_texture, "color").set_vec4(color);
-    draw_quad(sdf_quad_with_texture, bounds);
+    draw_quad(sdf_quad_with_texture, bounds, { {}, {1, 1} }, uv_rot);
+}
+
+void engine_backend::draw_colored_sdf_quad(const rect& bounds, const stack_texture& tex, const vec4& color, f32 from_depth, f32 to_depth, f32 blend_depth, f32 blendin) {
+    draw_colored_sdf_quad(bounds, tex, color, from_depth, to_depth, blend_depth, blendin, rot_mode::ROT_0_DEG);
 }
 
 #ifdef USES_OES_TEXTURES
