@@ -180,7 +180,7 @@ struct text {
     void layout(const rect& bounds);
 
     void set_text(const std::string str);
-    void render();
+    void draw();
 };
 
 struct button {

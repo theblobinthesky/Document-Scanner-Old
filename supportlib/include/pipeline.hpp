@@ -18,6 +18,7 @@ struct unwrapped_options_screen {
     
     button discard_button, next_button;
 
+    sdf_button desc_button;
     rect desc_rect;
     text desc_text;
 
@@ -26,11 +27,13 @@ struct unwrapped_options_screen {
     animation<f32> blendin_animation;
     animation<f32> select_animation;
 
+    bool discard_clicked, next_clicked;
+
     unwrapped_options_screen(ui_manager* ui, const rect& unwrapped_rect, const texture* unwrapped_texture);
     void draw_ui();
     void draw_select_ui();
     void draw_preview_ui();
-    void draw();
+    bool draw();
 };
 
 struct export_item_card {

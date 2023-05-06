@@ -62,7 +62,8 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     : ui(ui), unwrapped_rect(unwrapped_rect), unwrapped_texture(unwrapped_texture),
     top_select_checkbox(ui, true), bottom_select_checkbox(ui, false), top_selected(true),
     discard_button(ui, "Discard", crad_thin_to_the_left, ui->theme.deny_color), next_button(ui, "Keep", crad_thin_to_the_right, ui->theme.accept_color),
-    desc_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Unenhanced", ui->theme.foreground_color),
+    desc_button(ui, ui->theme.black, ui->assets->load_sdf_animation_asset("stripes")),
+    desc_text(ui->backend, ui->small_font, text_alignment::CENTER, "UNENHANCED", ui->theme.foreground_color),
     select_text(ui->backend, ui->middle_font, text_alignment::CENTER, "Pick an option:", ui->theme.foreground_color),
     blendin_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0), 
     select_animation(ui->backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 0.5f, 0) {
@@ -81,7 +82,8 @@ unwrapped_options_screen::unwrapped_options_screen(ui_manager* ui, const rect& u
     discard_button.layout(discard_button_rect);
     next_button.layout(next_button_rect);
 
-    desc_rect = get_at_bottom(unwrapped_rect, 0.2f );
+    desc_rect = get_at_bottom(unwrapped_rect, 0.15f);
+    desc_button.layout(cut_margins(get_texture_aligned_rect(desc_rect, { 1, 1 }, alignment::LEFT), 0.02f));
     desc_text.layout(desc_rect);
     
     rect select_rect = cut_margins(screen_rect, { { margin, 0.25f }, { margin, 0.1f } });
@@ -100,23 +102,30 @@ void unwrapped_options_screen::draw_ui() {
     f32 opacity = blendin_animation.value * (1.0f - select_animation.value);
     SCOPED_COMPOSITE_GROUP(ui->backend, {}, true, opacity);
 
-    if(discard_button.draw()) {
-        LOGI("discard!");
-    }
+    motion_event event = ui->backend->input.get_motion_event(desc_rect);
 
-    if(next_button.draw()) {
+    if(event.type == motion_type::CLICKED) {
         select_animation.start();
     }
 
+    if(discard_button.draw()) {
+        discard_clicked = true;
+    }
+
+    if(next_button.draw()) {
+        next_clicked = true;
+    }
+
     ui->backend->draw_rounded_colored_quad(desc_rect, desc_crad, ui->theme.background_accent_color);
-    desc_text.render();
+    desc_button.draw();
+    desc_text.draw();
 }
 
 void unwrapped_options_screen::draw_select_ui() {
     f32 opacity = blendin_animation.value * select_animation.value;
     SCOPED_COMPOSITE_GROUP(ui->backend, {}, true, opacity);
 
-    select_text.render();
+    select_text.draw();
 
     rect unwrapped_uv = { {}, { 1, 1 } };
     rect split_unwrapped_uv = get_texture_uvs_aligned_top(top_select_rect, unwrapped_texture->size);
@@ -125,8 +134,8 @@ void unwrapped_options_screen::draw_select_ui() {
         ui->backend->draw_rounded_textured_quad(rect::lerp(unwrapped_rect, bottom_select_rect, select_animation.value), {}, *unwrapped_texture, 
                 rect::lerp(unwrapped_uv, split_unwrapped_uv, select_animation.value));
 
-        bool top_clicked = ui->backend->input.get_motion_event(top_select_rect).type == motion_type::TOUCH_UP;
-        bool bottom_clicked = ui->backend->input.get_motion_event(bottom_select_rect).type == motion_type::TOUCH_UP;
+        bool top_clicked = ui->backend->input.get_motion_event(top_select_rect).type == motion_type::CLICKED;
+        bool bottom_clicked = ui->backend->input.get_motion_event(bottom_select_rect).type == motion_type::CLICKED;
         
         if(top_clicked)     top_selected = true;
         if(bottom_clicked)  top_selected = false;
@@ -149,7 +158,7 @@ void unwrapped_options_screen::draw_preview_ui() {
             rect::lerp(unwrapped_uv, split_unwrapped_uv, select_animation.value));
 }
 
-void unwrapped_options_screen::draw() {
+bool unwrapped_options_screen::draw() {
     if(blendin_animation.state == animation_state::WAITING) {
         blendin_animation.start();
     }
@@ -161,6 +170,8 @@ void unwrapped_options_screen::draw() {
     draw_ui();
     draw_preview_ui();
     draw_select_ui();
+
+    return next_clicked;
 }
 
 export_item_card::export_item_card(ui_manager* ui, texture_asset_id icon, const char* title) : ui(ui), icon(icon), 
@@ -183,17 +194,17 @@ bool export_item_card::draw() {
     const texture_asset* asset = ui->assets->get_texture_asset(icon);
     ui->backend->draw_rounded_textured_quad(icon_bounds, {}, asset->tex, { {}, {1, 1} });
 
-    title.render();
+    title.draw();
     checkbox.draw();
 
     motion_event event = ui->backend->input.get_motion_event(bounds);
-    bool released = (event.type == motion_type::TOUCH_UP);
+    bool clicked = (event.type == motion_type::CLICKED);
 
-    if(released) {
+    if(clicked) {
         checkbox.set_checked(!checkbox.checked);
     }
 
-    return released;
+    return clicked;
 }
 
 export_options_screen::export_options_screen(ui_manager* ui) : ui(ui),
@@ -238,7 +249,7 @@ export_options_screen::export_options_screen(ui_manager* ui) : ui(ui),
 void export_options_screen::draw_ui() {
     SCOPED_COMPOSITE_GROUP(ui->backend, {}, true, 1.0f - dialogue_animation.value);
 
-    export_text.render();
+    export_text.draw();
 
     for(s32 i = 0; i < EXPORT_CARD_COUNT; i++) {
         export_cards[i]->draw();
@@ -302,6 +313,12 @@ void docscanner::pipeline::render() {
         if(cam_preview_screen.unwrap_animation.state == FINISHED) {
             redraw = true;
             options_screen.draw();
+            
+            if(options_screen.discard_clicked) {
+                displayed_screen = screen_name::CAM_PREVIEW;
+            } else if(options_screen.next_clicked) {
+                displayed_screen = screen_name::EXPORT_OPTIONS;
+            }
         }
     } else if(displayed_screen == screen_name::EXPORT_OPTIONS) {
         export_screen.draw();

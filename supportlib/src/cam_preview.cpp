@@ -14,11 +14,12 @@ constexpr f32 preview_aspect_ratio = 4.0f / 3.0f;
 constexpr svec2 unwrap_size = { 1240, 1754 };
 constexpr svec2 downsampled_size = {64, 64};
 constexpr rect cam_preview_crad = { { 0.1, 0.1 }, { 0.1, 0.1 } };
-constexpr f32 top_icons_height = 0.05f;
+constexpr f32 bar_height = 0.05f;
 
 cam_preview::cam_preview(engine_backend* backend, ui_manager* ui, f32 bottom_edge, const rect& unwrapped_rect) 
     : backend(backend), ui(ui),
       flash_button(ui, ui->theme.white, ui->assets->load_sdf_animation_asset("flash")),
+      title_text(backend, ui->small_font, text_alignment::CENTER, "Document Scanner", ui->theme.white),
       shutter_animation(backend, animation_curve::EASE_IN_OUT, 0.75f, 0.65f, 0.0f, 0.15f, RESET_AFTER_COMPLETION | CONTINUE_PLAYING_REVERSED),
       unwrap_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.0f, 1.0f, 0),
       blendout_animation(backend, animation_curve::EASE_IN_OUT, 0.0f, 1.0f, 0.2f, 0.5f, 0),
@@ -35,10 +36,12 @@ cam_preview::cam_preview(engine_backend* backend, ui_manager* ui, f32 bottom_edg
     nn_contour_out = new u8[nn_contour_out_size];
 
     rect screen = ui->get_screen_rect();
-    screen = get_between(screen, 0.05f, 0.05f + top_icons_height);
-    screen = cut_margins(screen, { {0.05f, 0}, {0.05f, 0} });
-    screen = get_texture_aligned_rect(screen, { 1, 1 }, alignment::LEFT);
-    flash_button.layout(screen);
+    rect icon_bar  = cut_margins(get_between(screen, 0.05f, 0.05f + bar_height), { {0.05f, 0}, {0.05f, 0} });
+
+    title_text.layout(icon_bar);
+    
+    rect flash_icon_rect = get_texture_aligned_rect(icon_bar, { 1, 1 }, alignment::LEFT);
+    flash_button.layout(flash_icon_rect);
 
     shutter_program = backend->compile_and_link(vert_quad_src(), frag_shutter_src());
     
@@ -152,25 +155,11 @@ void cam_preview::draw_ui() {
 #endif
     }
 
-    vec2 pos = { 0.5f, backend->preview_height - 0.25f };
-    vec2 size = { 0.25f, 0.25f };
-    rect shutter_rect = rect::from_middle_and_size(pos, size);
-
-    motion_event event = backend->input.get_motion_event(shutter_rect);
-    if(event.type == motion_type::TOUCH_DOWN) {
-        shutter_animation.start();
-        unwrap();
-    }
+    title_text.draw();
 
     if(flash_button.draw()) {
         LOGI("flash tapped!");
     }
-
-    backend->use_program(shutter_program);
-    get_variable(shutter_program, "inner_out").set_f32(shutter_animation.update());
-    backend->draw_quad(shutter_program, shutter_rect);
-
-    backend->DEBUG_draw();
 }
 
 void cam_preview::draw_unwrapped_ui() {
@@ -190,6 +179,26 @@ void cam_preview::draw_unwrapped_ui() {
             border.render(backend->time);
         }
     }
+}
+
+void cam_preview::draw_shutter() {
+    SCOPED_COMPOSITE_GROUP(backend, vec3({}), true, 1.0f - blendout_animation.value);
+
+    vec2 pos = { 0.5f, backend->preview_height - 0.25f };
+    vec2 size = { 0.25f, 0.25f };
+    rect shutter_rect = rect::from_middle_and_size(pos, size);
+
+    motion_event event = backend->input.get_motion_event(shutter_rect);
+    if(event.type == motion_type::CLICKED) {
+        shutter_animation.start();
+        unwrap();
+    }
+
+    backend->use_program(shutter_program);
+    get_variable(shutter_program, "inner_out").set_f32(shutter_animation.update());
+    backend->draw_quad(shutter_program, shutter_rect);
+
+    backend->DEBUG_draw();
 }
 
 void cam_preview::render() {
@@ -217,4 +226,5 @@ void cam_preview::render() {
 
     draw_ui();
     draw_unwrapped_ui();
+    draw_shutter();
 }

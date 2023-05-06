@@ -182,7 +182,7 @@ void text::set_text(const std::string str) {
     this->str = str;
 }
 
-void text::render() {
+void text::draw() {
     font->use(0);
 
     vec2 text_size = { 0.0f, 0.0f };
@@ -249,7 +249,7 @@ bool button::draw() {
     vec3 bg_color = vec3::lerp(color, click_color, click_animation.update());
     ui->backend->draw_rounded_colored_quad(bounds, crad, bg_color);
 
-    content.render();
+    content.draw();
 
     motion_event event = ui->backend->input.get_motion_event(bounds);
     bool clicked = (event.type == motion_type::TOUCH_DOWN);
@@ -278,7 +278,9 @@ void line_seperator::draw() {
 }
 
 round_checkbox::round_checkbox(ui_manager* ui, bool checked) : ui(ui), checked(checked), checked_icon(ui->assets->load_sdf_animation_asset("checked")),
-    check_animation(ui->backend, animation_curve::EASE_IN_OUT, 0, 1, 0, 0.15f, 0) {}
+    check_animation(ui->backend, animation_curve::EASE_IN_OUT, 0, 1, 0, 0.15f, 0) {
+    if(!checked) check_animation.reverse();
+}
 
 void round_checkbox::layout(rect bounds) {
     this->bounds = bounds;
@@ -288,6 +290,7 @@ void round_checkbox::set_checked(bool checked) {
     if(checked == this->checked) return;
 
     this->checked = checked;
+    check_animation.reverse();
     check_animation.start();
 }
 
@@ -296,7 +299,12 @@ void round_checkbox::toggle_checked() {
 }
 
 void round_checkbox::draw() {
+    check_animation.update();
+
     // TODO: Do we need non-square checkbox rectangles?
+    rect bounds = rect::lerp(
+        rect::from_middle_and_size(this->bounds.middle(), this->bounds.size() * 0.8f),
+        this->bounds, std::abs(check_animation.value - 0.5f));
     vec2 h_size = bounds.size() * 0.5f;
     f32 crad = std::min(h_size.x, h_size.y);
 
@@ -304,7 +312,7 @@ void round_checkbox::draw() {
     
     ui->backend->draw_rounded_colored_quad(bounds, { {crad, crad}, {crad, crad} }, ui->theme.background_accent_color);
         
-    f32 zero_dist = checked ? lerp(0, asset->zero_dist, check_animation.update()) : lerp(asset->zero_dist, 0, check_animation.update());
+    f32 zero_dist = lerp(0, asset->zero_dist, check_animation.value);
     ui->backend->draw_colored_sdf_quad(bounds, asset->tex, ui->theme.foreground_color, 0, 0, 0, zero_dist);
 }
 

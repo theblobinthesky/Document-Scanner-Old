@@ -34,6 +34,8 @@ struct cam_preview {
     mesh_cutout cutout;
 
     sdf_button flash_button;
+    text title_text;
+
     shader_program shutter_program;
     animation<f32> shutter_animation;
 
@@ -50,6 +52,7 @@ struct cam_preview {
     void unwrap();
     void draw_ui();
     void draw_unwrapped_ui();
+    void draw_shutter();
     void render();
 };
 
