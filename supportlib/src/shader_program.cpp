@@ -328,7 +328,7 @@ std::string rounded_box_sdf_src() {
     )";
 }
 
-std::string docscanner::frag_rounded_colored_quad_src() {
+std::string docscanner::frag_rounded_colored_quad_desc_src() {
     return version_and_precision_head define_edge_softness R"(
         in vec2 out_rel_pos;
         in vec2 out_uvs;
@@ -360,7 +360,7 @@ std::string docscanner::frag_rounded_colored_quad_src() {
     )";
 }
 
-std::string docscanner::frag_rounded_textured_quad_src(bool use_oes) {
+std::string docscanner::frag_rounded_textured_quad_desc_src(bool use_oes) {
     return version_head + get_sampler_src(use_oes, 0) + precision_head + define_edge_softness + R"(
         in vec2 out_rel_pos;
         in vec2 out_uvs;
@@ -385,7 +385,7 @@ std::string docscanner::frag_rounded_textured_quad_src(bool use_oes) {
     )";
 }
 
-std::string docscanner::frag_sdf_quad_src() {
+std::string docscanner::frag_sdf_quad_desc_src() {
     return version_head "precision mediump sampler2DArray;\n" + get_array_sampler_src(0) + precision_head + R"(
         in vec2 out_rel_pos;
         in vec2 out_uvs;

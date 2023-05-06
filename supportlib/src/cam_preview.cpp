@@ -157,13 +157,13 @@ void cam_preview::draw_ui() {
 
     if(backend->cam_is_init) {
 #if CAM_USES_OES_TEXTURE
-        backend->draw_rounded_oes_textured_quad({
+        backend->draw_rounded_oes_textured_quad_desc({
             .bounds = cam_pos_bounds, .crad = cam_preview_crad, 
             .uv_bounds = cam_uv_bounds, .uv_rot = rot_mode::ROT_270_DEG
         });
 #else
         const texture* cam_tex = get_camera_frame_texture(backend->cam);
-        backend->draw_rounded_textured_quad({ 
+        backend->draw_rounded_textured_quad_desc({ 
             .bounds = cam_pos_bounds, .crad = cam_preview_crad, 
             .tex = *cam_tex, .uv_bounds = cam_uv_bounds, .uv_rot = rot_mode::ROT_270_DEG
         });

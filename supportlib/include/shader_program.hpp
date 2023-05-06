@@ -32,10 +32,10 @@ std::string frag_particle_src();
 
 std::string frag_shutter_src();
 
-std::string frag_rounded_colored_quad_src();
+std::string frag_rounded_colored_quad_desc_src();
 
-std::string frag_rounded_textured_quad_src(bool use_oes);
+std::string frag_rounded_textured_quad_desc_src(bool use_oes);
 
-std::string frag_sdf_quad_src();
+std::string frag_sdf_quad_desc_src();
 
 NAMESPACE_END

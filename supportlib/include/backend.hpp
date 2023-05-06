@@ -125,13 +125,13 @@ struct scoped_transform {
 #define SCOPED_TRANSFORM(backend, transform) \
     scoped_transform SCOPED_TRANSFORM_INSTANCE(backend, transform);
 
-struct colored_quad {
+struct colored_quad_desc {
     rect bounds;
     rect crad = {};
     vec4 color;
 };
 
-struct textured_quad {
+struct textured_quad_desc {
     rect bounds;
     rect crad = {};
     texture tex;
@@ -140,7 +140,7 @@ struct textured_quad {
     rot_mode uv_rot = rot_mode::ROT_0_DEG;
 };
 
-struct sdf_quad {
+struct sdf_quad_desc {
     rect bounds;
     stack_texture tex;
     vec4 color;
@@ -167,7 +167,7 @@ struct engine_backend {
     shader_buffer quad_buffer;
     shader_program rounded_quad_with_color;
     shader_program rounded_quad_with_texture;
-    shader_program sdf_quad_with_texture;
+    shader_program sdf_quad_desc_with_texture;
 
 #ifdef USES_OES_TEXTURES
     shader_program rounded_quad_with_oes_texture;
@@ -204,12 +204,12 @@ struct engine_backend {
     void draw_quad(const shader_program& program, const rect& bounds);
     void draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds);
     void draw_quad(const shader_program& program, const rect& bounds, const rect& uv_bounds, rot_mode uv_rot);
-    void draw_rounded_colored_quad(const colored_quad& quad);
-    void draw_rounded_textured_quad(const textured_quad& quad);
-    void draw_colored_sdf_quad(const sdf_quad& quad);
+    void draw_rounded_colored_quad_desc(const colored_quad_desc& quad);
+    void draw_rounded_textured_quad_desc(const textured_quad_desc& quad);
+    void draw_colored_sdf_quad_desc(const sdf_quad_desc& quad);
 
 #ifdef USES_OES_TEXTURES
-    void draw_rounded_oes_textured_quad(const textured_quad& quad);
+    void draw_rounded_oes_textured_quad_desc(const textured_quad_desc& quad);
 #endif
 
 #ifdef DEBUG

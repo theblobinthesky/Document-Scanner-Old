@@ -142,12 +142,12 @@ engine_backend::engine_backend(file_context* file_ctx, thread_pool* threads, sve
     quad_buffer = make_shader_buffer();
     fill_shader_buffer(quad_buffer, vertices, sizeof(vertices), indices, sizeof(indices));
 
-    rounded_quad_with_color = compile_and_link(vert_quad_src(), frag_rounded_colored_quad_src());
-    rounded_quad_with_texture = compile_and_link(vert_quad_src(), frag_rounded_textured_quad_src(false));
-    sdf_quad_with_texture = compile_and_link(vert_quad_src(), frag_sdf_quad_src());
+    rounded_quad_with_color = compile_and_link(vert_quad_src(), frag_rounded_colored_quad_desc_src());
+    rounded_quad_with_texture = compile_and_link(vert_quad_src(), frag_rounded_textured_quad_desc_src(false));
+    sdf_quad_desc_with_texture = compile_and_link(vert_quad_src(), frag_sdf_quad_desc_src());
 
 #if USES_OES_TEXTURES
-    rounded_quad_with_oes_texture = compile_and_link(vert_quad_src(), frag_rounded_textured_quad_src(true));
+    rounded_quad_with_oes_texture = compile_and_link(vert_quad_src(), frag_rounded_textured_quad_desc_src(true));
 #endif
  
 
@@ -244,7 +244,7 @@ void engine_backend::begin_composite_group(const composite_group& comp) {
 void engine_backend::end_composite_group() {
     unbind_framebuffer();
 
-    draw_rounded_textured_quad({ .bounds = { {}, {1.0f, preview_height} }, .tex = comp_texture, .opacity = comp.opacity, .uv_rot = rot_mode::ROT_180_DEG });
+    draw_rounded_textured_quad_desc({ .bounds = { {}, {1.0f, preview_height} }, .tex = comp_texture, .opacity = comp.opacity, .uv_rot = rot_mode::ROT_180_DEG });
 }
 
 void engine_backend::draw_quad(const shader_program& program, const rect& bounds) {
@@ -287,7 +287,7 @@ void engine_backend::draw_quad(const shader_program& program, const rect& bounds
 }
 
 
-void engine_backend::draw_rounded_colored_quad(const colored_quad& quad) {
+void engine_backend::draw_rounded_colored_quad_desc(const colored_quad_desc& quad) {
     use_program(rounded_quad_with_color);
     get_variable(rounded_quad_with_color, "quad_size").set_vec2(quad.bounds.size());
     get_variable(rounded_quad_with_color, "corner_rad").set_vec4(quad.crad);
@@ -296,7 +296,7 @@ void engine_backend::draw_rounded_colored_quad(const colored_quad& quad) {
     draw_quad(rounded_quad_with_color, quad.bounds);
 }
 
-void engine_backend::draw_rounded_textured_quad(const textured_quad& quad) {
+void engine_backend::draw_rounded_textured_quad_desc(const textured_quad_desc& quad) {
     bind_texture_to_slot(0, quad.tex);
 
     use_program(rounded_quad_with_texture);
@@ -306,18 +306,18 @@ void engine_backend::draw_rounded_textured_quad(const textured_quad& quad) {
     draw_quad(rounded_quad_with_texture, quad.bounds, quad.uv_bounds, quad.uv_rot);
 }
 
-void engine_backend::draw_colored_sdf_quad(const sdf_quad& quad) {
+void engine_backend::draw_colored_sdf_quad_desc(const sdf_quad_desc& quad) {
     bind_texture_to_slot(0, quad.tex);
 
-    use_program(sdf_quad_with_texture);
-    get_variable(sdf_quad_with_texture, "zero_dist").set_f32(quad.blendin);
-    get_variable(sdf_quad_with_texture, "depths").set_vec3({quad.from_depth, quad.to_depth, quad.blend_depth * 0.999f}); // 0.999f makes it not reset at 1.0f
-    get_variable(sdf_quad_with_texture, "color").set_vec4(quad.color);
-    draw_quad(sdf_quad_with_texture, quad.bounds, { {}, {1, 1} }, quad.uv_rot);
+    use_program(sdf_quad_desc_with_texture);
+    get_variable(sdf_quad_desc_with_texture, "zero_dist").set_f32(quad.blendin);
+    get_variable(sdf_quad_desc_with_texture, "depths").set_vec3({quad.from_depth, quad.to_depth, quad.blend_depth * 0.999f}); // 0.999f makes it not reset at 1.0f
+    get_variable(sdf_quad_desc_with_texture, "color").set_vec4(quad.color);
+    draw_quad(sdf_quad_desc_with_texture, quad.bounds, { {}, {1, 1} }, quad.uv_rot);
 }
 
 #ifdef USES_OES_TEXTURES
-void engine_backend::draw_rounded_oes_textured_quad(const textured_quad& quad) {
+void engine_backend::draw_rounded_oes_textured_quad_desc(const textured_quad_desc& quad) {
     use_program(rounded_quad_with_oes_texture);
     get_variable(rounded_quad_with_texture, "opacity").set_f32(1.0f);
     get_variable(rounded_quad_with_oes_texture, "quad_size").set_vec2(quad.bounds.size());
