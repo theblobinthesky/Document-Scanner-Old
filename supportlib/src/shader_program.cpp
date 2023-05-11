@@ -340,8 +340,7 @@ std::string docscanner::frag_rounded_colored_quad_desc_src() {
 
         uniform vec2  quad_size;
         uniform vec4  corner_rad;
-        uniform vec4  light_color;
-        uniform vec4  dark_color;
+        uniform vec4  color;
         uniform vec4  border_color;
         uniform float border_thickness;
 
@@ -361,10 +360,8 @@ std::string docscanner::frag_rounded_colored_quad_desc_src() {
             float norm_distance = abs(distance) / length(half_size);
             float color_mix = smoothstep(color_mix_dist, color_mix_dist + color_mix_width, norm_distance);
 
-            vec4 color = mix(dark_color, light_color, color_mix);
-            color = mix(color, border_color, smoothed_border_alpha);
-
-            out_col = vec4(color.rgb, smoothed_alpha * color.a);
+            out_col = mix(color, border_color, smoothed_border_alpha);
+            out_col = vec4(out_col.rgb, smoothed_alpha * out_col.a);
         }
     )";
 }

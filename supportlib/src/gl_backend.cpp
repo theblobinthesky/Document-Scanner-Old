@@ -291,8 +291,7 @@ void engine_backend::draw_rounded_colored_quad_desc(const colored_quad_desc& qua
     use_program(rounded_quad_with_color);
     get_variable(rounded_quad_with_color, "quad_size").set_vec2(quad.bounds.size());
     get_variable(rounded_quad_with_color, "corner_rad").set_vec4(quad.crad);
-    get_variable(rounded_quad_with_color, "light_color").set_vec4(quad.color);
-    get_variable(rounded_quad_with_color, "dark_color").set_vec4(quad.color * 0.95f);
+    get_variable(rounded_quad_with_color, "color").set_vec4(quad.color);
     get_variable(rounded_quad_with_color, "border_color").set_vec4(quad.border_color);
     get_variable(rounded_quad_with_color, "border_thickness").set_f32(quad.border_thickness);
     draw_quad(rounded_quad_with_color, quad.bounds);

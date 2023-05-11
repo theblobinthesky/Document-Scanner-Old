@@ -339,7 +339,7 @@ void docscanner::pipeline::render() {
 
     bool redraw = false;
 
-    // displayed_screen = screen_name::UNWRAPPED_OPTIONS;
+    // displayed_screen = screen_name::EXPORT_OPTIONS;
     if(displayed_screen == screen_name::CAM_PREVIEW) {
         redraw = true;
 
